@@ -1,0 +1,43 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Novo sinal — LibrAI</title>
+    <link rel="icon" type="image/png" href="{% static 'img/logo.png' %}">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+
+<body class="gestos">{% include "libras/_header.html" %}
+    <main class="section-wrap gestures-page gestures-page-form">
+        <div class="page-intro">
+            <p class="section-label">CADASTRO COLABORATIVO</p>
+            <h1>Novo sinal</h1>
+            <p class="gestures-subtitle">Descreva o sinal com um título e, se quiser, uma observação sobre ele.</p>
+        </div>
+        <form class="form-card" method="post" action="{% url 'gesto_novo' %}">
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+            <div class="form-field">
+                <label for="{{ form.titulo.id_for_label }}">{{ form.titulo.label }}</label>
+                {{ form.titulo }}
+                {% for error in form.titulo.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                <p class="form-hint">Ex.: "Obrigado", "Bom dia", "Nome Leonardo".</p>
+            </div>
+            <div class="form-field">
+                <label for="{{ form.descricao.id_for_label }}">{{ form.descricao.label }}</label>
+                {{ form.descricao }}
+                {% for error in form.descricao.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                <p class="form-hint">Opcional: contexto, observações ou a descrição do gesto.</p>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="primary-button">Salvar sinal</button>
+                <a class="text-link" href="{% url 'gestos' %}">Cancelar</a>
+            </div>
+        </form>
+    </main>
+</body>
+
+</html>

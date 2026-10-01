@@ -1363,3 +1363,244 @@ body.recognizer .header-cta span {
         scroll-behavior: auto;
     }
 }
+
+/* ==========================================================================
+   15. GESTOS — páginas de sinais (reutiliza os tokens e componentes atuais)
+   ========================================================================== */
+.gestures-page {
+    padding-block: 44px 90px;
+}
+
+.gestures-page .page-intro h1 {
+    margin: 10px 0 10px;
+    font-size: clamp(1.7rem, 3vw, 2.4rem);
+}
+
+.gestures-subtitle {
+    color: var(--color-text-secondary);
+    font-size: 14.5px;
+    line-height: 1.7;
+    max-width: 560px;
+    margin: 0;
+}
+
+.gestures-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    margin: 30px 0 24px;
+}
+
+.gesto-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+}
+
+.gesto-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 22px;
+    transition: transform .25s, box-shadow .25s, border-color .25s;
+}
+
+.gesto-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--color-primary);
+}
+
+.gesto-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.gesto-card h3 {
+    font-size: 1.05rem;
+    margin: 0;
+}
+
+.gesto-status {
+    font: 500 9px var(--font-mono);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--color-success);
+    background: rgba(47, 158, 110, .12);
+    border-radius: var(--radius-full);
+    padding: 5px 9px;
+    white-space: nowrap;
+}
+
+.gesto-card p {
+    margin: 0;
+}
+
+.gesto-card-desc {
+    flex-grow: 1;
+    color: var(--color-text-secondary);
+    font-size: 13.5px;
+    line-height: 1.65;
+}
+
+.gesto-card-date {
+    color: var(--color-text-muted);
+    font: 500 10px var(--font-mono);
+}
+
+.empty-state {
+    display: grid;
+    gap: 10px;
+    justify-items: center;
+    text-align: center;
+    background: var(--color-surface);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 56px 24px;
+}
+
+.empty-state .empty-title {
+    font-size: 17px;
+    font-weight: 800;
+    margin: 0;
+}
+
+.empty-state p {
+    color: var(--color-text-secondary);
+    font-size: 13.5px;
+    margin: 0;
+}
+
+.empty-state .primary-button {
+    margin-top: 12px;
+}
+
+/* Mensagens do Django (sucesso/erro) */
+.messages {
+    list-style: none;
+    margin: 0 0 22px;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+}
+
+.messages li {
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    font-size: 13.5px;
+    font-weight: 700;
+}
+
+.messages li.success {
+    background: rgba(47, 158, 110, .1);
+    border: 1px solid rgba(47, 158, 110, .35);
+    color: #20613F;
+}
+
+.messages li.error {
+    background: rgba(217, 90, 71, .08);
+    border: 1px solid rgba(217, 90, 71, .35);
+    color: var(--color-error);
+}
+
+/* Formulário de cadastro */
+.form-card {
+    display: grid;
+    gap: 20px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 30px;
+    max-width: 560px;
+}
+
+.form-field {
+    display: grid;
+    gap: 8px;
+}
+
+.form-field label {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--color-text);
+}
+
+.form-field input,
+.form-field textarea {
+    width: 100%;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    padding: 12px 14px;
+    font: 500 14px var(--font-body);
+    color: var(--color-text);
+    transition: border-color .2s, box-shadow .2s;
+}
+
+.form-field input:focus,
+.form-field textarea:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+
+.form-field textarea {
+    resize: vertical;
+    min-height: 110px;
+}
+
+.form-hint {
+    color: var(--color-text-muted);
+    font-size: 11.5px;
+    margin: 0;
+}
+
+.form-error {
+    color: var(--color-error);
+    font-size: 12.5px;
+    font-weight: 700;
+    margin: 0;
+}
+
+.form-actions {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin-top: 6px;
+}
+
+button.primary-button {
+    border: 0;
+    font-family: var(--font-body);
+    cursor: pointer;
+}
+
+@media (max-width:1024px) {
+    .gesto-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width:800px) {
+
+    .gesto-grid,
+    .gestures-toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .gestures-toolbar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .form-card {
+        padding: 22px;
+    }
+}

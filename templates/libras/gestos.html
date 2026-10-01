@@ -1,0 +1,51 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Gestos — LibrAI</title>
+    <link rel="icon" type="image/png" href="{% static 'img/logo.png' %}">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+
+<body class="gestos">{% include "libras/_header.html" %}
+    <main class="section-wrap gestures-page">
+        <div class="page-intro">
+            <p class="section-label">CADASTRO COLABORATIVO</p>
+            <h1>Gestos</h1>
+            <p class="gestures-subtitle">Esta área reúne os sinais cadastrados para o LibrAI. Cada sinal é
+                uma entrada do vocabulário que o projeto poderá aprender a reconhecer.</p>
+        </div>
+        {% if messages %}
+        <ul class="messages">{% for message in messages %}<li class="{{ message.tags }}">{{ message }}</li>{% endfor %}</ul>
+        {% endif %}
+        <div class="gestures-toolbar">
+            <span class="section-label">{{ sinais|length }} {% if sinais|length == 1 %}sinal{% else %}sinais{% endif %}</span>
+            <a class="primary-button" href="{% url 'gesto_novo' %}">Cadastrar novo sinal <span aria-hidden="true">→</span></a>
+        </div>
+        {% if sinais %}
+        <div class="gesto-grid">
+            {% for sinal in sinais %}
+            <article class="gesto-card">
+                <div class="gesto-card-top">
+                    <h3>{{ sinal.titulo }}</h3>
+                    <span class="gesto-status">Ativo</span>
+                </div>
+                <p class="gesto-card-desc">{{ sinal.descricao|default:"—" }}</p>
+                <p class="gesto-card-date">Cadastrado em {{ sinal.criado_em|date:"d/m/Y à\s H:i" }}</p>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p class="empty-title">Ainda não existem sinais cadastrados.</p>
+            <p>Cadastre o primeiro sinal para começar a construir o vocabulário do LibrAI.</p>
+            <a class="primary-button" href="{% url 'gesto_novo' %}">Cadastrar novo sinal <span aria-hidden="true">→</span></a>
+        </div>
+        {% endif %}
+    </main>
+</body>
+
+</html>

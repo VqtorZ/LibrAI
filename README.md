@@ -1,7 +1,7 @@
 # LIBRAS Vision
 
 Aplicação local em Django que transmite a webcam via OpenCV e reconhece alguns
-gestos estáticos demonstrativos de Libras (`A`, `B`, `L` e `S`) usando marcos da
+gestos estáticos demonstrativos de Libras (`A`, `B`, `C` e `D`) usando marcos da
 mão do MediaPipe.
 
 ## Executar no Windows (PowerShell)

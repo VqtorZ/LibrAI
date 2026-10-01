@@ -1,0 +1,52 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Reconhecimento — LibrAI</title>
+    <link rel="icon" type="image/png" href="{% static 'img/logo.png' %}">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+
+<body class="recognizer">{% include "libras/_header.html" %}<main class="recognizer-layout">
+        <div>
+            <div class="page-intro">
+                <p class="section-label">SESSÃO AO VIVO</p>
+                <h1>Reconhecimento de sinais</h1>
+            </div>
+            <section class="camera"><img src="{% url 'video_feed' %}"
+                    alt="Transmissão da webcam para reconhecimento de Libras">
+                <div class="camera-topline"><span><i></i> AO VIVO</span><span>Webcam local</span></div>
+                <div class="scan"></div>
+            </section>
+            <p class="camera-caption">A imagem é processada no seu dispositivo e não é armazenada.</p>
+        </div>
+        <aside class="recognition-panel">
+            <div class="panel-heading">
+                <p class="section-label">SINAL DETECTADO</p><span class="pulse-label"><i></i> analisando</span>
+            </div><output id="label">Aguardando câmera</output>
+            <p id="meaning" class="meaning">Posicione a mão no enquadramento para começar.</p>
+            <p id="error" class="error"></p>
+            <div class="panel-divider"></div>
+            <h2>Para uma leitura melhor</h2>    
+            <ul>
+                <li><span>01</span> Use um ambiente bem iluminado.</li>
+                <li><span>02</span> Mantenha apenas uma mão no enquadramento.</li>
+                <li><span>03</span> Deixe a palma visível para a câmera.</li>
+            </ul>
+            <div class="signal-set"><small>ALFABETO MANUAL BRASILEIRO · CONSULTA</small>
+                <div class="alphabet-grid">{% for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" %}<b
+                        title="Letra {{ letter }}">{{ letter }}</b>{% endfor %}</div>
+                <p class="alphabet-note">O modelo reconhece as letras para as quais você coletou amostras e treinou o
+                    classificador. J e Z exigem análise de movimento.</p><a class="source-link"
+                    href="https://www.handtalk.me/br/blog/libras/" target="_blank" rel="noopener">Consultar referência
+                    brasileira ↗</a>
+            </div>
+        </aside>
+    </main>
+    <script>const label = document.querySelector('#label'), error = document.querySelector('#error'), meaning = document.querySelector('#meaning'); let previous = ''; function getMeaning(value) { if (/^[A-Z]$/.test(value)) return `Sinal ${value} identificado. Mantenha o gesto firme por alguns instantes.`; if (value === 'Modelo não treinado') return 'Cole amostras de A a Z e treine o modelo para ativar todas as letras.'; if (value === 'Sinal não identificado') return 'A confiança foi baixa. Ajuste a mão e a iluminação.'; return 'Posicione uma mão no enquadramento para começar.'; } async function update() { try { const r = await fetch('{% url "status" %}'); const d = await r.json(); label.textContent = d.label; meaning.textContent = getMeaning(d.label); if (/^[A-Z]$/.test(d.label) && d.label !== previous) { label.classList.remove('gesture-appeared'); void label.offsetWidth; label.classList.add('gesture-appeared') } previous = d.label; error.textContent = d.error || ''; } catch { } } update(); setInterval(update, 600);</script>
+</body>
+
+</html>

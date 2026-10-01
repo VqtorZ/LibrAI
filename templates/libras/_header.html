@@ -1,0 +1,11 @@
+{% load static %}
+<header class="shared-header" id="shared-header">
+  <a class="brand" href="{% url 'home' %}#inicio" aria-label="LibrAI"><img class="brand-logo"
+      src="{% static 'img/logo.png' %}" alt="LibrAI"><span>LibrAI</span></a>
+  <nav class="header-left" aria-label="Navegação do projeto"><a href="{% url 'home' %}#projeto">O projeto</a><a
+      href="{% url 'home' %}#como-funciona">Como funciona</a></nav>
+  <a class="hand-switch pull" href="{% url 'recognizer' %}" aria-label="Abrir câmera"><span
+      class="hand-symbol">✋</span><span class="hand-tooltip">Abrir câmera</span></a>
+  <nav class="header-right" aria-label="Navegação de impacto"><a href="{% url 'home' %}#impacto">Impacto</a><a
+      href="{% url 'home' %}#esg">Compromisso</a></nav>
+</header>

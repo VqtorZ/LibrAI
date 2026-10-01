@@ -1,0 +1,120 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="LibrAI: tecnologia local para apoiar a comunicação em Libras.">
+    <link rel="icon" type="image/png" href="{% static 'img/logo.png' %}">
+    <title>LibrAI — Comunicação mais acessível</title>
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+
+<body class="site-home">{% include "libras/_header.html" %}<main id="inicio">
+        <section class="hero section-wrap">
+            <div class="hero-copy">
+                <p class="kicker"><i></i> Tecnologia para incluir</p>
+                <h1>Comunicar é<br><em>pertencer.</em></h1>
+                <p class="hero-text">Uma experiência local que une visão computacional e Libras para tornar a tecnologia
+                    mais atenta às diferentes formas de expressão.</p>
+                <div class="hero-actions"><a class="primary-button" href="{% url 'recognizer' %}">Iniciar reconhecimento
+                        <span>→</span></a><a class="text-link" href="#projeto">Conheça o projeto <span>↓</span></a>
+                </div>
+                <p class="privacy-note"><span class="lock">⌁</span> Sua imagem é processada localmente no computador.
+                </p>
+            </div>
+            <div class="hero-art" aria-hidden="true">
+                <div class="orb orb-one"></div>
+                <div class="orb orb-two"></div>
+                <div class="grid-lines"></div>
+                <div class="hand-illustration">✋</div>
+                <div class="tracking-card"><span class="live-dot"></span><span>Reconhecimento
+                        ativo</span><strong>LIBRAS</strong></div>
+                <div class="coordinate-card"><span>21</span> pontos de referência<br><small>análise de gestos em tempo
+                        real</small></div>
+            </div>
+        </section>
+        <section class="intro section-wrap reveal" id="projeto">
+            <p class="section-label">01 — O PROJETO</p>
+            <div>
+                <h2>Uma ponte entre<br>pessoas e tecnologia.</h2>
+                <p>O LibrAI é um protótipo educacional de reconhecimento de sinais pela webcam. Ele explora como
+                    inteligência artificial pode apoiar a acessibilidade digital sem perder de vista as pessoas que
+                    estão no centro da conversa.</p>
+            </div>
+        </section>
+        <section class="feature-band" id="como-funciona">
+            <div class="section-wrap reveal">
+                <p class="section-label light">02 — COMO FUNCIONA</p>
+                <h2>Da câmera para<br>a compreensão.</h2>
+                <div class="steps">
+                    <article><span>01</span>
+                        <h3>Você sinaliza</h3>
+                        <p>A webcam é ativada somente quando você inicia a experiência.</p>
+                    </article>
+                    <article><span>02</span>
+                        <h3>O sistema observa</h3>
+                        <p>O OpenCV identifica a imagem e localiza os marcos da mão.</p>
+                    </article>
+                    <article><span>03</span>
+                        <h3>O gesto ganha sentido</h3>
+                        <p>O classificador apresenta o sinal reconhecido em tempo real.</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+        <section class="impact section-wrap reveal" id="impacto">
+            <div class="impact-heading">
+                <p class="section-label">03 — POR QUE IMPORTA</p>
+                <h2>Acessibilidade não é recurso extra. É ponto de partida.</h2>
+            </div>
+            <div class="impact-cards">
+                <article><span class="icon">◎</span>
+                    <h3>Autonomia</h3>
+                    <p>Ferramentas inclusivas ajudam a ampliar participação e independência nas experiências digitais.
+                    </p>
+                </article>
+                <article><span class="icon">⌘</span>
+                    <h3>Aprendizado</h3>
+                    <p>Projetos abertos e locais aproximam estudantes de Libras, visão computacional e acessibilidade.
+                    </p>
+                </article>
+                <article><span class="icon">↗</span>
+                    <h3>Conexão</h3>
+                    <p>Uma tecnologia mais humana valoriza diferentes modos de comunicar e fortalece vínculos.</p>
+                </article>
+            </div>
+        </section>
+        <section class="esg section-wrap" id="esg">
+            <div>
+                <p class="section-label light">04 — COMPROMISSO ESG</p>
+                <h2>Inovação que considera seu impacto.</h2>
+            </div>
+            <div class="esg-content">
+                <p>Tecnologia deve reduzir barreiras, não criar novas. O processamento local prioriza privacidade,
+                    enquanto a proposta de acessibilidade contribui para ambientes digitais mais diversos e equitativos.
+                </p>
+                <div class="pill-list"><span>S · Inclusão social</span><span>G · Privacidade por padrão</span><span>E ·
+                        Solução digital leve</span></div>
+            </div>
+        </section>
+        <section class="closing section-wrap">
+            <p class="kicker"><i></i> Pronto para experimentar?</p>
+            <h2>Uma conversa mais<br><em>acessível começa aqui.</em></h2><a class="primary-button"
+                href="{% url 'recognizer' %}">Abrir reconhecimento <span>→</span></a>
+        </section>
+    </main>
+    <footer class="site-footer">
+        <div class="footer-top"><a class="brand" href="#inicio"><img class="brand-logo"
+                    src="{% static 'img/logo.png' %}" alt="LibrAI"><span>LibrAI</span></a>
+            <p>Visão computacional a serviço da comunicação.</p><a class="mail-link"
+                href="mailto:victorba.rezende@gmail.com">victorba.rezende@gmail.com <span>↗</span></a>
+        </div>
+        <div class="footer-bottom"><span>© 2026 LibrAI</span><span>Feito com propósito para uma web mais
+                acessível.</span></div>
+    </footer>
+    <script>const observer = new IntersectionObserver(items => items.forEach(item => { if (item.isIntersecting) { item.target.classList.add('is-visible'); observer.unobserve(item.target) } }), { threshold: .14 }); document.querySelectorAll('.reveal').forEach(item => observer.observe(item));</script>
+</body>
+
+</html>

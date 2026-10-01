@@ -1,0 +1,37 @@
+# --- Python ---
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.pyc
+*.egg-info/
+build/
+dist/
+
+# --- Django ---
+db.sqlite3
+db.sqlite3-journal
+local_settings.py
+media/
+
+# --- Variaveis de ambiente / segredos ---
+.env
+.env.*
+
+# --- IDE / editores ---
+.vscode/
+.idea/
+*.swp
+*~
+
+# --- Arquivos temporarios do sistema (Windows / macOS / OneDrive) ---
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+~$*
+*.tmp
+*.temp
+*.log
+.DS_Store

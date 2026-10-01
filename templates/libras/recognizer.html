@@ -27,8 +27,8 @@
             <div class="panel-heading">
                 <p class="section-label">SINAL DETECTADO</p><span class="pulse-label"><i></i> analisando</span>
             </div><output id="label">Aguardando câmera</output>
-            <p id="meaning" class="meaning">Posicione a mão no enquadramento para começar.</p>
-            <p id="error" class="error"></p>
+            <p id="meaning" class="meaning" aria-live="polite">Posicione a mão no enquadramento para começar.</p>
+            <p id="error" class="error" role="status"></p>
             <div class="panel-divider"></div>
             <h2>Para uma leitura melhor</h2>    
             <ul>
@@ -38,7 +38,7 @@
             </ul>
             <div class="signal-set"><small>ALFABETO MANUAL BRASILEIRO · CONSULTA</small>
                 <div class="alphabet-grid">{% for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" %}<b
-                        title="Letra {{ letter }}">{{ letter }}</b>{% endfor %}</div>
+                        title="Letra {{ letter }}{% if letter == 'J' or letter == 'Z' %} — sinal com movimento{% endif %}"{% if letter == 'J' or letter == 'Z' %} data-motion{% endif %}>{{ letter }}</b>{% endfor %}</div>
                 <p class="alphabet-note">O modelo reconhece as letras para as quais você coletou amostras e treinou o
                     classificador. J e Z exigem análise de movimento.</p><a class="source-link"
                     href="https://www.handtalk.me/br/blog/libras/" target="_blank" rel="noopener">Consultar referência

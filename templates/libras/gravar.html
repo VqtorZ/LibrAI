@@ -38,6 +38,7 @@
             width: 100%;
             aspect-ratio: 16/9;
             object-fit: cover;
+            transform: scaleX(-1);
         }
 
         .recorder-off {
@@ -235,7 +236,10 @@
                 const canvas = document.createElement('canvas');
                 canvas.width = largura;
                 canvas.height = altura;
-                canvas.getContext('2d').drawImage(video, 0, 0, largura, altura);
+                // Desenha espelhado, na mesma convenção do reconhecedor
+                // (cv2.flip em vision.py) — os landmarks gravados ficam na
+                // mesma orientação do dataset estático.
+                canvas.getContext('2d').drawImage(video, largura, 0, -largura, altura);
                 return {
                     timestamp_ms: Math.round(relativo),
                     imagem: canvas.toDataURL('image/jpeg', 0.7).split(',')[1],

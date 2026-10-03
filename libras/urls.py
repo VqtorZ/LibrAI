@@ -15,4 +15,9 @@ urlpatterns = [
         views.gesto_amostra_salvar,
         name="gesto_amostra_salvar",
     ),
+    path(
+        "gestos/<int:sinal_id>/amostras/<int:amostra_id>/apagar/",
+        views.gesto_amostra_apagar,
+        name="gesto_amostra_apagar",
+    ),
 ]

@@ -8,6 +8,34 @@
     <title>{{ sinal.titulo }} — LibrAI</title>
     <link rel="icon" type="image/png" href="{% static 'img/logo.png' %}">
     <link rel="stylesheet" href="{% static 'css/app.css' %}">
+    <style>
+        .amostra-rodape {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .amostra-rodape form {
+            margin: 0;
+        }
+
+        .amostra-apagar {
+            border: 1px solid rgba(217, 90, 71, .4);
+            background: transparent;
+            color: var(--color-error);
+            border-radius: var(--radius-full);
+            padding: 7px 14px;
+            font: 800 11px var(--font-body);
+            cursor: pointer;
+            transition: background .2s, border-color .2s;
+        }
+
+        .amostra-apagar:hover {
+            background: rgba(217, 90, 71, .08);
+            border-color: var(--color-error);
+        }
+    </style>
 </head>
 
 <body class="gestos">{% include "libras/_header.html" %}
@@ -18,6 +46,9 @@
             <p class="gestures-subtitle">{{ sinal.descricao|default:"Sem descrição cadastrada." }}</p>
             <p class="gesto-card-date">{{ sinal.get_tipo_display }} · cadastrado em {{ sinal.criado_em|date:"d/m/Y" }}</p>
         </div>
+        {% if messages %}
+        <ul class="messages">{% for message in messages %}<li class="{{ message.tags }}">{{ message }}</li>{% endfor %}</ul>
+        {% endif %}
         {% if sinal.tipo == "MOVIMENTO" %}
         <div class="gestures-toolbar">
             <span class="section-label">{{ amostras|length }} {% if amostras|length == 1 %}amostra{% else %}amostras{% endif %}</span>
@@ -33,7 +64,15 @@
                 </div>
                 <p class="gesto-card-desc">Duração de {{ amostra.duracao_segundos }} s · capturada a {{ amostra.fps }} fps
                     · {{ amostra.quantidade_landmarks }} landmarks por frame.</p>
-                <p class="gesto-card-date">Gravada em {{ amostra.criado_em|date:"d/m/Y à\s H:i" }}</p>
+                <div class="amostra-rodape">
+                    <p class="gesto-card-date">Gravada em {{ amostra.criado_em|date:"d/m/Y à\s H:i" }}</p>
+                    <form method="post"
+                        action="{% url 'gesto_amostra_apagar' sinal.pk amostra.pk %}"
+                        onsubmit="return confirm('Apagar a amostra #{{ amostra.pk }}? Esta ação não pode ser desfeita.');">
+                        {% csrf_token %}
+                        <button type="submit" class="amostra-apagar">Apagar</button>
+                    </form>
+                </div>
             </article>
             {% endfor %}
         </div>

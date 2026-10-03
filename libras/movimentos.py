@@ -186,6 +186,24 @@ def ler_sequencia(amostra):
         raise AmostraInvalida("Arquivo da amostra corrompido.")
 
 
+def apagar_amostra(amostra):
+    """Apaga a amostra: o registro no banco e o arquivo JSON correspondente.
+
+    A remoção do arquivo é melhor esforço (com checagem de caminho seguro);
+    se falhar, o registro ainda é apagado — o arquivo órfão fica em
+    ``media/``, que é ignorada pelo Git.
+    """
+    if amostra.arquivo_dados:
+        try:
+            raiz = Path(settings.MEDIA_ROOT).resolve()
+            caminho = (Path(settings.MEDIA_ROOT) / amostra.arquivo_dados).resolve()
+            if caminho.is_relative_to(raiz):
+                caminho.unlink(missing_ok=True)
+        except OSError:
+            pass
+    amostra.delete()
+
+
 def sinal_de_movimento(sinal):
     """Confere se o sinal aceita gravação de amostras temporais."""
     return sinal.tipo == Sinal.Tipo.MOVIMENTO

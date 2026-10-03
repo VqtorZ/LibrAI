@@ -10,6 +10,7 @@ from .forms import SinalForm
 from .models import AmostraMovimento, Sinal
 from .movimentos import (
     AmostraInvalida,
+    apagar_amostra,
     extrair_landmarks,
     salvar_amostra,
     validar_payload,
@@ -94,3 +95,17 @@ def gesto_amostra_salvar(request, sinal_id):
             "duracao_ms": amostra.duracao_ms,
         }
     )
+
+
+@require_POST
+def gesto_amostra_apagar(request, sinal_id, amostra_id):
+    """Apaga uma amostra temporal do sinal (registro e arquivo JSON).
+
+    A amostra precisa pertencer ao sinal da URL — IDs de outros sinais
+    não são aceitos. GET nunca apaga, por segurança.
+    """
+    sinal = get_object_or_404(Sinal, pk=sinal_id)
+    amostra = get_object_or_404(AmostraMovimento, pk=amostra_id, sinal=sinal)
+    apagar_amostra(amostra)
+    messages.success(request, f"Amostra #{amostra_id} apagada.")
+    return redirect("gesto_detalhe", sinal_id=sinal.pk)

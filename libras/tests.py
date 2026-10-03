@@ -22,6 +22,7 @@ from .movimentos import (
     DURACAO_MAX_MS,
     FRAMES_MIN_VALIDOS,
     AmostraInvalida,
+    apagar_amostra,
     salvar_amostra,
     ler_sequencia,
     validar_payload,
@@ -299,6 +300,20 @@ class AmostraMovimentoTests(TemporalBase):
             salvar_amostra(self.sinal, self.gerar_sequencia())
         self.assertEqual(self.sinal.amostras.count(), 3)
 
+    def test_apagar_amostra_remove_registro_e_arquivo(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia())
+        caminho = Path(self.media_tmp) / amostra.arquivo_dados
+        self.assertTrue(caminho.is_file())
+        apagar_amostra(amostra)
+        self.assertEqual(AmostraMovimento.objects.count(), 0)
+        self.assertFalse(caminho.exists())
+
+    def test_apagar_e_tolerante_a_arquivo_ausente(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia())
+        (Path(self.media_tmp) / amostra.arquivo_dados).unlink()
+        apagar_amostra(amostra)
+        self.assertEqual(AmostraMovimento.objects.count(), 0)
+
 
 class ValidarPayloadTests(TestCase):
     """Validação do que chega da gravação antes de qualquer processamento."""
@@ -382,6 +397,55 @@ class GestoDetalheEGravarTests(TemporalBase):
     def test_lista_de_gestos_exibe_o_tipo(self):
         response = self.client.get(reverse("gestos"))
         self.assertContains(response, "Movimento")
+
+
+class GestoAmostraApagarTests(TemporalBase):
+    """Exclusão de amostras pela página do sinal."""
+
+    def test_apagar_post_redireciona_e_remove_tudo(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia())
+        caminho = Path(self.media_tmp) / amostra.arquivo_dados
+        self.assertTrue(caminho.is_file())
+        response = self.client.post(
+            reverse("gesto_amostra_apagar", args=[self.sinal.pk, amostra.pk]),
+            follow=True,
+        )
+        self.assertRedirects(response, reverse("gesto_detalhe", args=[self.sinal.pk]))
+        self.assertContains(response, "apagada")
+        self.assertEqual(AmostraMovimento.objects.count(), 0)
+        self.assertFalse(caminho.exists())
+
+    def test_apagar_rejeita_get(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia())
+        response = self.client.get(
+            reverse("gesto_amostra_apagar", args=[self.sinal.pk, amostra.pk])
+        )
+        self.assertEqual(response.status_code, 405)
+        self.assertEqual(AmostraMovimento.objects.count(), 1)
+
+    def test_apagar_amostra_de_outro_sinal_retorna_404(self):
+        outro = Sinal.objects.create(titulo="Z", tipo=Sinal.Tipo.MOVIMENTO)
+        amostra = salvar_amostra(outro, self.gerar_sequencia())
+        response = self.client.post(
+            reverse("gesto_amostra_apagar", args=[self.sinal.pk, amostra.pk])
+        )
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(AmostraMovimento.objects.count(), 1)
+
+    def test_apagar_amostra_inexistente_retorna_404(self):
+        response = self.client.post(
+            reverse("gesto_amostra_apagar", args=[self.sinal.pk, 9999])
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_detalhe_exibe_botao_de_apagar(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia())
+        response = self.client.get(reverse("gesto_detalhe", args=[self.sinal.pk]))
+        self.assertContains(response, "Apagar")
+        self.assertContains(
+            response,
+            reverse("gesto_amostra_apagar", args=[self.sinal.pk, amostra.pk]),
+        )
 
 
 class GestoAmostraSalvarTests(TemporalBase):

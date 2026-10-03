@@ -8,14 +8,24 @@ class SinalForm(forms.ModelForm):
     """Cadastro de um novo sinal/gesto.
 
     A validação acontece no backend: o título é obrigatório, sem espaços
-    desnecessários, e a descrição permanece opcional.
+    desnecessários, e a descrição permanece opcional. O tipo default é
+    estático; sinais de movimento habilitam a gravação de amostras.
     """
+
+    tipo = forms.ChoiceField(
+        label="Tipo do sinal",
+        choices=Sinal.Tipo.choices,
+        initial=Sinal.Tipo.ESTATICO,
+        required=False,
+        widget=forms.Select,
+    )
 
     class Meta:
         model = Sinal
-        fields = ["titulo", "descricao"]
+        fields = ["titulo", "tipo", "descricao"]
         labels = {
             "titulo": "Título do sinal",
+            "tipo": "Tipo do sinal",
             "descricao": "Descrição / observação",
         }
         widgets = {
@@ -38,3 +48,6 @@ class SinalForm(forms.ModelForm):
         if not titulo:
             raise forms.ValidationError("Informe o título do sinal.")
         return titulo
+
+    def clean_tipo(self):
+        return self.cleaned_data.get("tipo") or Sinal.Tipo.ESTATICO

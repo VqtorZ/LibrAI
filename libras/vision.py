@@ -117,21 +117,30 @@ class Camera:
         return frame
 
     def frames(self):
-        while True:
-            with self._lock:
-                if not self._open():
-                    frame = self._error_frame(self.last_error)
-                else:
-                    ok, frame = self._capture.read()
-                    if not ok:
-                        self.last_error = "A webcam não retornou uma imagem."
+        try:
+            while True:
+                with self._lock:
+                    if not self._open():
                         frame = self._error_frame(self.last_error)
                     else:
-                        frame = self._annotate(cv2.flip(frame, 1))
-                ok, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 82])
-            if ok:
-                yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n"
-            time.sleep(0.03)
+                        ok, frame = self._capture.read()
+                        if not ok:
+                            self.last_error = "A webcam não retornou uma imagem."
+                            frame = self._error_frame(self.last_error)
+                        else:
+                            frame = self._annotate(cv2.flip(frame, 1))
+                    ok, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 82])
+                if ok:
+                    yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n"
+                time.sleep(0.03)
+        finally:
+            # O cliente fechou/abandonou a página de reconhecimento: devolve a
+            # webcam ao sistema (o próprio _open() reabre na próxima visita),
+            # liberando-a para a gravação de movimentos pelo navegador.
+            with self._lock:
+                if self._capture is not None:
+                    self._capture.release()
+                    self._capture = None
 
     @staticmethod
     def _error_frame(message):

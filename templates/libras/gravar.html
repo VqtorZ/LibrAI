@@ -242,7 +242,7 @@
                 };
             }
 
-            async function abrirCamera() {
+            async function abrirCamera(novaTentativa = false) {
                 mostrarErro('');
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                     mostrarErro('Este navegador não dá acesso à câmera.');
@@ -254,7 +254,17 @@
                         audio: false,
                     });
                 } catch (falha) {
-                    mostrarErro('Não foi possível acessar a câmera. Verifique permissões e se ela está em uso.');
+                    const semPermissao = falha && falha.name === 'NotAllowedError';
+                    if (semPermissao) {
+                        mostrarErro('Permissão de câmera negada. Libere o acesso nas configurações do navegador.');
+                        return;
+                    }
+                    if (!novaTentativa) {
+                        mostrarErro('A câmera está ocupada. Se a página de reconhecimento estiver aberta, feche-a — o servidor libera a webcam em instantes. Tentando novamente…');
+                        setTimeout(() => abrirCamera(true), 2000);
+                        return;
+                    }
+                    mostrarErro('Não foi possível acessar a câmera. Feche a página de reconhecimento e tente de novo.');
                     return;
                 }
                 video.srcObject = stream;

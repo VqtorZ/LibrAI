@@ -7,17 +7,22 @@ funcionalmente com o servidor em execução.
 """
 import base64
 import json
+import math
+import random
 import shutil
 import tempfile
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
 from django.contrib.auth.models import User
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from . import temporal
 from .forms import SinalForm
 from .models import AmostraMovimento, Sinal
 from .movimentos import (
@@ -30,6 +35,7 @@ from .movimentos import (
     ler_sequencia,
     validar_payload,
 )
+from .temporal import distancia_dtw, normalizar_frame, processar_sequencia, prever
 from .verificacao import resumir, verificar_amostra
 
 
@@ -826,3 +832,318 @@ class VerificarMovimentosCommandTests(VerificadorBase):
         self.assertEqual(texto.count("SINAL #"), 2)
         self.assertEqual(texto.count("RESUMO"), 2)
         self.assertEqual(texto.count("Status do dataset"), 2)
+
+
+class TemporalMLBase(VerificadorBase):
+    """Base do pipeline temporal: modelo isolado no MEDIA_ROOT de teste."""
+
+    def setUp(self):
+        super().setUp()
+        ajuste = patch(
+            "libras.temporal.MODELO_PATH",
+            Path(self.media_tmp) / "movimentos_teste.joblib",
+        )
+        ajuste.start()
+        self.addCleanup(ajuste.stop)
+
+    @staticmethod
+    def trajetoria_sintetica(total=20, fase=0.0):
+        """Trajetória suave de 63 valores por frame, variando no tempo."""
+        return [
+            [math.sin(i / 3 + fase + j / 10) for j in range(63)]
+            for i in range(total)
+        ]
+
+    def salvar_trajetoria(self, sinal, vetores, intervalo_ms=66):
+        sequencia = [
+            {"timestamp_ms": i * intervalo_ms, "landmarks": list(vetor)}
+            for i, vetor in enumerate(vetores)
+        ]
+        return salvar_amostra(sinal, sequencia)
+
+    def treinar_padrao(self, sinal, total=5, passo_fase=0.05):
+        """Cria `total` amostras da mesma forma e treina o modelo."""
+        pks = []
+        for indice in range(total):
+            amostra = self.salvar_trajetoria(
+                sinal, self.trajetoria_sintetica(fase=indice * passo_fase)
+            )
+            pks.append(amostra.pk)
+        return temporal.treinar(), pks
+
+
+class NormalizacaoEProcessamentoTests(TemporalMLBase):
+    """Conversão de frames crus em trajetórias normalizadas."""
+
+    def test_normalizacao_invariante_a_translacao_e_escala(self):
+        bruto = [math.sin(j / 10) for j in range(63)]
+        deslocado = [valor + 10 for valor in bruto]
+        escalado = [valor * 3 for valor in bruto]
+        self.assertTrue(
+            np.allclose(normalizar_frame(bruto), normalizar_frame(deslocado))
+        )
+        self.assertTrue(
+            np.allclose(normalizar_frame(bruto), normalizar_frame(escalado))
+        )
+
+    def test_processar_trunca_pontas_e_interpola_meio(self):
+        bruta = self.trajetoria_sintetica(total=15)
+        amostra = self.salvar_trajetoria(self.sinal, bruta)
+        conteudo = self.ler_arquivo(amostra)
+        # Frames vazios: pontas (0, 1, 14) e meio (5, 6) → 10 válidos.
+        for indice in (0, 1, 5, 6, 14):
+            conteudo["frames"][indice]["landmarks"] = None
+        conteudo["quantidade_frames_validos"] = 10
+        self.escrever_arquivo(amostra, conteudo)
+
+        processada = processar_sequencia(self.ler_arquivo(amostra))
+        # Pontas truncadas: restam os frames 2..13 (12 vetores).
+        self.assertEqual(len(processada), 12)
+        # Frame 5 interpolado por timestamp entre 4 (264 ms) e 7 (462 ms).
+        anterior, proximo = bruta[4], bruta[7]
+        peso = (5 * 66 - 4 * 66) / (7 * 66 - 4 * 66)
+        esperado = [
+            a + (b - a) * peso for a, b in zip(anterior, proximo)
+        ]
+        self.assertTrue(np.allclose(processada[3], normalizar_frame(esperado)))
+        # Frames 4 e 7 continuam idênticos aos válidos (normalizados).
+        self.assertTrue(
+            np.allclose(processada[2], normalizar_frame(anterior))
+        )
+        self.assertTrue(
+            np.allclose(processada[5], normalizar_frame(proximo))
+        )
+
+
+class DistanciaDTWTests(TemporalMLBase):
+    """Comportamento básico da métrica de alinhamento temporal."""
+
+    def test_zero_consigo_mesma_e_simetrica(self):
+        a = self.trajetoria_sintetica(total=12)
+        b = self.trajetoria_sintetica(total=15, fase=0.2)
+        self.assertEqual(distancia_dtw(a, a), 0.0)
+        self.assertAlmostEqual(distancia_dtw(a, b), distancia_dtw(b, a))
+
+    def test_mesma_forma_com_ritmo_diferente_fica_proxima(self):
+        rapida = [
+            [math.sin(i / 3 + j / 10) for j in range(63)] for i in range(20)
+        ]
+        lenta = [
+            [math.sin(i / 4.5 + j / 10) for j in range(63)] for i in range(30)
+        ]
+        deslocada = [
+            [math.sin(i / 3 + 0.6 + j / 10) for j in range(63)]
+            for i in range(20)
+        ]
+        self.assertLess(distancia_dtw(rapida, lenta), distancia_dtw(rapida, deslocada))
+
+
+class TreinarModeloTests(TemporalMLBase):
+    """treinar: memoriza trajetórias e calibra limiares por classe."""
+
+    def test_salva_modelo_com_limiares_e_loo(self):
+        treino, pks = self.treinar_padrao(self.sinal)
+        modelo = temporal.carregar_modelo()
+        self.assertEqual(modelo["classes"], ["J"])
+        self.assertEqual(modelo["amostras_por_classe"]["J"], 5)
+        self.assertEqual(
+            sorted(t["amostra_id"] for t in modelo["templates"]["J"]),
+            sorted(pks),
+        )
+        self.assertEqual(len(modelo["loo"]["J"]), 5)
+        self.assertGreater(modelo["limiares"]["J"], 0)
+        self.assertTrue(
+            (Path(self.media_tmp) / "movimentos_teste.joblib").is_file()
+        )
+
+    def test_sem_amostras_validas_levanta_erro(self):
+        with self.assertRaises(temporal.ErroTemporal):
+            temporal.treinar()
+
+    def test_ignora_amostras_invalidas(self):
+        self.salvar_trajetoria(self.sinal, self.trajetoria_sintetica())
+        self.salvar_trajetoria(self.sinal, self.trajetoria_sintetica(fase=0.05))
+        ruim = self.salvar_trajetoria(
+            self.sinal, self.trajetoria_sintetica(fase=0.10)
+        )
+        (Path(self.media_tmp) / ruim.arquivo_dados).unlink()
+        treino = temporal.treinar()
+        self.assertEqual(len(treino.invalidas), 1)
+        self.assertEqual(treino.modelo["amostras_por_classe"]["J"], 2)
+
+    def test_exclui_classe_com_unica_amostra(self):
+        self.treinar_padrao(self.sinal)
+        outro = Sinal.objects.create(titulo="K", tipo=Sinal.Tipo.MOVIMENTO)
+        self.salvar_trajetoria(outro, self.trajetoria_sintetica(fase=9.9))
+        treino = temporal.treinar()
+        self.assertIn(("K", 1), treino.excluidas)
+        self.assertEqual(treino.modelo["classes"], ["J"])
+
+    def test_rejeita_quando_toda_classe_tem_uma_amostra(self):
+        amostra = self.salvar_trajetoria(self.sinal, self.trajetoria_sintetica())
+        self.assertIsNotNone(amostra)
+        with self.assertRaises(temporal.ErroTemporal):
+            temporal.treinar()
+
+
+class PreverTests(TemporalMLBase):
+    """prever: vizinho mais próximo com limiar de rejeição.
+
+    prever espera a trajetória já normalizada (como sai de
+    processar_sequencia) — os templates do modelo estão normalizados.
+    """
+
+    @staticmethod
+    def normalizada(total=20, fase=0.0):
+        return [
+            normalizar_frame(vetor)
+            for vetor in TemporalMLBase.trajetoria_sintetica(total, fase)
+        ]
+
+    def test_reconhece_trajetoria_nova_da_mesma_forma(self):
+        treino, _ = self.treinar_padrao(self.sinal)
+        previsao = prever(self.normalizada(fase=0.02), treino.modelo)
+        self.assertEqual(previsao["previsto"], "J")
+        self.assertTrue(previsao["reconhecido"])
+        self.assertGreater(previsao["confianca"], 0)
+
+    def test_rejeita_ruido(self):
+        treino, _ = self.treinar_padrao(self.sinal)
+        gerador = random.Random(42)
+        ruido = [
+            normalizar_frame([gerador.uniform(-3, 3) for _ in range(63)])
+            for _ in range(20)
+        ]
+        previsao = prever(ruido, treino.modelo)
+        self.assertFalse(previsao["reconhecido"])
+        self.assertEqual(previsao["confianca"], 0.0)
+
+    def test_modo_loo_exclui_a_propria_amostra(self):
+        treino, pks = self.treinar_padrao(self.sinal)
+        previsao = prever(
+            self.normalizada(fase=0.0), treino.modelo, excluir_amostra=pks[0]
+        )
+        self.assertNotEqual(previsao["vizinho_amostra"], pks[0])
+        self.assertTrue(previsao["reconhecido"])
+
+
+class TestarAmostraTests(TemporalMLBase):
+    """testar_amostra: pipeline completo de teste de uma amostra real."""
+
+    def test_reconhece_de_ponta_a_ponta(self):
+        treino, pks = self.treinar_padrao(self.sinal)
+        resultado = temporal.testar_amostra(pks[0])
+        self.assertEqual(resultado["esperado"], "J")
+        self.assertEqual(resultado["previsto"], "J")
+        self.assertTrue(resultado["reconhecido"])
+        self.assertTrue(resultado["modo_loo"])
+        self.assertEqual(resultado["frames_processados"], 20)
+
+    def test_amostra_fora_do_treino_nao_e_excluida(self):
+        self.treinar_padrao(self.sinal)
+        nova = self.salvar_trajetoria(
+            self.sinal, self.trajetoria_sintetica(fase=0.02)
+        )
+        resultado = temporal.testar_amostra(nova.pk)
+        self.assertFalse(resultado["modo_loo"])
+        self.assertTrue(resultado["reconhecido"])
+
+    def test_amostra_inexistente_levanta_erro(self):
+        with self.assertRaises(temporal.ErroTemporal):
+            temporal.testar_amostra(9999)
+
+    def test_amostra_estruturalmente_invalida_levanta_erro(self):
+        _, pks = self.treinar_padrao(self.sinal)
+        amostra = AmostraMovimento.objects.get(pk=pks[0])
+        (Path(self.media_tmp) / amostra.arquivo_dados).unlink()
+        with self.assertRaises(temporal.ErroTemporal) as contexto:
+            temporal.testar_amostra(pks[0])
+        self.assertIn("inválida", str(contexto.exception))
+
+    def test_sem_modelo_treinado_leciona_o_comando(self):
+        amostra = self.salvar_trajetoria(self.sinal, self.trajetoria_sintetica())
+        with self.assertRaises(temporal.ErroTemporal) as contexto:
+            temporal.testar_amostra(amostra.pk)
+        self.assertIn("treinar_movimentos", str(contexto.exception))
+
+
+class TreinarMovimentosCommandTests(TemporalMLBase):
+    """Comando treinar_movimentos: relatório de treino no terminal."""
+
+    def test_relatorio_de_treino_completo(self):
+        self.treinar_padrao(self.sinal)
+        saida = StringIO()
+        call_command("treinar_movimentos", stdout=saida, no_color=True)
+        texto = saida.getvalue()
+        self.assertIn("=== TREINAMENTO DE MOVIMENTOS ===", texto)
+        self.assertIn("Sinal: J", texto)
+        self.assertIn("Amostras: 5", texto)
+        self.assertIn("Avaliação leave-one-out", texto)
+        self.assertIn("Limiar de rejeição de J", texto)
+        self.assertIn("Modelo treinado com sucesso.", texto)
+        self.assertIn("uma única classe", texto)
+        self.assertIn("Não use em produção", texto)
+
+    def test_sem_amostras_levanta_command_error(self):
+        with self.assertRaises(CommandError):
+            call_command("treinar_movimentos", stdout=StringIO())
+
+
+class TestarMovimentoCommandTests(TemporalMLBase):
+    """Comando testar_movimento: relatório de teste no terminal."""
+
+    def test_relatorio_de_teste_reconhecido(self):
+        _, pks = self.treinar_padrao(self.sinal)
+        saida = StringIO()
+        call_command(
+            "testar_movimento", amostra=pks[0], stdout=saida, no_color=True
+        )
+        texto = saida.getvalue()
+        self.assertIn("=== TESTE DE MOVIMENTO ===", texto)
+        self.assertIn("Esperado: J", texto)
+        self.assertIn("Previsto: J", texto)
+        self.assertIn("Confiança:", texto)
+        self.assertIn("Resultado: ✓ RECONHECEU", texto)
+        self.assertIn("uma única classe", texto)
+
+    def test_relatorio_de_teste_rejeitado(self):
+        _, pks = self.treinar_padrao(self.sinal)
+        amostra = AmostraMovimento.objects.get(pk=pks[0])
+        gerador = random.Random(7)
+        conteudo = {
+            "version": 1,
+            "sinal_id": self.sinal.pk,
+            "quantidade_frames": 20,
+            "quantidade_frames_validos": 20,
+            "duracao_ms": 19 * 66,
+            "fps": round(19 / (19 * 66 / 1000), 1),
+            "quantidade_landmarks": 21,
+            "frames": [
+                {
+                    "timestamp_ms": i * 66,
+                    "landmarks": [gerador.uniform(-3, 3) for _ in range(63)],
+                }
+                for i in range(20)
+            ],
+        }
+        self.escrever_arquivo(amostra, conteudo)
+        saida = StringIO()
+        call_command(
+            "testar_movimento", amostra=pks[0], stdout=saida, no_color=True
+        )
+        texto = saida.getvalue()
+        self.assertIn("Resultado: ✗ NÃO RECONHECEU", texto)
+
+    def test_sem_flag_lista_amostras_disponiveis(self):
+        self.treinar_padrao(self.sinal)
+        saida = StringIO()
+        call_command("testar_movimento", stdout=saida, no_color=True)
+        texto = saida.getvalue()
+        self.assertIn("Amostras disponíveis:", texto)
+        self.assertIn("--amostra", texto)
+
+    def test_amostra_inexistente_levanta_command_error(self):
+        with self.assertRaises(CommandError):
+            call_command(
+                "testar_movimento", amostra=9999, stdout=StringIO()
+            )

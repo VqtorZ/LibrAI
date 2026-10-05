@@ -8,6 +8,7 @@ coleta está pronta para uma futura etapa de treinamento.
 """
 from django.core.management.base import BaseCommand
 
+from .. import saida_segura
 from ...models import Sinal
 from ...verificacao import (
     LANDMARKS_POR_MAO,
@@ -21,6 +22,7 @@ class Command(BaseCommand):
     help = "Verifica a integridade estrutural das amostras temporais gravadas."
 
     def handle(self, *args, **options):
+        saida_segura()
         sinais = (
             Sinal.objects.filter(
                 tipo=Sinal.Tipo.MOVIMENTO,

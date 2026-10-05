@@ -114,22 +114,16 @@ def _conferir_banco(problemas, nome, valor_modelo, valor_arquivo):
         )
 
 
-def verificar_amostra(amostra) -> ResultadoVerificacao:
-    """Verifica a estrutura de uma AmostraMovimento e do seu arquivo JSON.
+def verificar_conteudo(conteudo, sinal_id_esperado=None) -> ResultadoVerificacao:
+    """Valida estrutura e consistência interna de um JSON de amostra.
 
-    A leitura reaproveita ``ler_sequencia`` de ``libras.movimentos`` —
-    nada da persistência é duplicado aqui. Frames com ``landmarks:
-    null`` são permitidos pelo formato e não invalidam a amostra.
+    É a parte de ``verificar_amostra`` que não depende do banco de
+    dados — serve também para arquivos externos (Etapa 4.3, teste de
+    rejeição com entradas não-J). ``sinal_id_esperado`` confere o
+    vínculo com um sinal quando aplicável; ``None`` pula a checagem
+    (o arquivo não pertence a nenhum sinal registrado).
     """
-    resultado = ResultadoVerificacao()
-
-    try:
-        conteudo = ler_sequencia(amostra)
-    except AmostraInvalida as exc:
-        resultado.problemas.append(f"arquivo não pode ser lido: {str(exc).rstrip('.')}")
-        return resultado
-    resultado.arquivo_legivel = True
-
+    resultado = ResultadoVerificacao(arquivo_legivel=True)
     problemas = resultado.problemas
     if not isinstance(conteudo, dict):
         problemas.append("conteúdo do arquivo não é um objeto")
@@ -200,11 +194,12 @@ def verificar_amostra(amostra) -> ResultadoVerificacao:
         problemas.append(
             f"versão do arquivo ({conteudo['version']}) inesperada (esperada {FORMATO_VERSAO})"
         )
-    if "sinal_id" in conteudo and conteudo["sinal_id"] != amostra.sinal_id:
-        problemas.append(
-            f"sinal_id do arquivo ({conteudo['sinal_id']}) não corresponde "
-            f"à amostra ({amostra.sinal_id})"
-        )
+    if sinal_id_esperado is not None and "sinal_id" in conteudo:
+        if conteudo["sinal_id"] != sinal_id_esperado:
+            problemas.append(
+                f"sinal_id do arquivo ({conteudo['sinal_id']}) não corresponde "
+                f"à amostra ({sinal_id_esperado})"
+            )
 
     _conferir_campo(
         problemas, "quantidade_frames",
@@ -230,6 +225,28 @@ def verificar_amostra(amostra) -> ResultadoVerificacao:
             )
     elif fps_arquivo is not None:
         problemas.append("campo 'fps' do arquivo não é numérico")
+
+    resultado.ok = not problemas
+    return resultado
+
+
+def verificar_amostra(amostra) -> ResultadoVerificacao:
+    """Verifica a estrutura de uma AmostraMovimento e do seu arquivo JSON.
+
+    A leitura reaproveita ``ler_sequencia`` de ``libras.movimentos`` —
+    nada da persistência é duplicado aqui. Frames com ``landmarks:
+    null`` são permitidos pelo formato e não invalidam a amostra.
+    """
+    resultado = ResultadoVerificacao()
+
+    try:
+        conteudo = ler_sequencia(amostra)
+    except AmostraInvalida as exc:
+        resultado.problemas.append(f"arquivo não pode ser lido: {str(exc).rstrip('.')}")
+        return resultado
+
+    resultado = verificar_conteudo(conteudo, sinal_id_esperado=amostra.sinal_id)
+    problemas = resultado.problemas
 
     _conferir_banco(
         problemas, "quantidade_frames",

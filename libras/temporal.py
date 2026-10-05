@@ -20,6 +20,7 @@ RandomForest, ``libras/vision.py`` ou a página ``/reconhecer/``.
 """
 from __future__ import annotations
 
+import json
 import math
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -30,7 +31,7 @@ import numpy as np
 
 from .models import AmostraMovimento, Sinal
 from .movimentos import LANDMARKS_POR_MAO, VALORES_POR_LANDMARK, ler_sequencia
-from .verificacao import verificar_amostra
+from .verificacao import verificar_amostra, verificar_conteudo
 
 MODELO_PATH = Path(__file__).resolve().parent.parent / "models" / "movimentos.joblib"
 FORMATO_MODELO = 1
@@ -355,6 +356,41 @@ def testar_amostra(amostra_pk, caminho=None):
         "frames_brutos": resultado.total_frames,
         "frames_processados": len(trajetoria),
         "modo_loo": no_treino,
+        "total_amostras_modelo": sum(modelo["amostras_por_classe"].values()),
+    })
+    return previsao
+
+
+def testar_arquivo(caminho, caminho_modelo=None):
+    """Testa um JSON externo (formato de amostra) contra o modelo.
+
+    Etapa 4.3 — entrada controlada de não-J: o arquivo nunca esteve
+    nos templates, então nada é excluído e não há leave-one-out. A
+    validação estrutural reaproveita a Etapa 4.1 (``verificar_conteudo``
+    sem vínculo com o banco). O esperado é rejeição quando o movimento
+    não casa com nenhuma classe — aceitar uma entrada não-J é falso
+    positivo, e o comando relata exatamente isso.
+    """
+    caminho = Path(caminho)
+    if not caminho.is_file():
+        raise ErroTemporal(f"Arquivo não encontrado: {caminho}")
+    try:
+        conteudo = json.loads(caminho.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ErroTemporal(f"JSON inválido: {exc}")
+    resultado = verificar_conteudo(conteudo)
+    if not resultado.ok:
+        detalhes = " · ".join(resultado.problemas)
+        raise ErroTemporal(f"Arquivo estruturalmente inválido: {detalhes}")
+    trajetoria = processar_sequencia(conteudo)
+    modelo = carregar_modelo(caminho_modelo)
+    previsao = prever(trajetoria, modelo)
+    previsao.update({
+        "arquivo": str(caminho),
+        "esperado": "não-J",
+        "frames_brutos": resultado.total_frames,
+        "frames_processados": len(trajetoria),
+        "modo_loo": False,
         "total_amostras_modelo": sum(modelo["amostras_por_classe"].values()),
     })
     return previsao

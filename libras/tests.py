@@ -36,7 +36,11 @@ from .movimentos import (
     validar_payload,
 )
 from .temporal import distancia_dtw, normalizar_frame, processar_sequencia, prever
-from .verificacao import resumir, verificar_amostra
+from .verificacao import (
+    resumir,
+    verificar_amostra,
+    verificar_conteudo,
+)
 
 
 class SinalModelTests(TestCase):
@@ -871,6 +875,55 @@ class TemporalMLBase(VerificadorBase):
             pks.append(amostra.pk)
         return temporal.treinar(), pks
 
+    @staticmethod
+    def trajetoria_nao_j(total=36):
+        """Sequência deliberadamente diferente de J (Etapa 4.3).
+
+        DADO SINTÉTICO DE TESTE: mão fechada abrindo em leque com
+        leve rotação — muda a forma relativa da mão, que é o que a
+        normalização preserva (translação do punho é descartada).
+        """
+        frames = []
+        for indice in range(total):
+            t = indice / (total - 1)
+            pontos = [[0.0, 0.0, 0.0]]  # pulso na origem
+            for k in range(1, 21):
+                angulo = (k % 5) * (2 * math.pi / 5) + (k // 5) * 0.3 + 0.7 * t
+                raio = 0.12 + 0.78 * t  # fechada → aberta
+                pontos.append(
+                    [raio * math.cos(angulo), raio * math.sin(angulo), 0.0]
+                )
+            frames.append([valor for ponto in pontos for valor in ponto])
+        return frames
+
+    @staticmethod
+    def conteudo_json(vetores, sinal_id=None, intervalo_ms=66):
+        """Conteúdo JSON no formato das amostras (Etapa 4.1)."""
+        total = len(vetores)
+        duracao = (total - 1) * intervalo_ms
+        return {
+            "version": 1,
+            "sinal_id": sinal_id,
+            "quantidade_frames": total,
+            "quantidade_frames_validos": total,
+            "duracao_ms": duracao,
+            "fps": round((total - 1) / (duracao / 1000), 1) if duracao else 0.0,
+            "quantidade_landmarks": 21,
+            "frames": [
+                {"timestamp_ms": i * intervalo_ms, "landmarks": list(vetor)}
+                for i, vetor in enumerate(vetores)
+            ],
+        }
+
+    def escrever_externo(self, vetores, sinal_id=None):
+        """Grava um JSON externo de teste no MEDIA_ROOT temporário."""
+        caminho = Path(self.media_tmp) / "externo.json"
+        caminho.write_text(
+            json.dumps(self.conteudo_json(vetores, sinal_id=sinal_id)),
+            encoding="utf-8",
+        )
+        return caminho
+
 
 class NormalizacaoEProcessamentoTests(TemporalMLBase):
     """Conversão de frames crus em trajetórias normalizadas."""
@@ -1147,3 +1200,137 @@ class TestarMovimentoCommandTests(TemporalMLBase):
             call_command(
                 "testar_movimento", amostra=9999, stdout=StringIO()
             )
+
+
+class VerificarConteudoTests(TemporalMLBase):
+    """verificar_conteudo: validação standalone, sem o banco (Etapa 4.3)."""
+
+    def test_conteudo_valido_sem_vinculo_com_sinal(self):
+        conteudo = self.conteudo_json(self.trajetoria_sintetica(), sinal_id=None)
+        resultado = verificar_conteudo(conteudo)
+        self.assertTrue(resultado.ok)
+        self.assertEqual(resultado.problemas, [])
+
+    def test_sinal_id_ignorado_quando_nao_esperado(self):
+        conteudo = self.conteudo_json(self.trajetoria_sintetica(), sinal_id=999)
+        resultado = verificar_conteudo(conteudo)
+        self.assertTrue(resultado.ok)
+
+    def test_sinal_id_conferido_quando_esperado(self):
+        conteudo = self.conteudo_json(self.trajetoria_sintetica(), sinal_id=999)
+        resultado = verificar_conteudo(conteudo, sinal_id_esperado=1)
+        self.assertFalse(resultado.ok)
+        self.assertIn("sinal_id do arquivo", resultado.problemas[0])
+
+    def test_poucos_frames_validos_sem_banco(self):
+        vetores = self.trajetoria_sintetica(total=15)
+        conteudo = self.conteudo_json(vetores)
+        for frame in conteudo["frames"][:8]:
+            frame["landmarks"] = None
+        conteudo["quantidade_frames_validos"] = 7
+        resultado = verificar_conteudo(conteudo)
+        self.assertFalse(resultado.ok)
+        self.assertIn(
+            f"apenas 7 frames válidos (mínimo {FRAMES_MIN_VALIDOS})",
+            resultado.problemas,
+        )
+
+
+class TestarArquivoTests(TemporalMLBase):
+    """testar_arquivo: entrada externa de não-J contra o modelo.
+
+    A entrada externa nunca esteve nos templates — é o teste
+    controlado de rejeição da Etapa 4.3.
+    """
+
+    def test_rejeita_movimento_deliberadamente_diferente(self):
+        self.treinar_padrao(self.sinal)
+        caminho = self.escrever_externo(self.trajetoria_nao_j())
+        resultado = temporal.testar_arquivo(str(caminho))
+        self.assertEqual(resultado["esperado"], "não-J")
+        self.assertFalse(resultado["modo_loo"])
+        self.assertFalse(resultado["reconhecido"])
+        self.assertEqual(resultado["confianca"], 0.0)
+        self.assertGreater(resultado["distancia"], resultado["limiar"])
+
+    def test_aceita_entrada_com_a_mesma_forma_do_treino(self):
+        self.treinar_padrao(self.sinal)
+        caminho = self.escrever_externo(self.trajetoria_sintetica(fase=0.02))
+        resultado = temporal.testar_arquivo(str(caminho))
+        self.assertEqual(resultado["previsto"], "J")
+        self.assertTrue(resultado["reconhecido"])
+        self.assertEqual(resultado["frames_processados"], 20)
+
+    def test_arquivo_inexistente_levanta_erro(self):
+        with self.assertRaises(temporal.ErroTemporal) as contexto:
+            temporal.testar_arquivo(
+                str(Path(self.media_tmp) / "nao_existe.json")
+            )
+        self.assertIn("não encontrado", str(contexto.exception))
+
+    def test_json_corrompido_levanta_erro(self):
+        caminho = Path(self.media_tmp) / "externo.json"
+        caminho.write_text("não é json", encoding="utf-8")
+        with self.assertRaises(temporal.ErroTemporal) as contexto:
+            temporal.testar_arquivo(str(caminho))
+        self.assertIn("JSON inválido", str(contexto.exception))
+
+    def test_estrutura_incompleta_levanta_erro(self):
+        caminho = Path(self.media_tmp) / "externo.json"
+        caminho.write_text(json.dumps({"version": 1}), encoding="utf-8")
+        with self.assertRaises(temporal.ErroTemporal) as contexto:
+            temporal.testar_arquivo(str(caminho))
+        self.assertIn("estruturalmente inválido", str(contexto.exception))
+
+    def test_metadados_incoerentes_levanta_erro(self):
+        caminho = self.escrever_externo(self.trajetoria_sintetica(fase=0.02))
+        conteudo = json.loads(caminho.read_text(encoding="utf-8"))
+        conteudo["quantidade_frames"] = 99
+        caminho.write_text(json.dumps(conteudo), encoding="utf-8")
+        with self.assertRaises(temporal.ErroTemporal) as contexto:
+            temporal.testar_arquivo(str(caminho))
+        self.assertIn("difere do real", str(contexto.exception))
+
+
+class TestarMovimentoArquivoCommandTests(TemporalMLBase):
+    """Comando testar_movimento --arquivo: relatório de rejeição."""
+
+    def rodar_arquivo(self, vetores):
+        caminho = self.escrever_externo(vetores)
+        saida = StringIO()
+        call_command(
+            "testar_movimento", arquivo=str(caminho), stdout=saida, no_color=True
+        )
+        return saida.getvalue()
+
+    def test_relatorio_de_nao_j_rejeitado(self):
+        self.treinar_padrao(self.sinal)
+        texto = self.rodar_arquivo(self.trajetoria_nao_j())
+        self.assertIn("TESTE DE MOVIMENTO (ARQUIVO EXTERNO)", texto)
+        self.assertIn("Esperado: não-J", texto)
+        self.assertIn("Previsto: REJEITADO", texto)
+        self.assertIn("Resultado: ✓ REJEITOU", texto)
+        self.assertIn("limiar DTW", texto)
+
+    def test_relatorio_de_falso_positivo(self):
+        self.treinar_padrao(self.sinal)
+        texto = self.rodar_arquivo(self.trajetoria_sintetica(fase=0.02))
+        self.assertIn("Previsto: J", texto)
+        self.assertIn("FALSO POSITIVO", texto)
+        self.assertIn("ACEITOU", texto)
+
+    def test_amostra_e_arquivo_sao_mutuamente_exclusivos(self):
+        with self.assertRaises(CommandError):
+            call_command(
+                "testar_movimento",
+                amostra=1,
+                arquivo="qualquer.json",
+                stdout=StringIO(),
+            )
+
+    def test_listagem_explica_os_dois_modos(self):
+        saida = StringIO()
+        call_command("testar_movimento", stdout=saida, no_color=True)
+        texto = saida.getvalue()
+        self.assertIn("--amostra <id>", texto)
+        self.assertIn("--arquivo <caminho>", texto)

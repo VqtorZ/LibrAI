@@ -9,10 +9,12 @@ import base64
 import json
 import shutil
 import tempfile
+from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -20,6 +22,7 @@ from .forms import SinalForm
 from .models import AmostraMovimento, Sinal
 from .movimentos import (
     DURACAO_MAX_MS,
+    FORMATO_VERSAO,
     FRAMES_MIN_VALIDOS,
     AmostraInvalida,
     apagar_amostra,
@@ -27,6 +30,7 @@ from .movimentos import (
     ler_sequencia,
     validar_payload,
 )
+from .verificacao import resumir, verificar_amostra
 
 
 class SinalModelTests(TestCase):
@@ -520,3 +524,305 @@ class GestoAmostraSalvarTests(TemporalBase):
         self.assertIsNotNone(amostra.arquivo_dados)
         conteudo = ler_sequencia(amostra)
         self.assertEqual(conteudo["sinal_id"], self.sinal.pk)
+
+
+class VerificadorBase(TemporalBase):
+    """Base do verificador: helpers para inspecionar os JSONs de teste."""
+
+    def ler_arquivo(self, amostra):
+        caminho = Path(self.media_tmp) / amostra.arquivo_dados
+        return json.loads(caminho.read_text(encoding="utf-8"))
+
+    def escrever_arquivo(self, amostra, conteudo):
+        caminho = Path(self.media_tmp) / amostra.arquivo_dados
+        caminho.write_text(json.dumps(conteudo), encoding="utf-8")
+
+    def rodar_comando(self):
+        saida = StringIO()
+        call_command("verificar_movimentos", stdout=saida, no_color=True)
+        return saida.getvalue()
+
+
+class VerificarAmostraTests(VerificadorBase):
+    """verificar_amostra: estrutura, consistência e integridade dos JSONs."""
+
+    def test_amostra_valida(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia(total=15))
+        resultado = verificar_amostra(amostra)
+        self.assertTrue(resultado.ok)
+        self.assertEqual(resultado.problemas, [])
+        self.assertTrue(resultado.arquivo_legivel)
+        self.assertEqual(resultado.total_frames, 15)
+        self.assertEqual(resultado.frames_validos, 15)
+        self.assertEqual(resultado.frames_sem_landmarks, 0)
+        self.assertAlmostEqual(resultado.taxa_validos, 100.0)
+        self.assertEqual(resultado.duracao_ms, 14 * 66)
+        self.assertEqual(resultado.fps, 15.2)
+
+    def test_frames_com_landmarks_nulos_nao_invalidam(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia(total=15, nulos=4))
+        resultado = verificar_amostra(amostra)
+        self.assertTrue(resultado.ok)
+        self.assertEqual(resultado.frames_validos, 11)
+        self.assertEqual(resultado.frames_sem_landmarks, 4)
+        self.assertAlmostEqual(resultado.taxa_validos, 11 / 15 * 100)
+
+    def test_arquivo_corrompido(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia())
+        caminho = Path(self.media_tmp) / amostra.arquivo_dados
+        caminho.write_text("{isto não é json", encoding="utf-8")
+        resultado = verificar_amostra(amostra)
+        self.assertFalse(resultado.ok)
+        self.assertFalse(resultado.arquivo_legivel)
+        self.assertIn("arquivo não pode ser lido", resultado.problemas[0])
+
+    def test_arquivo_ausente(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia())
+        (Path(self.media_tmp) / amostra.arquivo_dados).unlink()
+        resultado = verificar_amostra(amostra)
+        self.assertFalse(resultado.ok)
+        self.assertIn("não encontrado", resultado.problemas[0])
+
+    def test_poucos_frames_validos(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia(total=15))
+        conteudo = self.ler_arquivo(amostra)
+        for frame in conteudo["frames"][:6]:
+            frame["landmarks"] = None
+        conteudo["quantidade_frames_validos"] = 9
+        self.escrever_arquivo(amostra, conteudo)
+        resultado = verificar_amostra(amostra)
+        self.assertFalse(resultado.ok)
+        self.assertIn(
+            f"apenas 9 frames válidos (mínimo {FRAMES_MIN_VALIDOS})",
+            resultado.problemas,
+        )
+        self.assertEqual(resultado.frames_validos, 9)
+        self.assertEqual(resultado.frames_sem_landmarks, 6)
+
+    def test_frame_com_menos_valores(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia(total=15))
+        conteudo = self.ler_arquivo(amostra)
+        conteudo["frames"][5]["landmarks"] = [0.5] * 61
+        self.escrever_arquivo(amostra, conteudo)
+        resultado = verificar_amostra(amostra)
+        self.assertFalse(resultado.ok)
+        self.assertIn(
+            "frame 5 possui 61 valores em vez de 63", resultado.problemas
+        )
+        self.assertEqual(resultado.frames_validos, 14)
+
+    def test_valores_nao_numericos(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia(total=15))
+        conteudo = self.ler_arquivo(amostra)
+        conteudo["frames"][5]["landmarks"] = ["um"] + [0.5] * 62
+        self.escrever_arquivo(amostra, conteudo)
+        resultado = verificar_amostra(amostra)
+        self.assertFalse(resultado.ok)
+        self.assertIn(
+            "frame 5: landmarks com valores não numéricos ou não finitos",
+            resultado.problemas,
+        )
+
+    def test_valores_nao_finitos(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia(total=15))
+        conteudo = self.ler_arquivo(amostra)
+        conteudo["frames"][5]["landmarks"] = [float("nan")] * 63
+        self.escrever_arquivo(amostra, conteudo)
+        resultado = verificar_amostra(amostra)
+        self.assertFalse(resultado.ok)
+        self.assertIn(
+            "frame 5: landmarks com valores não numéricos ou não finitos",
+            resultado.problemas,
+        )
+
+    def test_timestamp_nao_numerico(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia(total=15))
+        conteudo = self.ler_arquivo(amostra)
+        conteudo["frames"][3]["timestamp_ms"] = "agora"
+        self.escrever_arquivo(amostra, conteudo)
+        resultado = verificar_amostra(amostra)
+        self.assertFalse(resultado.ok)
+        self.assertIn(
+            "frame 3: timestamp inválido (não numérico ou não finito)",
+            resultado.problemas,
+        )
+
+    def test_timestamps_fora_de_ordem(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia(total=15))
+        conteudo = self.ler_arquivo(amostra)
+        conteudo["frames"][8]["timestamp_ms"] = 66
+        self.escrever_arquivo(amostra, conteudo)
+        resultado = verificar_amostra(amostra)
+        self.assertFalse(resultado.ok)
+        self.assertIn("frame 8: timestamps fora de ordem", resultado.problemas)
+
+    def test_sinal_id_inconsistente(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia())
+        conteudo = self.ler_arquivo(amostra)
+        conteudo["sinal_id"] = self.sinal.pk + 100
+        self.escrever_arquivo(amostra, conteudo)
+        resultado = verificar_amostra(amostra)
+        self.assertFalse(resultado.ok)
+        self.assertIn("sinal_id do arquivo", resultado.problemas[0])
+
+    def test_versao_inesperada(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia())
+        conteudo = self.ler_arquivo(amostra)
+        conteudo["version"] = FORMATO_VERSAO + 1
+        self.escrever_arquivo(amostra, conteudo)
+        resultado = verificar_amostra(amostra)
+        self.assertFalse(resultado.ok)
+        self.assertIn("versão do arquivo", resultado.problemas[0])
+
+    def test_sem_frames(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia())
+        conteudo = self.ler_arquivo(amostra)
+        conteudo["frames"] = []
+        conteudo["quantidade_frames"] = 0
+        conteudo["quantidade_frames_validos"] = 0
+        conteudo["duracao_ms"] = 0
+        conteudo["fps"] = 0.0
+        self.escrever_arquivo(amostra, conteudo)
+        resultado = verificar_amostra(amostra)
+        self.assertFalse(resultado.ok)
+        self.assertIn("nenhum frame no arquivo", resultado.problemas)
+
+    def test_metadados_do_json_inconsistentes(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia(total=15))
+        conteudo = self.ler_arquivo(amostra)
+        conteudo["quantidade_frames"] = 50
+        self.escrever_arquivo(amostra, conteudo)
+        resultado = verificar_amostra(amostra)
+        self.assertFalse(resultado.ok)
+        self.assertIn(
+            "campo 'quantidade_frames' do arquivo (50) difere do real (15)",
+            resultado.problemas,
+        )
+
+    def test_registro_do_banco_inconsistente(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia(total=15))
+        amostra.quantidade_frames = 99
+        amostra.save()
+        resultado = verificar_amostra(amostra)
+        self.assertFalse(resultado.ok)
+        self.assertIn(
+            "registro no banco (quantidade_frames=99) difere do arquivo (15)",
+            resultado.problemas,
+        )
+
+    def test_estrutura_sem_chaves(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia())
+        conteudo = self.ler_arquivo(amostra)
+        del conteudo["fps"]
+        self.escrever_arquivo(amostra, conteudo)
+        resultado = verificar_amostra(amostra)
+        self.assertFalse(resultado.ok)
+        self.assertIn(
+            "estrutura incompleta: campo 'fps' ausente", resultado.problemas
+        )
+
+    def test_multiplas_amostras_sao_independentes(self):
+        boa = salvar_amostra(self.sinal, self.gerar_sequencia(total=15))
+        ruim = salvar_amostra(self.sinal, self.gerar_sequencia(total=12))
+        caminho = Path(self.media_tmp) / ruim.arquivo_dados
+        caminho.write_text("não é json", encoding="utf-8")
+        self.assertTrue(verificar_amostra(boa).ok)
+        self.assertFalse(verificar_amostra(ruim).ok)
+
+
+class ResumirResultadosTests(VerificadorBase):
+    """resumir: consolidação das métricas do dataset por sinal."""
+
+    def test_resumo_apenas_amostras_validas(self):
+        primeira = salvar_amostra(self.sinal, self.gerar_sequencia(total=15))
+        segunda = salvar_amostra(self.sinal, self.gerar_sequencia(total=20, nulos=5))
+        resumo = resumir(
+            [verificar_amostra(primeira), verificar_amostra(segunda)]
+        )
+        self.assertEqual(resumo.amostras, 2)
+        self.assertEqual(resumo.validas, 2)
+        self.assertEqual(resumo.invalidas, 0)
+        self.assertTrue(resumo.pronto)
+        self.assertEqual(resumo.frames_totais, 35)
+        self.assertEqual(resumo.frames_validos, 30)
+        self.assertAlmostEqual(resumo.taxa_media, (100.0 + 75.0) / 2)
+        self.assertAlmostEqual(resumo.duracao_media_s, (0.924 + 1.254) / 2)
+
+    def test_resumo_com_amostra_invalida(self):
+        boa = salvar_amostra(self.sinal, self.gerar_sequencia(total=15))
+        ruim = salvar_amostra(self.sinal, self.gerar_sequencia(total=12))
+        (Path(self.media_tmp) / ruim.arquivo_dados).unlink()
+        resumo = resumir(
+            [verificar_amostra(boa), verificar_amostra(ruim)]
+        )
+        self.assertEqual(resumo.amostras, 2)
+        self.assertEqual(resumo.validas, 1)
+        self.assertEqual(resumo.invalidas, 1)
+        self.assertFalse(resumo.pronto)
+        # Ilegível não tem métricas: só a boa entra nas somas/médias.
+        self.assertEqual(resumo.frames_totais, 15)
+        self.assertEqual(resumo.frames_validos, 15)
+        self.assertAlmostEqual(resumo.duracao_media_s, 0.924)
+
+
+class VerificarMovimentosCommandTests(VerificadorBase):
+    """Comando verificar_movimentos: relatório completo na saída padrão."""
+
+    def test_relatorio_de_amostra_valida(self):
+        salvar_amostra(self.sinal, self.gerar_sequencia(total=15))
+        texto = self.rodar_comando()
+        self.assertIn(f"SINAL #{self.sinal.pk} — {self.sinal.titulo}", texto)
+        self.assertIn("Amostras: 1", texto)
+        self.assertIn("AMOSTRA #", texto)
+        self.assertIn("Frames: 15", texto)
+        self.assertIn("Frames válidos: 15", texto)
+        self.assertIn("Frames sem landmarks: 0", texto)
+        self.assertIn("Taxa válida: 100.00%", texto)
+        self.assertIn("Duração: 924 ms (0.92 s)", texto)
+        self.assertIn("FPS: 15.2", texto)
+        self.assertIn("Landmarks/frame: 21", texto)
+        self.assertIn("Valores/frame: 63", texto)
+        self.assertIn("Status: OK", texto)
+        self.assertIn("RESUMO", texto)
+        self.assertIn("Status do dataset: PRONTO PARA TREINAMENTO", texto)
+
+    def test_sem_amostras_exibe_aviso(self):
+        texto = self.rodar_comando()
+        self.assertIn("Nenhum sinal de movimento com amostras ativas.", texto)
+        self.assertNotIn("RESUMO", texto)
+
+    def test_relatorio_de_amostra_invalida(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia(total=12))
+        (Path(self.media_tmp) / amostra.arquivo_dados).unlink()
+        texto = self.rodar_comando()
+        self.assertIn("Status: INVÁLIDA", texto)
+        self.assertIn("Problemas:", texto)
+        self.assertIn("- arquivo não pode ser lido", texto)
+        self.assertIn("Status do dataset: REVISAR AMOSTRAS", texto)
+        self.assertNotIn("PRONTO PARA TREINAMENTO", texto)
+
+    def test_multiplas_amostras_no_resumo(self):
+        for _ in range(3):
+            salvar_amostra(self.sinal, self.gerar_sequencia(total=15))
+        texto = self.rodar_comando()
+        self.assertIn("Amostras: 3", texto)
+        self.assertIn("Amostras válidas: 3", texto)
+        self.assertIn("Amostras inválidas: 0", texto)
+
+    def test_ignora_sinais_estaticos(self):
+        estatico = Sinal.objects.create(titulo="Letra A")
+        AmostraMovimento.objects.create(
+            sinal=estatico, quantidade_frames=10, duracao_ms=660,
+            arquivo_dados="movimentos/1/1.json", fps=15.2,
+        )
+        texto = self.rodar_comando()
+        self.assertNotIn(f"SINAL #{estatico.pk}", texto)
+
+    def test_resumo_por_sinal_com_dois_sinais(self):
+        outro = Sinal.objects.create(titulo="Z", tipo=Sinal.Tipo.MOVIMENTO)
+        salvar_amostra(self.sinal, self.gerar_sequencia(total=15))
+        salvar_amostra(outro, self.gerar_sequencia(total=15))
+        texto = self.rodar_comando()
+        self.assertEqual(texto.count("SINAL #"), 2)
+        self.assertEqual(texto.count("RESUMO"), 2)
+        self.assertEqual(texto.count("Status do dataset"), 2)

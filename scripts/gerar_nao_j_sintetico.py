@@ -4,10 +4,7 @@ DADO SINTÉTICO DE TESTE — não é uma gravação real de Libras.
 
 O movimento gerado é deliberadamente diferente da letra J: uma mão
 fechada que se abre em leque com uma leve rotação, mudando a forma
-relativa da mão em todos os frames. Essa é a informação que a
-normalização do pipeline temporal preserva (a translação do punho é
-descartada), então um não-J convincente precisa mudar a FORMA da
-mão, não apenas a posição.
+relativa da mão em todos os frames, com o punho parado.
 
 O arquivo sai no mesmo formato versionado das amostras reais
 (etapa 4.1), pronto para:

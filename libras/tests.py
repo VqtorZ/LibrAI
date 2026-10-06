@@ -926,8 +926,7 @@ class TemporalMLBase(VerificadorBase):
         """Sequência deliberadamente diferente de J (Etapa 4.3).
 
         DADO SINTÉTICO DE TESTE: mão fechada abrindo em leque com
-        leve rotação — muda a forma relativa da mão, que é o que a
-        normalização preserva (translação do punho é descartada).
+        leve rotação e punho parado — muda a forma relativa da mão.
         """
         frames = []
         for indice in range(total):

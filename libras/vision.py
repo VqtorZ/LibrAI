@@ -17,6 +17,12 @@ except ImportError:
 MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "libras_alphabet.joblib"
 
 
+# Resolução única da webcam: reconhecimento, coleta do alfabeto e
+# gravação de movimentos usam a mesma, para que os marcos da mão (x e y
+# normalizados pela largura e pela altura) tenham a mesma proporção.
+CAMERA_LARGURA = 960
+CAMERA_ALTURA = 540
+
 # Por quanto tempo um movimento reconhecido (ex.: J) fica na tela.
 EXIBICAO_MOVIMENTO_S = 2.5
 
@@ -56,17 +62,35 @@ def extract_features(landmarks):
     return normalized + geometric_features(normalized)
 
 
+def abrir_camera():
+    """Abre a webcam na resolução padrão do projeto."""
+    # CAP_DSHOW reduz a demora de inicialização em muitas instalações Windows.
+    captura = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    captura.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_LARGURA)
+    captura.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_ALTURA)
+    return captura
+
+
+def criar_detector_maos():
+    """Detector de mãos do reconhecimento ao vivo (modo vídeo, com rastreio).
+
+    A gravação de movimentos pelo terminal usa o mesmo detector, para
+    que as amostras saiam exatamente como o reconhecedor as verá.
+    """
+    return mp.solutions.hands.Hands(
+        static_image_mode=False,
+        max_num_hands=1,
+        model_complexity=0,
+        min_detection_confidence=0.65,
+        min_tracking_confidence=0.6,
+    )
+
+
 class Camera:
     def __init__(self):
         self._capture = None
         self._lock = threading.Lock()
-        self._hands = mp.solutions.hands.Hands(
-            static_image_mode=False,
-            max_num_hands=1,
-            model_complexity=0,
-            min_detection_confidence=0.65,
-            min_tracking_confidence=0.6,
-        )
+        self._hands = criar_detector_maos()
         self.model = None
         self.model_error = None
         if joblib is None:
@@ -87,10 +111,7 @@ class Camera:
 
     def _open(self):
         if self._capture is None or not self._capture.isOpened():
-            # CAP_DSHOW reduz a demora de inicialização em muitas instalações Windows.
-            self._capture = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-            self._capture.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
-            self._capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
+            self._capture = abrir_camera()
             if not self._capture.isOpened():
                 self.last_error = "Não foi possível acessar a webcam. Verifique permissões e se ela está em uso."
                 return False
@@ -187,7 +208,7 @@ class Camera:
 
     @staticmethod
     def _error_frame(message):
-        frame = cv2.UMat(540, 960, cv2.CV_8UC3).get()
+        frame = cv2.UMat(CAMERA_ALTURA, CAMERA_LARGURA, cv2.CV_8UC3).get()
         frame[:] = (25, 30, 45)
         cv2.putText(frame, "Webcam indisponivel", (55, 230), cv2.FONT_HERSHEY_SIMPLEX, 1.1, (255, 255, 255), 2)
         cv2.putText(frame, message[:72], (55, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (180, 190, 210), 1)

@@ -11,7 +11,7 @@ import mediapipe as mp
 # Permite executar este arquivo diretamente a partir da raiz do projeto.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from libras.vision import extract_features
+from libras.vision import abrir_camera, extract_features
 
 
 LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -32,7 +32,9 @@ def main():
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     write_header = not OUTPUT.exists() or OUTPUT.stat().st_size == 0
     letter = choose_letter()
-    capture = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    # Mesma resolução do reconhecimento (antes ficava no padrão da webcam,
+    # geralmente 640x480, o que distorcia a proporção dos marcos).
+    capture = abrir_camera()
     if not capture.isOpened():
         raise RuntimeError("Não foi possível acessar a webcam.")
 

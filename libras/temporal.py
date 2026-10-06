@@ -207,9 +207,16 @@ class Segmentador:
         self._velocidades = deque(maxlen=3)
         self._inicio = None
         self._ultimo_movimento = None
+        # Duração do último movimento descartado por ser curto (diagnóstico).
+        self.descartado_ms = None
+
+    @property
+    def em_movimento(self):
+        return self._inicio is not None
 
     def observar(self, timestamp_ms, landmarks):
         """Devolve ``(inicio_ms, fim_ms)`` quando um movimento termina."""
+        self.descartado_ms = None
         if landmarks is None:
             self._anterior = None
             self._velocidades.clear()
@@ -248,6 +255,7 @@ class Segmentador:
         self._inicio = self._ultimo_movimento = None
         # A duração mínima vale para o movimento em si, sem o contexto.
         if fim - inicio < DURACAO_MIN_MOVIMENTO_MS:
+            self.descartado_ms = fim - inicio
             return None
         return inicio, fim
 

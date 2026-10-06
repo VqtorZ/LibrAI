@@ -49,3 +49,12 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 MEDIA_ROOT = BASE_DIR / "media"
 DATA_UPLOAD_MAX_MEMORY_SIZE = 64 * 1024 * 1024
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Diagnóstico do reconhecimento de movimentos no terminal do runserver.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"simples": {"format": "[%(asctime)s] %(message)s", "datefmt": "%H:%M:%S"}},
+    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "simples"}},
+    "loggers": {"libras": {"handlers": ["console"], "level": "INFO", "propagate": False}},
+}

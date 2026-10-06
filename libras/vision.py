@@ -27,6 +27,9 @@ CAMERA_ALTURA = 540
 
 # Por quanto tempo um movimento reconhecido (ex.: J) fica na tela.
 EXIBICAO_MOVIMENTO_S = 2.5
+# Exibido enquanto a mão se move: a letra estática seria enganosa
+# (o J começa na configuração do I, por exemplo).
+ROTULO_ANALISANDO = "Analisando movimento…"
 
 # Pontas dos dedos: polegar, indicador, médio, anelar, mindinho.
 FINGERTIPS = [4, 8, 12, 16, 20]
@@ -145,19 +148,23 @@ class Camera:
         """Alimenta o detector de movimento com o frame atual.
 
         Um movimento reconhecido (ex.: J) tem prioridade sobre a letra
-        estática por ``EXIBICAO_MOVIMENTO_S`` segundos.
+        estática por ``EXIBICAO_MOVIMENTO_S`` segundos; enquanto a mão
+        se move, ``ROTULO_ANALISANDO`` substitui a letra estática.
         """
         landmarks, mao = marcos_da_mao(result)
         agora = time.monotonic()
-        previsao = self._detector_movimento().observar(
-            int(agora * 1000), landmarks, mao
-        )
+        detector = self._detector_movimento()
+        previsao = detector.observar(int(agora * 1000), landmarks, mao)
         if previsao and previsao["reconhecido"]:
             self.movimento_label = previsao["previsto"]
             self._movimento_ate = agora + EXIBICAO_MOVIMENTO_S
         if agora >= self._movimento_ate:
             self.movimento_label = None
-        return self.movimento_label
+        if self.movimento_label:
+            return self.movimento_label
+        if detector.em_movimento and detector.pronto:
+            return ROTULO_ANALISANDO
+        return None
 
     def _annotate(self, frame):
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)

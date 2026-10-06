@@ -1587,8 +1587,8 @@ class ExemplosNegativosTests(TemporalMLBase):
         self.assertContains(response, "Exemplo negativo")
 
 
-class DetectorAoVivoTests(TemporalMLBase):
-    """Segmentação e reconhecimento de movimentos frame a frame."""
+class AoVivoBase(TemporalMLBase):
+    """Auxiliares dos testes do detector ao vivo (câmera simulada)."""
 
     PASSO_MS = 33  # câmera ao vivo ~30 fps
 
@@ -1623,6 +1623,10 @@ class DetectorAoVivoTests(TemporalMLBase):
 
     def detector(self):
         return DetectorMovimento(Path(self.media_tmp) / "movimentos_teste.joblib")
+
+
+class DetectorAoVivoTests(AoVivoBase):
+    """Segmentação e reconhecimento de movimentos frame a frame."""
 
     def test_reconhece_gesto_entre_pausas(self):
         self.treinar_gesto()
@@ -1816,3 +1820,60 @@ class GravarMovimentoTests(TemporalBase):
     def test_amostra_do_site_registra_origem_navegador(self):
         amostra = salvar_amostra(self.sinal, self.gerar_sequencia())
         self.assertEqual(ler_sequencia(amostra)["origem"], "navegador")
+
+
+class DiagnosticoAoVivoTests(AoVivoBase):
+    """Registro no terminal e rótulo exibido durante o movimento."""
+
+    def test_registra_movimento_aceito(self):
+        self.treinar_gesto()
+        gesto = self.gesto(40, variacao=0.01)
+        with self.assertLogs("libras.ao_vivo", level="INFO") as registro:
+            self.alimentar(self.detector(), [gesto[0]] * 20 + gesto + [gesto[-1]] * 20)
+        texto = "\n".join(registro.output)
+        self.assertIn("Movimento detectado", texto)
+        self.assertIn("ACEITO como J", texto)
+        self.assertIn("limiar", texto)
+
+    def test_registra_movimento_curto_ignorado(self):
+        self.treinar_gesto()
+        base = self.gesto(20)
+        sequencia = [base[0]] * 20 + [base[10], base[0], base[10]] + [base[0]] * 20
+        with self.assertLogs("libras.ao_vivo", level="INFO") as registro:
+            self.alimentar(self.detector(), sequencia)
+        self.assertIn("curto demais", "\n".join(registro.output))
+
+    def test_em_movimento_durante_o_gesto(self):
+        detector = self.detector()
+        gesto = self.gesto(40)
+        self.alimentar(detector, [gesto[0]] * 10 + gesto[:20])
+        self.assertTrue(detector.em_movimento)
+        self.alimentar(detector, [gesto[19]] * 20, inicio_ms=30 * self.PASSO_MS)
+        self.assertFalse(detector.em_movimento)
+
+    def camera_com(self, em_movimento, pronto=True, previsao=None):
+        from . import vision
+
+        detector = type("D", (), {
+            "observar": lambda self, *a: previsao,
+            "em_movimento": em_movimento,
+            "pronto": pronto,
+        })()
+        camera = vision.Camera.__new__(vision.Camera)
+        camera._movimento = detector
+        camera.movimento_label = None
+        camera._movimento_ate = 0.0
+        sem_mao = type("R", (), {"multi_hand_landmarks": None})()
+        return camera._observar_movimento(sem_mao)
+
+    def test_camera_esconde_letra_estatica_durante_movimento(self):
+        from .vision import ROTULO_ANALISANDO
+
+        self.assertEqual(self.camera_com(em_movimento=True), ROTULO_ANALISANDO)
+        self.assertIsNone(self.camera_com(em_movimento=False))
+        # Sem modelo de movimento treinado, a letra estática continua.
+        self.assertIsNone(self.camera_com(em_movimento=True, pronto=False))
+
+    def test_camera_exibe_movimento_reconhecido(self):
+        previsao = {"reconhecido": True, "previsto": "J"}
+        self.assertEqual(self.camera_com(em_movimento=False, previsao=previsao), "J")

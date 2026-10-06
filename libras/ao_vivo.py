@@ -8,9 +8,14 @@ coleta e reconhecimento comparam trechos equivalentes.
 """
 from __future__ import annotations
 
+import logging
 from collections import deque
 
 from . import temporal
+
+# Diagnóstico no terminal do runserver: cada movimento detectado e o
+# motivo de ter sido aceito, rejeitado ou ignorado.
+logger = logging.getLogger(__name__)
 
 # Histórico mantido em memória (movimento mais longo + contexto).
 HISTORICO_MS = temporal.DURACAO_MAX_MOVIMENTO_MS + 1000
@@ -50,6 +55,11 @@ class DetectorMovimento:
     def pronto(self):
         return self._carregar() is not None
 
+    @property
+    def em_movimento(self):
+        """Há um movimento em andamento (a mão está se movendo agora)."""
+        return self._segmentador.em_movimento
+
     def observar(self, timestamp_ms, landmarks=None, mao=None):
         """Registra um frame; devolve a previsão quando um movimento termina.
 
@@ -63,16 +73,52 @@ class DetectorMovimento:
         )
         while self._historico[0]["timestamp_ms"] < timestamp_ms - HISTORICO_MS:
             self._historico.popleft()
+        estava_em_movimento = self._segmentador.em_movimento
         segmento = self._segmentador.observar(timestamp_ms, landmarks)
+        if self._segmentador.em_movimento and not estava_em_movimento:
+            logger.info("Movimento detectado — analisando…")
         if segmento is None:
+            if self._segmentador.descartado_ms is not None:
+                logger.info(
+                    "Ignorado: movimento curto demais (%d ms; mínimo %d ms).",
+                    self._segmentador.descartado_ms,
+                    temporal.DURACAO_MIN_MOVIMENTO_MS,
+                )
             return None
-        trecho = temporal.recortar(self._historico, *segmento)
-        if sum(1 for f in trecho if f["landmarks"] is not None) < temporal.FRAMES_MIN_TRAJETORIA:
+        inicio, fim = segmento
+        trecho = temporal.recortar(self._historico, inicio, fim)
+        validos = sum(1 for f in trecho if f["landmarks"] is not None)
+        if validos < temporal.FRAMES_MIN_TRAJETORIA:
+            logger.info(
+                "Ignorado: só %d frames com a mão (mínimo %d).",
+                validos, temporal.FRAMES_MIN_TRAJETORIA,
+            )
             return None
         modelo = self._carregar()
         if modelo is None:
+            logger.warning("Movimento não avaliado: %s", self.erro)
             return None
         trajetoria = temporal.processar_frames(trecho)
         if len(trajetoria) < 2:
             return None
-        return temporal.prever(trajetoria, modelo)
+        previsao = temporal.prever(trajetoria, modelo)
+        self._registrar(previsao, fim - inicio, validos)
+        return previsao
+
+    @staticmethod
+    def _registrar(previsao, duracao_ms, frames):
+        base = (
+            f"Movimento de {duracao_ms / 1000:.1f} s ({frames} frames) → "
+            f"mais parecido com {previsao['previsto']}: distância "
+            f"{previsao['distancia']:.2f}, limiar {previsao['limiar']:.2f}"
+        )
+        if previsao["reconhecido"]:
+            logger.info("%s → ACEITO como %s.", base, previsao["previsto"])
+        elif previsao["motivo_rejeicao"] == "negativo":
+            negativo = previsao["negativo_mais_proximo"]
+            logger.info(
+                "%s → REJEITADO: mais parecido com o exemplo negativo %s "
+                "(distância %.2f).", base, negativo["sinal"], negativo["distancia"],
+            )
+        else:
+            logger.info("%s → REJEITADO: distância acima do limiar.", base)

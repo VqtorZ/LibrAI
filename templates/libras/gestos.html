@@ -31,7 +31,7 @@
             <article class="gesto-card">
                 <div class="gesto-card-top">
                     <h3>{{ sinal.titulo }}</h3>
-                    <span class="gesto-status">{{ sinal.get_tipo_display }}</span>
+                    <span class="gesto-status">{{ sinal.get_tipo_display }}{% if sinal.negativo %} · negativo{% endif %}</span>
                 </div>
                 <p class="gesto-card-desc">{{ sinal.descricao|default:"—" }}</p>
                 <p class="gesto-card-date">Cadastrado em {{ sinal.criado_em|date:"d/m/Y à\s H:i" }}</p>

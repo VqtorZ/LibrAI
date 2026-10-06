@@ -274,6 +274,44 @@ def _limiar_de(distancias):
     return max(maxima * MARGEM_LIMIAR, LIMIAR_MINIMO)
 
 
+def _negativo_mais_proximo(negativos, entradas):
+    """Menor distância entre um exemplo negativo e os templates da classe."""
+    if not negativos or not entradas:
+        return None
+    return min(
+        distancia_dtw(negativo, template)
+        for _, negativo in negativos
+        for _, template in entradas
+    )
+
+
+def _calibrar(entradas, negativos):
+    """Leave-one-out + limiar da classe, apertado pelos exemplos negativos.
+
+    Sem negativos, o limiar é a maior distância LOO vezes a margem.
+    Com negativos, ele também não passa do ponto médio entre essa
+    distância e o negativo mais parecido — o modelo aprende onde a
+    classe termina. Se algum negativo fica mais perto que os próprios
+    exemplos da classe (sobreposição), o limiar volta à maior
+    distância LOO: aceitar os exemplos reais tem prioridade, e a
+    regra do vizinho negativo em ``prever`` cuida do resto.
+    """
+    loo = _loo(entradas)
+    maxima = max(d for _, _, d in loo)
+    limiar = _limiar_de(loo)
+    negativo_min = _negativo_mais_proximo(negativos, entradas)
+    sobreposicao = negativo_min is not None and negativo_min <= maxima
+    if negativo_min is not None:
+        teto = maxima if sobreposicao else (maxima + negativo_min) / 2
+        limiar = max(min(limiar, teto), LIMIAR_MINIMO)
+    return {
+        "loo": loo,
+        "limiar": limiar,
+        "negativo_min": negativo_min,
+        "sobreposicao": sobreposicao,
+    }
+
+
 def _caminho(caminho):
     return Path(caminho) if caminho is not None else MODELO_PATH
 
@@ -281,12 +319,12 @@ def _caminho(caminho):
 def treinar(caminho=None):
     """Treina o protótipo: memoriza trajetórias e calibra limiares.
 
-    O limiar de cada classe é a maior distância leave-one-out
-    intra-classe vezes ``MARGEM_LIMIAR`` — abaixo dele a previsão é
-    "parecido o suficiente", acima é rejeitada. Classes com menos de
-    duas amostras ficam de fora (não há como calibrar o limiar). Com
-    uma única classe o modelo demonstra correspondência ao padrão,
-    não discriminação entre sinais.
+    O limiar de cada classe parte da maior distância leave-one-out
+    intra-classe vezes ``MARGEM_LIMIAR`` e é apertado pelos sinais
+    marcados como exemplo negativo (``Sinal.negativo``), cujas
+    amostras também viram templates "de rejeição" (ver ``_calibrar``
+    e ``prever``). Classes com menos de duas amostras ficam de fora
+    (não há como calibrar o limiar).
     """
     destino = _caminho(caminho)
     pares = preparar_amostras()
@@ -304,7 +342,11 @@ def treinar(caminho=None):
     ]
     classes = {}
     sinal_ids = {}
+    negativos = []
     for amostra, trajetoria in validas:
+        if amostra.sinal.negativo:
+            negativos.append((amostra, trajetoria))
+            continue
         classes.setdefault(amostra.sinal.titulo, []).append(
             (amostra.pk, trajetoria)
         )
@@ -314,9 +356,14 @@ def treinar(caminho=None):
     if not classes:
         raise ErroTemporal(
             "Toda classe tem menos de duas amostras — impossível calibrar o "
-            "limiar de rejeição. Grave mais amostras por sinal."
+            "limiar de rejeição. Grave mais amostras por sinal (exemplos "
+            "negativos não contam como classe)."
         )
-    loo = {classe: _loo(entradas) for classe, entradas in classes.items()}
+    pares_negativos = [(a.pk, t) for a, t in negativos]
+    calibracao = {
+        classe: _calibrar(entradas, pares_negativos)
+        for classe, entradas in classes.items()
+    }
     modelo = {
         "formato": FORMATO_MODELO,
         "treinado_em": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -332,11 +379,22 @@ def treinar(caminho=None):
         "loo": {
             c: [
                 {"amostra": pk, "vizinho": viz, "distancia": d}
-                for pk, viz, d in loo[c]
+                for pk, viz, d in calibracao[c]["loo"]
             ]
             for c in classes
         },
-        "limiares": {c: _limiar_de(loo[c]) for c in classes},
+        "limiares": {c: calibracao[c]["limiar"] for c in classes},
+        "negativos": [
+            {"amostra_id": a.pk, "sinal": a.sinal.titulo, "trajetoria": t}
+            for a, t in negativos
+        ],
+        "calibracao": {
+            c: {
+                "negativo_min": calibracao[c]["negativo_min"],
+                "sobreposicao": calibracao[c]["sobreposicao"],
+            }
+            for c in classes
+        },
         "margem": MARGEM_LIMIAR,
     }
     destino.parent.mkdir(parents=True, exist_ok=True)
@@ -367,18 +425,23 @@ def carregar_modelo(caminho=None):
     return modelo
 
 
+def _sem(entradas, excluir_amostra):
+    return [
+        (e["amostra_id"], e["trajetoria"])
+        for e in entradas
+        if e["amostra_id"] != excluir_amostra
+    ]
+
+
 def _limiar_da_classe(modelo, classe, excluir_amostra=None):
     """Limiar da classe, recalculado sem a amostra excluída, se possível."""
     if excluir_amostra is None:
         return modelo["limiares"][classe]
-    entradas = [
-        (e["amostra_id"], e["trajetoria"])
-        for e in modelo["templates"][classe]
-        if e["amostra_id"] != excluir_amostra
-    ]
+    entradas = _sem(modelo["templates"][classe], excluir_amostra)
     if len(entradas) < 2:
         return modelo["limiares"][classe]
-    return _limiar_de(_loo(entradas))
+    negativos = _sem(modelo["negativos"], excluir_amostra)
+    return _calibrar(entradas, negativos)["limiar"]
 
 
 def prever(trajetoria, modelo, excluir_amostra=None):
@@ -390,6 +453,9 @@ def prever(trajetoria, modelo, excluir_amostra=None):
     o teste leave-one-out honesto para uma amostra que participou do
     treino. O limiar da classe prevista é recalculado sem ela quando
     sobram templates suficientes.
+
+    A entrada é rejeitada se passar do limiar da classe mais próxima
+    ou se um exemplo negativo estiver ainda mais perto dela.
     """
     candidatos = []
     for classe, entradas in modelo["templates"].items():
@@ -411,13 +477,34 @@ def prever(trajetoria, modelo, excluir_amostra=None):
     ]
     distancia, previsto, vizinho = min(distancias, key=lambda item: item[0])
     limiar = _limiar_da_classe(modelo, previsto, excluir_amostra)
+    negativo = None
+    for entrada in modelo["negativos"]:
+        if entrada["amostra_id"] == excluir_amostra:
+            continue
+        d = distancia_dtw(trajetoria, entrada["trajetoria"])
+        if negativo is None or d < negativo["distancia"]:
+            negativo = {
+                "sinal": entrada["sinal"],
+                "amostra": entrada["amostra_id"],
+                "distancia": d,
+            }
+    if distancia > limiar:
+        motivo = "limiar"
+    elif negativo is not None and negativo["distancia"] < distancia:
+        motivo = "negativo"
+    else:
+        motivo = None
     confianca = max(0.0, 1.0 - distancia / limiar) if limiar > 0 else 0.0
+    if motivo == "negativo":
+        confianca = 0.0
     return {
         "previsto": previsto,
         "distancia": distancia,
         "limiar": limiar,
         "confianca": min(confianca, 1.0),
-        "reconhecido": distancia <= limiar,
+        "reconhecido": motivo is None,
+        "motivo_rejeicao": motivo,
+        "negativo_mais_proximo": negativo,
         "vizinho_amostra": vizinho,
         "classes": modelo["classes"],
     }
@@ -448,7 +535,7 @@ def testar_amostra(amostra_pk, caminho=None):
     modelo = carregar_modelo(caminho)
     no_treino = any(
         entrada["amostra_id"] == amostra.pk
-        for entradas in modelo["templates"].values()
+        for entradas in [*modelo["templates"].values(), modelo["negativos"]]
         for entrada in entradas
     )
     previsao = prever(
@@ -458,6 +545,7 @@ def testar_amostra(amostra_pk, caminho=None):
     previsao.update({
         "amostra": amostra,
         "esperado": amostra.sinal.titulo,
+        "negativo": amostra.sinal.negativo,
         "frames_brutos": resultado.total_frames,
         "frames_processados": len(trajetoria),
         "modo_loo": no_treino,

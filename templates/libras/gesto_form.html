@@ -52,6 +52,12 @@
                     amostras temporais.</p>
             </div>
             <div class="form-field">
+                <label for="{{ form.negativo.id_for_label }}">{{ form.negativo }} {{ form.negativo.label }}</label>
+                {% for error in form.negativo.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                <p class="form-hint">Só para movimento. Grave aqui gestos parecidos que NÃO são o sinal (ex.: "J
+                    incompleto", "I parado"): eles ensinam o modelo onde o sinal termina.</p>
+            </div>
+            <div class="form-field">
                 <label for="{{ form.descricao.id_for_label }}">{{ form.descricao.label }}</label>
                 {{ form.descricao }}
                 {% for error in form.descricao.errors %}<p class="form-error">{{ error }}</p>{% endfor %}

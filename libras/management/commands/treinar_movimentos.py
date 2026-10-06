@@ -22,6 +22,15 @@ class Command(BaseCommand):
             self.stdout.write(f"Sinal: {classe} (id {modelo['sinal_id'][classe]})")
             self.stdout.write(f"Amostras: {modelo['amostras_por_classe'][classe]}")
 
+        if modelo["negativos"]:
+            contagem = {}
+            for entrada in modelo["negativos"]:
+                contagem[entrada["sinal"]] = contagem.get(entrada["sinal"], 0) + 1
+            self.stdout.write("")
+            self.stdout.write("Exemplos negativos (ensinam a rejeitar):")
+            for sinal, quantidade in contagem.items():
+                self.stdout.write(f"  {sinal}: {quantidade} amostra(s)")
+
         if treino.trajetorias:
             resumo = " · ".join(
                 f"#{pk}: {brutos}→{processados}"
@@ -59,17 +68,30 @@ class Command(BaseCommand):
             self.stdout.write(
                 f"  {classe}: média {media:.3f} · máxima {max(distancias):.3f}"
             )
+            calibracao = modelo["calibracao"][classe]
+            if calibracao["negativo_min"] is None:
+                origem = f"máx LOO × margem {modelo['margem']}"
+            else:
+                origem = (
+                    f"ajustado pelo negativo mais próximo: "
+                    f"{calibracao['negativo_min']:.3f}"
+                )
             self.stdout.write(
                 f"Limiar de rejeição de {classe}: "
-                f"{modelo['limiares'][classe]:.3f} "
-                f"(máx LOO × margem {modelo['margem']})"
+                f"{modelo['limiares'][classe]:.3f} ({origem})"
             )
+            if calibracao["sobreposicao"]:
+                self.stdout.write(self.style.WARNING(
+                    f"AVISO: um exemplo negativo está mais perto de {classe} "
+                    "que os próprios exemplos da classe. Revise as gravações "
+                    "negativas ou grave mais amostras variadas do sinal."
+                ))
 
         self.stdout.write("")
         self.stdout.write(f"Modelo salvo em {temporal.MODELO_PATH}.")
         self.stdout.write(self.style.SUCCESS("Modelo treinado com sucesso."))
 
-        if len(modelo["classes"]) == 1:
+        if len(modelo["classes"]) == 1 and not modelo["negativos"]:
             classe = modelo["classes"][0]
             total = modelo["amostras_por_classe"][classe]
             self.stdout.write("")
@@ -77,8 +99,9 @@ class Command(BaseCommand):
                 f"AVISO: o modelo tem uma única classe ({classe}) com {total} "
                 "amostras — isso valida o processamento e a correspondência "
                 "ao padrão gravado, mas NÃO prova que diferencia esse "
-                "movimento de outros. Colete amostras de outros sinais e "
-                "treine novamente."
+                "movimento de outros. Colete amostras de outros sinais ou "
+                "de exemplos negativos (ex.: J incompleto) e treine "
+                "novamente."
             ))
         self.stdout.write(self.style.WARNING(
             "Protótipo experimental (DTW + vizinho mais próximo). "

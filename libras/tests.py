@@ -1469,3 +1469,118 @@ class TestarMovimentoArquivoCommandTests(TemporalMLBase):
         texto = saida.getvalue()
         self.assertIn("--amostra <id>", texto)
         self.assertIn("--arquivo <caminho>", texto)
+
+
+class ExemplosNegativosTests(TemporalMLBase):
+    """Sinais marcados como negativos ensinam o modelo a rejeitar."""
+
+    def setUp(self):
+        super().setUp()
+        self.negativo = Sinal.objects.create(
+            titulo="J incompleto", tipo=Sinal.Tipo.MOVIMENTO, negativo=True
+        )
+
+    def gravar_negativos(self, *fases):
+        return [
+            self.salvar_trajetoria(self.negativo, self.trajetoria_sintetica(fase=f))
+            for f in fases
+        ]
+
+    @staticmethod
+    def processada(fase):
+        return processar_frames(
+            frames_de(TemporalMLBase.trajetoria_sintetica(fase=fase))
+        )
+
+    def test_form_aceita_negativo_de_movimento(self):
+        form = SinalForm(data={
+            "titulo": "I parado", "tipo": Sinal.Tipo.MOVIMENTO, "negativo": "on",
+        })
+        self.assertTrue(form.is_valid())
+        self.assertTrue(form.save().negativo)
+
+    def test_form_rejeita_negativo_estatico(self):
+        form = SinalForm(data={
+            "titulo": "X", "tipo": Sinal.Tipo.ESTATICO, "negativo": "on",
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn(
+            "Exemplos negativos precisam ser do tipo movimento.",
+            form.errors["negativo"],
+        )
+
+    def test_negativos_nao_viram_classe(self):
+        self.gravar_negativos(0.8, 0.85)
+        treino, _ = self.treinar_padrao(self.sinal)
+        self.assertEqual(treino.modelo["classes"], ["J"])
+        self.assertEqual(len(treino.modelo["negativos"]), 2)
+        self.assertEqual(treino.modelo["negativos"][0]["sinal"], "J incompleto")
+
+    def test_somente_negativos_nao_treina(self):
+        self.gravar_negativos(0.8, 0.85)
+        with self.assertRaises(temporal.ErroTemporal):
+            temporal.treinar()
+
+    def test_negativo_aperta_o_limiar(self):
+        sem_negativo, _ = self.treinar_padrao(self.sinal)
+        limiar_original = sem_negativo.modelo["limiares"]["J"]
+        self.gravar_negativos(0.5)
+        modelo = temporal.treinar().modelo
+        calibracao = modelo["calibracao"]["J"]
+        maxima = max(e["distancia"] for e in modelo["loo"]["J"])
+        self.assertFalse(calibracao["sobreposicao"])
+        self.assertLessEqual(modelo["limiares"]["J"], limiar_original)
+        self.assertLessEqual(
+            modelo["limiares"]["J"], (maxima + calibracao["negativo_min"]) / 2 + 1e-9
+        )
+        self.assertGreaterEqual(modelo["limiares"]["J"], maxima)
+
+    def test_rejeita_quando_negativo_e_mais_parecido(self):
+        self.gravar_negativos(0.07)
+        treino, _ = self.treinar_padrao(self.sinal)
+        self.assertTrue(treino.modelo["calibracao"]["J"]["sobreposicao"])
+        previsao = prever(self.processada(0.07), treino.modelo)
+        self.assertFalse(previsao["reconhecido"])
+        self.assertEqual(previsao["motivo_rejeicao"], "negativo")
+        self.assertEqual(previsao["confianca"], 0.0)
+        self.assertEqual(previsao["negativo_mais_proximo"]["sinal"], "J incompleto")
+
+    def test_sinal_real_continua_reconhecido(self):
+        self.gravar_negativos(0.8)
+        treino, _ = self.treinar_padrao(self.sinal)
+        previsao = prever(self.processada(0.02), treino.modelo)
+        self.assertTrue(previsao["reconhecido"])
+        self.assertIsNone(previsao["motivo_rejeicao"])
+
+    def test_testar_amostra_negativa_em_leave_one_out(self):
+        pks = [a.pk for a in self.gravar_negativos(0.07, 0.08)]
+        self.treinar_padrao(self.sinal)
+        resultado = temporal.testar_amostra(pks[0])
+        self.assertTrue(resultado["negativo"])
+        self.assertTrue(resultado["modo_loo"])
+        self.assertNotEqual(resultado["negativo_mais_proximo"]["amostra"], pks[0])
+
+    def test_comandos_relatam_negativos(self):
+        pks = [a.pk for a in self.gravar_negativos(0.07, 0.08)]
+        self.treinar_padrao(self.sinal)
+        saida = StringIO()
+        call_command("treinar_movimentos", stdout=saida, no_color=True)
+        texto = saida.getvalue()
+        self.assertIn("Exemplos negativos (ensinam a rejeitar):", texto)
+        self.assertIn("J incompleto: 2 amostra(s)", texto)
+        self.assertIn("ajustado pelo negativo mais próximo", texto)
+        saida = StringIO()
+        call_command("testar_movimento", amostra=pks[0], stdout=saida, no_color=True)
+        texto = saida.getvalue()
+        self.assertIn("exemplo negativo", texto)
+        self.assertIn("Esperado: REJEITADO", texto)
+        self.assertIn("Negativo mais próximo: J incompleto", texto)
+        self.assertIn("Resultado: ✓ REJEITOU", texto)
+
+    def test_paginas_exibem_negativo(self):
+        response = self.client.get(reverse("gestos"))
+        self.assertContains(response, "negativo")
+        response = self.client.get(reverse("gesto_detalhe", args=[self.negativo.pk]))
+        self.assertContains(response, "exemplo negativo")
+        response = self.client.get(reverse("gesto_novo"))
+        self.assertContains(response, "Exemplo negativo")

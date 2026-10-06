@@ -75,7 +75,8 @@ class Command(BaseCommand):
     def _relatar_amostra(self, r):
         self.stdout.write("=== TESTE DE MOVIMENTO ===")
         self.stdout.write("")
-        self.stdout.write(f"Amostra: #{r['amostra'].pk} (Sinal: {r['esperado']})")
+        tipo = " — exemplo negativo" if r["negativo"] else ""
+        self.stdout.write(f"Amostra: #{r['amostra'].pk} (Sinal: {r['esperado']}{tipo})")
         self.stdout.write(
             f"Frames: {r['frames_brutos']} brutos → "
             f"{r['frames_processados']} processados"
@@ -86,8 +87,10 @@ class Command(BaseCommand):
                 "templates do modelo)"
             )
         self.stdout.write("")
-        self.stdout.write(f"Esperado: {r['esperado']}")
-        self.stdout.write(f"Previsto: {r['previsto']}")
+        esperado = "REJEITADO" if r["negativo"] else r["esperado"]
+        previsto = r["previsto"] if r["reconhecido"] else "REJEITADO"
+        self.stdout.write(f"Esperado: {esperado}")
+        self.stdout.write(f"Previsto: {previsto}")
         self.stdout.write(
             f"Confiança: {r['confianca'] * 100:.1f}% "
             "(similaridade DTW — não é probabilidade calibrada)"
@@ -96,18 +99,37 @@ class Command(BaseCommand):
             f"Distância DTW: {r['distancia']:.3f} "
             f"(limiar de {r['previsto']}: {r['limiar']:.3f})"
         )
-        acertou = r["reconhecido"] and r["previsto"] == r["esperado"]
+        self._relatar_negativo(r)
+        if r["negativo"]:
+            acertou = not r["reconhecido"]
+            texto = "REJEITOU" if acertou else "ACEITOU — FALSO POSITIVO"
+        else:
+            acertou = r["reconhecido"] and r["previsto"] == r["esperado"]
+            texto = "RECONHECEU" if acertou else "NÃO RECONHECEU"
         simbolo = "✓" if acertou else "✗"
-        texto = "RECONHECEU" if acertou else "NÃO RECONHECEU"
         estilo = self.style.SUCCESS if acertou else self.style.ERROR
         self.stdout.write(f"Resultado: {simbolo} {estilo(texto)}")
-        if len(r["classes"]) == 1:
+        if len(r["classes"]) == 1 and not r["negativo_mais_proximo"]:
             self.stdout.write("")
             self.stdout.write(self.style.WARNING(
                 "AVISO: o modelo tem uma única classe — o resultado "
                 "demonstra correspondência ao padrão gravado, não "
                 "discriminação entre sinais."
             ))
+
+    def _relatar_negativo(self, r):
+        negativo = r["negativo_mais_proximo"]
+        if negativo is None:
+            return
+        self.stdout.write(
+            f"Negativo mais próximo: {negativo['sinal']} "
+            f"(amostra #{negativo['amostra']}, distância {negativo['distancia']:.3f})"
+        )
+        if r["motivo_rejeicao"] == "negativo":
+            self.stdout.write(
+                "Rejeitado porque um exemplo negativo é mais parecido que "
+                f"qualquer amostra de {r['previsto']}."
+            )
 
     def _relatar_arquivo(self, r):
         self.stdout.write("=== TESTE DE MOVIMENTO (ARQUIVO EXTERNO) ===")
@@ -129,6 +151,7 @@ class Command(BaseCommand):
             f"Distância DTW: {r['distancia']:.3f} "
             f"(limiar de {r['previsto']}: {r['limiar']:.3f})"
         )
+        self._relatar_negativo(r)
         if r["reconhecido"]:
             self.stdout.write(self.style.ERROR(
                 f"Resultado: ✗ ACEITOU — FALSO POSITIVO: a entrada não-J "

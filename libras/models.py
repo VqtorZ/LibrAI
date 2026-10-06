@@ -19,6 +19,14 @@ class Sinal(models.Model):
         "tipo", max_length=20, choices=Tipo.choices, default=Tipo.ESTATICO
     )
     descricao = models.TextField("descrição", blank=True)
+    negativo = models.BooleanField(
+        "exemplo negativo",
+        default=False,
+        help_text=(
+            "Movimento que NÃO deve ser reconhecido (ex.: J incompleto, "
+            "I parado). Suas amostras ensinam o modelo a rejeitar."
+        ),
+    )
     criado_em = models.DateTimeField("criado em", auto_now_add=True)
     atualizado_em = models.DateTimeField("atualizado em", auto_now=True)
     ativo = models.BooleanField("ativo", default=True)

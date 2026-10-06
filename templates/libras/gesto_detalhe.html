@@ -44,7 +44,7 @@
             <p class="section-label">VOCABULÁRIO</p>
             <h1>{{ sinal.titulo }}</h1>
             <p class="gestures-subtitle">{{ sinal.descricao|default:"Sem descrição cadastrada." }}</p>
-            <p class="gesto-card-date">{{ sinal.get_tipo_display }} · cadastrado em {{ sinal.criado_em|date:"d/m/Y" }}</p>
+            <p class="gesto-card-date">{{ sinal.get_tipo_display }}{% if sinal.negativo %} · exemplo negativo (o modelo aprende a rejeitar este movimento){% endif %} · cadastrado em {{ sinal.criado_em|date:"d/m/Y" }}</p>
         </div>
         {% if messages %}
         <ul class="messages">{% for message in messages %}<li class="{{ message.tags }}">{{ message }}</li>{% endfor %}</ul>

@@ -17,12 +17,12 @@ import mediapipe as mp
 import numpy as np
 from django.conf import settings
 
+from .marcos import MAOS_VALIDAS, marcos_da_mao
 from .models import AmostraMovimento, Sinal
 
 # Versão 2: cada frame também registra a mão detectada ("mao").
 FORMATO_VERSAO = 2
 VERSOES_SUPORTADAS = (1, 2)
-MAOS_VALIDAS = ("Right", "Left")
 DURACAO_MAX_MS = 30_000
 FRAMES_MAX = 500
 FRAMES_MIN_VALIDOS = 10
@@ -102,34 +102,18 @@ def extrair_landmarks(frames):
     with _lock:
         hands = _detectar()
         for timestamp_ms, dados_imagem in frames:
-            landmarks = None
-            mao = None
+            landmarks, mao = None, None
             imagem = cv2.imdecode(
                 np.frombuffer(dados_imagem, np.uint8), cv2.IMREAD_COLOR
             )
             if imagem is not None:
-                resultado = hands.process(cv2.cvtColor(imagem, cv2.COLOR_BGR2RGB))
-                if resultado.multi_hand_landmarks:
-                    pontos = resultado.multi_hand_landmarks[0].landmark
-                    valores = []
-                    for ponto in pontos:
-                        valores.extend((float(ponto.x), float(ponto.y), float(ponto.z)))
-                    if len(valores) == LANDMARKS_POR_MAO * VALORES_POR_LANDMARK:
-                        landmarks = valores
-                        mao = _lateralidade(resultado)
+                landmarks, mao = marcos_da_mao(
+                    hands.process(cv2.cvtColor(imagem, cv2.COLOR_BGR2RGB))
+                )
             sequencia.append(
                 {"timestamp_ms": timestamp_ms, "landmarks": landmarks, "mao": mao}
             )
     return sequencia
-
-
-def _lateralidade(resultado):
-    """"Right"/"Left" da primeira mão detectada, ou None se indisponível."""
-    try:
-        rotulo = resultado.multi_handedness[0].classification[0].label
-    except (AttributeError, IndexError, TypeError):
-        return None
-    return rotulo if rotulo in MAOS_VALIDAS else None
 
 
 def caminho_relativo(amostra):
@@ -141,11 +125,14 @@ def _caminho_absoluto(amostra):
     return Path(settings.MEDIA_ROOT) / caminho_relativo(amostra)
 
 
-def salvar_amostra(sinal, sequencia):
+def salvar_amostra(sinal, sequencia, origem="navegador"):
     """Valida a sequência, grava o arquivo JSON e registra a amostra.
 
     O arquivo é nomeado com o id gerado pelo banco; em caso de falha de
     escrita o registro é revertido para não deixar metadados órfãos.
+    ``origem`` registra o caminho da captura: "navegador" (página de
+    gravação) ou "opencv" (comando gravar_movimento, mesmo caminho do
+    reconhecimento ao vivo).
     """
     validos = sum(1 for frame in sequencia if frame["landmarks"] is not None)
     if validos < FRAMES_MIN_VALIDOS:
@@ -174,6 +161,7 @@ def salvar_amostra(sinal, sequencia):
         "duracao_ms": duracao_ms,
         "fps": fps,
         "quantidade_landmarks": LANDMARKS_POR_MAO,
+        "origem": origem,
         "frames": sequencia,
     }
     try:

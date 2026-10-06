@@ -30,13 +30,14 @@ from .movimentos import (
     FORMATO_VERSAO,
     FRAMES_MIN_VALIDOS,
     AmostraInvalida,
-    _lateralidade,
     apagar_amostra,
     salvar_amostra,
     ler_sequencia,
     validar_payload,
 )
 from .ao_vivo import DetectorMovimento
+from .gravacao import GravadorMovimento, localizar_sinal
+from .marcos import lateralidade as _lateralidade, marcos_da_mao
 from .temporal import distancia_dtw, normalizar_frame, prever, processar_frames
 from .verificacao import (
     resumir,
@@ -1719,3 +1720,99 @@ class SegmentacaoGravacaoTests(TemporalMLBase):
             temporal.processar_sequencia(conteudo),
             processar_frames(temporal.trecho_principal(frames)),
         )
+
+
+class MarcosDaMaoTests(TestCase):
+    """Leitura dos 63 valores e da mão a partir do resultado do MediaPipe."""
+
+    def test_le_valores_e_mao(self):
+        ponto = type("P", (), {"x": 0.1, "y": 0.2, "z": 0.3})()
+        mao = type("M", (), {"landmark": [ponto] * 21})()
+        classificacao = type("C", (), {"label": "Left"})()
+        lado = type("H", (), {"classification": [classificacao]})()
+        resultado = type(
+            "R", (), {"multi_hand_landmarks": [mao], "multi_handedness": [lado]}
+        )()
+        valores, rotulo = marcos_da_mao(resultado)
+        self.assertEqual(len(valores), 63)
+        self.assertEqual(valores[:3], [0.1, 0.2, 0.3])
+        self.assertEqual(rotulo, "Left")
+
+    def test_sem_mao(self):
+        resultado = type("R", (), {"multi_hand_landmarks": None})()
+        self.assertEqual(marcos_da_mao(resultado), (None, None))
+
+
+class GravarMovimentoTests(TemporalBase):
+    """Gravação pelo OpenCV: localização do sinal e montagem da amostra."""
+
+    def test_localiza_por_titulo_sem_diferenciar_caixa(self):
+        self.assertEqual(localizar_sinal("j"), self.sinal)
+
+    def test_localiza_por_numero(self):
+        self.assertEqual(localizar_sinal(str(self.sinal.pk)), self.sinal)
+
+    def test_sinal_inexistente_lista_os_disponiveis(self):
+        with self.assertRaises(AmostraInvalida) as contexto:
+            localizar_sinal("Z")
+        self.assertIn("J (#", str(contexto.exception))
+        self.assertIn("/gestos/novo/", str(contexto.exception))
+
+    def test_sinal_estatico_nao_e_aceito(self):
+        Sinal.objects.create(titulo="A")
+        with self.assertRaises(AmostraInvalida):
+            localizar_sinal("A")
+
+    def test_titulo_ambiguo_pede_o_numero(self):
+        Sinal.objects.create(titulo="J", tipo=Sinal.Tipo.MOVIMENTO)
+        with self.assertRaises(AmostraInvalida) as contexto:
+            localizar_sinal("J")
+        self.assertIn("Use o número", str(contexto.exception))
+
+    def test_grava_e_salva_com_origem_opencv(self):
+        gravador = GravadorMovimento(self.sinal)
+        self.assertFalse(gravador.gravando)
+        gravador.iniciar(100.0)
+        for i in range(30):
+            self.assertTrue(gravador.adicionar(100.0 + i / 30, [0.5] * 63, "Right"))
+        amostra = gravador.finalizar()
+        self.assertFalse(gravador.gravando)
+        self.assertEqual(amostra.quantidade_frames, 30)
+        conteudo = ler_sequencia(amostra)
+        self.assertEqual(conteudo["origem"], "opencv")
+        self.assertEqual(conteudo["frames"][0]["mao"], "Right")
+        self.assertEqual(conteudo["frames"][1]["timestamp_ms"], 33)
+        self.assertTrue(verificar_amostra(amostra).ok)
+
+    def test_para_no_limite_de_duracao(self):
+        gravador = GravadorMovimento(self.sinal)
+        gravador.iniciar(0.0)
+        self.assertTrue(gravador.adicionar(1.0, [0.5] * 63, None))
+        self.assertFalse(gravador.adicionar(DURACAO_MAX_MS / 1000 + 0.1, [0.5] * 63, None))
+
+    def test_gravacao_curta_e_rejeitada(self):
+        gravador = GravadorMovimento(self.sinal)
+        gravador.iniciar(0.0)
+        gravador.adicionar(0.0, None, None)
+        with self.assertRaises(AmostraInvalida):
+            gravador.finalizar()
+        self.assertEqual(AmostraMovimento.objects.count(), 0)
+        with self.assertRaises(AmostraInvalida):
+            gravador.finalizar()  # sem frames
+
+    def test_descartar(self):
+        gravador = GravadorMovimento(self.sinal)
+        gravador.iniciar(0.0)
+        gravador.adicionar(0.1, [0.5] * 63, None)
+        gravador.descartar()
+        self.assertFalse(gravador.gravando)
+        self.assertFalse(gravador.adicionar(0.2, [0.5] * 63, None))
+
+    def test_comando_com_sinal_inexistente(self):
+        with self.assertRaises(CommandError) as contexto:
+            call_command("gravar_movimento", "Z", stdout=StringIO())
+        self.assertIn("não encontrado", str(contexto.exception))
+
+    def test_amostra_do_site_registra_origem_navegador(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia())
+        self.assertEqual(ler_sequencia(amostra)["origem"], "navegador")

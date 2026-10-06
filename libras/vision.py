@@ -8,6 +8,8 @@ import time
 import cv2
 import mediapipe as mp
 
+from .marcos import marcos_da_mao
+
 try:
     import joblib
 except ImportError:
@@ -145,16 +147,7 @@ class Camera:
         Um movimento reconhecido (ex.: J) tem prioridade sobre a letra
         estática por ``EXIBICAO_MOVIMENTO_S`` segundos.
         """
-        from .movimentos import _lateralidade
-
-        landmarks, mao = None, None
-        if result.multi_hand_landmarks:
-            landmarks = [
-                float(valor)
-                for ponto in result.multi_hand_landmarks[0].landmark
-                for valor in (ponto.x, ponto.y, ponto.z)
-            ]
-            mao = _lateralidade(result)
+        landmarks, mao = marcos_da_mao(result)
         agora = time.monotonic()
         previsao = self._detector_movimento().observar(
             int(agora * 1000), landmarks, mao

@@ -34,18 +34,33 @@ python scripts/treinar_libras.py
 
 Repita a coleta para cada letra, variando pessoas, mãos, iluminação e
 distância. O modelo é salvo em `models/libras_alphabet.joblib` e carregado
-automaticamente pela câmera.
+automaticamente pela câmera. A coleta usa a mesma resolução do reconhecimento
+(960×540).
 
 ## Sinais com movimento
 
 ### 1. Cadastrar e gravar
 
 Em **Gestos → Cadastrar novo sinal**, escolha o tipo **Movimento** (ex.: `J`).
-Na página do sinal, use **Gravar nova amostra**: após uma contagem de 3 s,
-faça o movimento completo começando e terminando com a mão parada. O vídeo não
-é armazenado; o servidor extrai apenas os marcos da mão de cada frame e salva a
-sequência em `media/movimentos/<sinal>/<amostra>.json`, junto com a mão usada
-(direita/esquerda).
+Depois grave as amostras pelo terminal (com a página `/reconhecer/` fechada,
+para liberar a câmera):
+
+```powershell
+python manage.py gravar_movimento J
+```
+
+Uma janela mostra a câmera com os 21 pontos da mão, como na coleta do alfabeto.
+Faça a configuração inicial com a mão parada (no J, o I), aperte **ESPAÇO**,
+faça o movimento, pare a mão e aperte **ESPAÇO** de novo; a amostra é salva na
+hora. **Q** ou **ESC** encerra. Essa gravação usa a mesma câmera, resolução e
+detector do reconhecimento ao vivo, então as amostras saem como o reconhecedor
+as verá.
+
+A página do sinal também tem **Gravar nova amostra** pelo navegador, mas ela
+passa por outro caminho de captura (imagem reduzida, sem os pontos na tela) e
+não é a recomendada. O vídeo nunca é armazenado: cada amostra é a sequência dos
+marcos da mão em `media/movimentos/<sinal>/<amostra>.json`, com a mão usada
+(direita/esquerda) e a origem da captura.
 
 Grave várias amostras por sinal, de preferência com pessoas diferentes.
 
@@ -67,8 +82,10 @@ python manage.py testar_movimento --arquivo dataset/nao_j_sintetico.json
 ```
 
 Depois de treinar, o `/reconhecer/` passa a reconhecer o movimento ao vivo: faça
-o sinal e pare a mão no final. O modelo é recarregado automaticamente quando é
-retreinado.
+o sinal e pare a mão no final. Enquanto a mão se move, a tela mostra "Analisando
+movimento…". O modelo é recarregado automaticamente quando é retreinado, e o
+terminal do `runserver` registra cada movimento detectado com a distância, o
+limiar e o motivo de ter sido aceito, rejeitado ou ignorado.
 
 ### Como funciona
 

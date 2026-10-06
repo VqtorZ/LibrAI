@@ -5,9 +5,10 @@ amostras gravadas pela coleta temporal (``libras.movimentos``):
 
 1. validação estrutural reaproveitada da Etapa 4.1
    (``libras.verificacao.verificar_amostra``);
-2. conversão dos frames em uma trajetória normalizada (landmarks
-   relativos ao pulso e invariantes à escala; frames vazios das
-   pontas são truncados, os do meio interpolados por timestamp);
+2. conversão dos frames em uma trajetória (``processar_frames``):
+   forma da mão relativa ao pulso + deslocamento do pulso em tamanhos
+   de mão, com espelhamento da mão esquerda, reamostragem a passo
+   fixo e aparo do repouso nas pontas;
 3. classificador DTW (Dynamic Time Warping) de vizinho mais próximo,
    com limiar de rejeição calibrado por leave-one-out intra-classe.
 
@@ -34,12 +35,26 @@ from .movimentos import LANDMARKS_POR_MAO, VALORES_POR_LANDMARK, ler_sequencia
 from .verificacao import verificar_amostra, verificar_conteudo
 
 MODELO_PATH = Path(__file__).resolve().parent.parent / "models" / "movimentos.joblib"
-FORMATO_MODELO = 1
+# Formato 2: features com deslocamento do pulso, espelhamento,
+# reamostragem e aparo de repouso (ver ``processar_frames``).
+FORMATO_MODELO = 2
 # Fator de segurança sobre a maior distância leave-one-out da classe.
-MARGEM_LIMIAR = 2.0
+# 1.5 aceita todos os J reais no leave-one-out; 2.0 aceitava até
+# gestos pela metade. Exemplos negativos apertam o limiar no treino.
+MARGEM_LIMIAR = 1.5
 # Piso do limiar: evita aceitar tudo quando amostras são idênticas.
 LIMIAR_MINIMO = 0.05
 VALORES_POR_FRAME = LANDMARKS_POR_MAO * VALORES_POR_LANDMARK
+# Forma (63) + deslocamento do pulso (x, y).
+VALORES_POR_PASSO = VALORES_POR_FRAME + 2
+# Passo da reamostragem (~15 fps, o mesmo da página de gravação).
+INTERVALO_REAMOSTRAGEM_MS = 66
+# Peso do deslocamento do pulso (em tamanhos de mão) frente à forma.
+PESO_TRAJETORIA = 1.0
+# Fração da velocidade máxima abaixo da qual as pontas são repouso.
+FRACAO_REPOUSO = 0.15
+# Menor trajetória aceita pelo aparo de repouso.
+FRAMES_MIN_TRAJETORIA = 8
 
 
 class ErroTemporal(Exception):
@@ -69,38 +84,128 @@ def normalizar_frame(landmarks):
     return (pontos / escala).reshape(-1).tolist()
 
 
-def processar_sequencia(conteudo):
-    """JSON da amostra → trajetória normalizada (lista de 63-vetores).
+def _preencher_lacunas(frames):
+    """Frames → (timestamps, landmarks crus, mãos) sem lacunas.
 
-    Frames sem landmarks recebem tratamento explícito: os das pontas
-    são truncados (a mão ainda não entrou / já saiu do quadro) e os
-    do meio são interpolados linearmente por timestamp entre os
-    vizinhos válidos — o padrão temporal é preservado sem descartar
-    frames do meio do movimento.
+    Os frames vazios das pontas são truncados (a mão ainda não entrou /
+    já saiu do quadro) e os do meio são interpolados linearmente por
+    timestamp entre os vizinhos válidos — o padrão temporal é
+    preservado sem descartar frames do meio do movimento.
     """
-    frames = conteudo["frames"]
-    validos = {i for i, f in enumerate(frames) if f["landmarks"] is not None}
+    validos = [i for i, f in enumerate(frames) if f["landmarks"] is not None]
     if not validos:
-        return []
-    primeiro, ultimo = min(validos), max(validos)
-    trajetoria = []
-    for indice in range(primeiro, ultimo + 1):
+        return [], [], []
+    tempos, crus, maos = [], [], []
+    for indice in range(validos[0], validos[-1] + 1):
         frame = frames[indice]
+        tempos.append(frame["timestamp_ms"])
+        maos.append(frame.get("mao"))
         if frame["landmarks"] is not None:
-            trajetoria.append(normalizar_frame(frame["landmarks"]))
+            crus.append(list(frame["landmarks"]))
             continue
         anterior = max(v for v in validos if v < indice)
         proximo = min(v for v in validos if v > indice)
         fa, fb = frames[anterior], frames[proximo]
         ta, tb = fa["timestamp_ms"], fb["timestamp_ms"]
-        peso = (
-            (frame["timestamp_ms"] - ta) / (tb - ta) if tb > ta else 0.0
+        peso = (frame["timestamp_ms"] - ta) / (tb - ta) if tb > ta else 0.0
+        crus.append(
+            [a + (b - a) * peso for a, b in zip(fa["landmarks"], fb["landmarks"])]
         )
-        interpolado = [
-            a + (b - a) * peso for a, b in zip(fa["landmarks"], fb["landmarks"])
-        ]
-        trajetoria.append(normalizar_frame(interpolado))
-    return trajetoria
+    return tempos, crus, maos
+
+
+def _reamostrar(tempos, vetores):
+    """Interpola a sequência numa grade fixa de ``INTERVALO_REAMOSTRAGEM_MS``.
+
+    Gravações (≈15 fps) e câmera ao vivo (≈30 fps) passam a ter o mesmo
+    passo temporal, o que mantém as distâncias DTW comparáveis.
+    """
+    tempos = np.asarray(tempos, dtype=float)
+    vetores = np.asarray(vetores, dtype=float)
+    if len(tempos) < 2 or tempos[-1] <= tempos[0]:
+        return vetores
+    # Timestamps repetidos quebrariam a interpolação: mantém o primeiro.
+    unicos = np.concatenate(([True], np.diff(tempos) > 0))
+    tempos, vetores = tempos[unicos], vetores[unicos]
+    grade = np.arange(tempos[0], tempos[-1] + 1e-9, INTERVALO_REAMOSTRAGEM_MS)
+    return np.stack(
+        [np.interp(grade, tempos, vetores[:, k]) for k in range(vetores.shape[1])],
+        axis=1,
+    )
+
+
+def _aparar_repouso(vetores):
+    """Remove a mão parada no início e no fim da sequência.
+
+    A velocidade de cada passo é comparada à maior velocidade do
+    gesto; trechos das pontas abaixo de ``FRACAO_REPOUSO`` dela são
+    considerados espera, não sinal. Se sobrar pouco, nada é cortado.
+    """
+    if len(vetores) < FRAMES_MIN_TRAJETORIA:
+        return vetores
+    velocidade = np.linalg.norm(np.diff(vetores, axis=0), axis=1)
+    suave = np.convolve(velocidade, np.ones(3) / 3, mode="same")
+    pico = float(suave.max())
+    if pico <= 0:
+        return vetores
+    ativos = np.flatnonzero(suave >= pico * FRACAO_REPOUSO)
+    # velocidade[i] liga os frames i e i+1; a suavização já dá a folga.
+    inicio = int(ativos[0])
+    fim = int(ativos[-1]) + 1
+    if fim - inicio + 1 < FRAMES_MIN_TRAJETORIA:
+        return vetores
+    return vetores[inicio:fim + 1]
+
+
+def _espelhar(crus):
+    """Espelha landmarks crus no eixo x (coordenadas de imagem 0..1)."""
+    pontos = np.asarray(crus, dtype=float).reshape(len(crus), LANDMARKS_POR_MAO, 3)
+    pontos[:, :, 0] = 1.0 - pontos[:, :, 0]
+    return pontos.reshape(len(crus), -1)
+
+
+def _mao_esquerda(maos):
+    """Maioria dos frames rotulados como "Left" → sinal feito com a esquerda."""
+    rotuladas = [m for m in maos if m is not None]
+    return bool(rotuladas) and rotuladas.count("Left") > len(rotuladas) / 2
+
+
+def processar_frames(frames):
+    """Frames crus (``timestamp_ms``/``landmarks``/``mao``) → trajetória.
+
+    Cada passo da trajetória tem ``VALORES_POR_PASSO`` valores:
+
+    * 63 da **forma** da mão (``normalizar_frame``: relativos ao pulso
+      e à escala) — captura giros e mudanças de configuração;
+    * 2 do **deslocamento do pulso** (x, y) desde o início do gesto,
+      medido em tamanhos de mão — captura sinais em que o braço
+      desenha o movimento (como o Z), que a forma sozinha não vê.
+
+    Antes disso, sinais feitos com a mão esquerda são espelhados e a
+    sequência é reamostrada a passo fixo; ao final, o repouso das
+    pontas é aparado.
+    """
+    tempos, crus, maos = _preencher_lacunas(frames)
+    if not crus:
+        return []
+    crus = np.asarray(crus, dtype=float)
+    if _mao_esquerda(maos):
+        crus = _espelhar(crus)
+    pontos = crus.reshape(len(crus), LANDMARKS_POR_MAO, 3)
+    # Tamanho da mão: pulso (0) → base do dedo médio (9), mediana no tempo.
+    tamanho = float(np.median(
+        np.linalg.norm(pontos[:, 9, :2] - pontos[:, 0, :2], axis=1)
+    )) or 1.0
+    forma = np.array([normalizar_frame(f) for f in crus])
+    pulso = pontos[:, 0, :2] / tamanho * PESO_TRAJETORIA
+    passos = _aparar_repouso(_reamostrar(tempos, np.hstack([forma, pulso])))
+    passos[:, -2:] -= passos[0, -2:]
+    return passos.tolist()
+
+
+def processar_sequencia(conteudo):
+    """JSON da amostra → trajetória (lista de vetores por passo)."""
+    return processar_frames(conteudo["frames"])
 
 
 def carregar_sequencia(amostra):
@@ -279,8 +384,8 @@ def _limiar_da_classe(modelo, classe, excluir_amostra=None):
 def prever(trajetoria, modelo, excluir_amostra=None):
     """Prevê a classe de uma trajetória (vizinho mais próximo por DTW).
 
-    A trajetória precisa estar normalizada (``processar_sequencia`` /
-    ``normalizar_frame``) — os templates do modelo estão normalizados.
+    A trajetória precisa vir de ``processar_frames`` /
+    ``processar_sequencia`` — os templates do modelo saem de lá.
     ``excluir_amostra`` ignora o template com esse id — é o que torna
     o teste leave-one-out honesto para uma amostra que participou do
     treino. O limiar da classe prevista é recalculado sem ela quando

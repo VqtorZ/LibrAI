@@ -36,7 +36,7 @@ from .movimentos import (
     ler_sequencia,
     validar_payload,
 )
-from .temporal import distancia_dtw, normalizar_frame, processar_sequencia, prever
+from .temporal import distancia_dtw, normalizar_frame, prever, processar_frames
 from .verificacao import (
     resumir,
     verificar_amostra,
@@ -970,8 +970,47 @@ class TemporalMLBase(VerificadorBase):
         return caminho
 
 
+def mao_sintetica(t, dx=0.0, dy=0.0, giro=0.0, tamanho=0.15):
+    """63 valores crus de uma mão plausível em coordenadas de imagem.
+
+    O pulso fica em (0.5 + dx, 0.5 + dy); os demais pontos giram em
+    torno dele conforme ``t`` e ``giro`` — muda a forma relativa.
+    """
+    pulso = (0.5 + dx, 0.5 + dy)
+    valores = [pulso[0], pulso[1], 0.0]
+    for k in range(1, 21):
+        angulo = (k % 5) * 0.5 + (k // 5) * 0.2 + giro * t - 1.0
+        raio = tamanho * (0.4 + 0.15 * (k // 5 + 1))
+        valores.extend((
+            pulso[0] + raio * math.cos(angulo),
+            pulso[1] - raio * math.sin(angulo),
+            0.01 * k * tamanho,
+        ))
+    return valores
+
+
+def frames_de(vetores, intervalo_ms=66, mao=None):
+    """Lista de vetores crus → frames no formato das amostras."""
+    return [
+        {"timestamp_ms": i * intervalo_ms, "landmarks": list(v), "mao": mao}
+        for i, v in enumerate(vetores)
+    ]
+
+
 class NormalizacaoEProcessamentoTests(TemporalMLBase):
-    """Conversão de frames crus em trajetórias normalizadas."""
+    """Conversão de frames crus em trajetórias (features do formato 2)."""
+
+    @staticmethod
+    def gesto(total=20, deslocamento=(0.0, 0.0), giro=1.5):
+        return [
+            mao_sintetica(
+                i / (total - 1),
+                dx=deslocamento[0] * i / (total - 1),
+                dy=deslocamento[1] * i / (total - 1),
+                giro=giro,
+            )
+            for i in range(total)
+        ]
 
     def test_normalizacao_invariante_a_translacao_e_escala(self):
         bruto = [math.sin(j / 10) for j in range(63)]
@@ -984,33 +1023,86 @@ class NormalizacaoEProcessamentoTests(TemporalMLBase):
             np.allclose(normalizar_frame(bruto), normalizar_frame(escalado))
         )
 
-    def test_processar_trunca_pontas_e_interpola_meio(self):
-        bruta = self.trajetoria_sintetica(total=15)
-        amostra = self.salvar_trajetoria(self.sinal, bruta)
-        conteudo = self.ler_arquivo(amostra)
-        # Frames vazios: pontas (0, 1, 14) e meio (5, 6) → 10 válidos.
-        for indice in (0, 1, 5, 6, 14):
-            conteudo["frames"][indice]["landmarks"] = None
-        conteudo["quantidade_frames_validos"] = 10
-        self.escrever_arquivo(amostra, conteudo)
+    def test_passo_tem_forma_e_deslocamento_do_pulso(self):
+        trajetoria = processar_frames(frames_de(self.gesto()))
+        self.assertTrue(trajetoria)
+        self.assertTrue(
+            all(len(passo) == temporal.VALORES_POR_PASSO for passo in trajetoria)
+        )
+        # O deslocamento do pulso é medido desde o início do gesto.
+        self.assertEqual(trajetoria[0][-2:], [0.0, 0.0])
 
-        processada = processar_sequencia(self.ler_arquivo(amostra))
-        # Pontas truncadas: restam os frames 2..13 (12 vetores).
-        self.assertEqual(len(processada), 12)
-        # Frame 5 interpolado por timestamp entre 4 (264 ms) e 7 (462 ms).
-        anterior, proximo = bruta[4], bruta[7]
-        peso = (5 * 66 - 4 * 66) / (7 * 66 - 4 * 66)
-        esperado = [
-            a + (b - a) * peso for a, b in zip(anterior, proximo)
+    def test_deslocamento_do_pulso_diferencia_mesma_forma(self):
+        """Mesma forma, braço desenhando o movimento (caso do Z)."""
+        parado = processar_frames(frames_de(self.gesto(giro=0.0)))
+        andando = processar_frames(
+            frames_de(self.gesto(deslocamento=(0.3, 0.2), giro=0.0))
+        )
+        # A forma (63 primeiros valores) é idêntica nas duas...
+        self.assertTrue(np.allclose(
+            np.asarray(parado)[0, :63], np.asarray(andando)[0, :63]
+        ))
+        # ...mas o deslocamento do pulso as separa.
+        self.assertGreater(distancia_dtw(parado, andando), 0.5)
+
+    def test_deslocamento_em_tamanhos_de_mao(self):
+        pequena = [
+            mao_sintetica(0.0, dx=0.2 * i / 19, tamanho=0.1) for i in range(20)
         ]
-        self.assertTrue(np.allclose(processada[3], normalizar_frame(esperado)))
-        # Frames 4 e 7 continuam idênticos aos válidos (normalizados).
-        self.assertTrue(
-            np.allclose(processada[2], normalizar_frame(anterior))
-        )
-        self.assertTrue(
-            np.allclose(processada[5], normalizar_frame(proximo))
-        )
+        grande = [
+            mao_sintetica(0.0, dx=0.4 * i / 19, tamanho=0.2) for i in range(20)
+        ]
+        a = np.asarray(processar_frames(frames_de(pequena)))
+        b = np.asarray(processar_frames(frames_de(grande)))
+        # Mão duas vezes maior (mais perto da câmera) andando o dobro:
+        # o mesmo gesto em tamanhos de mão.
+        self.assertTrue(np.allclose(a, b))
+
+    def test_mao_esquerda_e_espelhada(self):
+        direita = self.gesto(deslocamento=(0.2, 0.1))
+        espelhada = [
+            [1.0 - v if k % 3 == 0 else v for k, v in enumerate(frame)]
+            for frame in direita
+        ]
+        a = processar_frames(frames_de(direita, mao="Right"))
+        b = processar_frames(frames_de(espelhada, mao="Left"))
+        self.assertTrue(np.allclose(a, b))
+
+    def test_reamostra_para_passo_fixo(self):
+        # Mesma duração (1254 ms) amostrada a ~30 fps e a ~15 fps.
+        lento = processar_frames(frames_de(self.gesto(total=39), intervalo_ms=33))
+        normal = processar_frames(frames_de(self.gesto(total=20), intervalo_ms=66))
+        self.assertLessEqual(abs(len(lento) - len(normal)), 1)
+        self.assertLess(distancia_dtw(lento, normal), 0.05)
+
+    def test_apara_repouso_nas_pontas(self):
+        gesto = self.gesto(deslocamento=(0.3, 0.0))
+        com_espera = [gesto[0]] * 12 + gesto + [gesto[-1]] * 12
+        aparado = processar_frames(frames_de(com_espera))
+        limpo = processar_frames(frames_de(gesto))
+        self.assertLessEqual(abs(len(aparado) - len(limpo)), 2)
+        self.assertLess(distancia_dtw(aparado, limpo), 0.1)
+
+    def test_lacunas_truncadas_nas_pontas_e_interpoladas_no_meio(self):
+        bruta = self.trajetoria_sintetica(total=15)
+        frames = frames_de(bruta)
+        # Frames vazios: pontas (0, 1, 14) e meio (5, 6).
+        for indice in (0, 1, 5, 6, 14):
+            frames[indice]["landmarks"] = None
+        tempos, crus, _ = temporal._preencher_lacunas(frames)
+        # Pontas truncadas: restam os frames 2..13.
+        self.assertEqual(tempos, [i * 66 for i in range(2, 14)])
+        # Frame 5 interpolado por timestamp entre 4 e 7.
+        peso = (5 - 4) / (7 - 4)
+        esperado = [a + (b - a) * peso for a, b in zip(bruta[4], bruta[7])]
+        self.assertTrue(np.allclose(crus[3], esperado))
+        self.assertTrue(np.allclose(crus[2], bruta[4]))
+
+    def test_sem_frames_validos_retorna_vazio(self):
+        frames = frames_de(self.gesto(total=5))
+        for frame in frames:
+            frame["landmarks"] = None
+        self.assertEqual(processar_frames(frames), [])
 
 
 class DistanciaDTWTests(TemporalMLBase):
@@ -1087,16 +1179,15 @@ class TreinarModeloTests(TemporalMLBase):
 class PreverTests(TemporalMLBase):
     """prever: vizinho mais próximo com limiar de rejeição.
 
-    prever espera a trajetória já normalizada (como sai de
-    processar_sequencia) — os templates do modelo estão normalizados.
+    prever espera a trajetória já processada (como sai de
+    processar_frames) — os templates do modelo saem de lá.
     """
 
     @staticmethod
     def normalizada(total=20, fase=0.0):
-        return [
-            normalizar_frame(vetor)
-            for vetor in TemporalMLBase.trajetoria_sintetica(total, fase)
-        ]
+        return processar_frames(
+            frames_de(TemporalMLBase.trajetoria_sintetica(total, fase))
+        )
 
     def test_reconhece_trajetoria_nova_da_mesma_forma(self):
         treino, _ = self.treinar_padrao(self.sinal)
@@ -1108,10 +1199,9 @@ class PreverTests(TemporalMLBase):
     def test_rejeita_ruido(self):
         treino, _ = self.treinar_padrao(self.sinal)
         gerador = random.Random(42)
-        ruido = [
-            normalizar_frame([gerador.uniform(-3, 3) for _ in range(63)])
-            for _ in range(20)
-        ]
+        ruido = processar_frames(frames_de(
+            [[gerador.uniform(-3, 3) for _ in range(63)] for _ in range(20)]
+        ))
         previsao = prever(ruido, treino.modelo)
         self.assertFalse(previsao["reconhecido"])
         self.assertEqual(previsao["confianca"], 0.0)

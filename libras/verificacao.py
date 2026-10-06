@@ -12,10 +12,11 @@ import math
 from dataclasses import dataclass, field
 
 from .movimentos import (
-    FORMATO_VERSAO,
     FRAMES_MIN_VALIDOS,
     LANDMARKS_POR_MAO,
+    MAOS_VALIDAS,
     VALORES_POR_LANDMARK,
+    VERSOES_SUPORTADAS,
     AmostraInvalida,
     ler_sequencia,
 )
@@ -161,6 +162,8 @@ def verificar_conteudo(conteudo, sinal_id_esperado=None) -> ResultadoVerificacao
                 problemas.append(f"frame {indice}: timestamps fora de ordem")
             timestamp_anterior = timestamp
             timestamps.append(timestamp)
+        if frame.get("mao") is not None and frame["mao"] not in MAOS_VALIDAS:
+            problemas.append(f"frame {indice}: mão '{frame['mao']}' inválida")
         landmarks = frame["landmarks"]
         if landmarks is None:
             resultado.frames_sem_landmarks += 1
@@ -190,9 +193,10 @@ def verificar_conteudo(conteudo, sinal_id_esperado=None) -> ResultadoVerificacao
             f"apenas {resultado.frames_validos} frames válidos (mínimo {FRAMES_MIN_VALIDOS})"
         )
 
-    if "version" in conteudo and conteudo["version"] != FORMATO_VERSAO:
+    if "version" in conteudo and conteudo["version"] not in VERSOES_SUPORTADAS:
+        suportadas = ", ".join(str(v) for v in VERSOES_SUPORTADAS)
         problemas.append(
-            f"versão do arquivo ({conteudo['version']}) inesperada (esperada {FORMATO_VERSAO})"
+            f"versão do arquivo ({conteudo['version']}) inesperada (suportadas: {suportadas})"
         )
     if sinal_id_esperado is not None and "sinal_id" in conteudo:
         if conteudo["sinal_id"] != sinal_id_esperado:

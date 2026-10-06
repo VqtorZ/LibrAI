@@ -30,6 +30,7 @@ from .movimentos import (
     FORMATO_VERSAO,
     FRAMES_MIN_VALIDOS,
     AmostraInvalida,
+    _lateralidade,
     apagar_amostra,
     salvar_amostra,
     ler_sequencia,
@@ -259,7 +260,7 @@ class AmostraMovimentoTests(TemporalBase):
     def test_conteudo_do_arquivo_e_versionado_e_completo(self):
         amostra = salvar_amostra(self.sinal, self.gerar_sequencia(total=16, nulos=3))
         conteudo = ler_sequencia(amostra)
-        self.assertEqual(conteudo["version"], 1)
+        self.assertEqual(conteudo["version"], FORMATO_VERSAO)
         self.assertEqual(conteudo["sinal_id"], self.sinal.pk)
         self.assertEqual(conteudo["quantidade_frames"], 16)
         self.assertEqual(conteudo["quantidade_frames_validos"], 13)
@@ -282,7 +283,7 @@ class AmostraMovimentoTests(TemporalBase):
         self.assertEqual(amostra.duracao_ms, 15 * 66)
         self.assertEqual(amostra.quantidade_frames, 16)
         self.assertEqual(amostra.quantidade_landmarks, 21)
-        self.assertEqual(amostra.versao_features, 1)
+        self.assertEqual(amostra.versao_features, FORMATO_VERSAO)
         self.assertEqual(amostra.fps, round(15 / (15 * 66 / 1000), 1))
         self.assertEqual(amostra.duracao_segundos, 1.0)
 
@@ -327,6 +328,25 @@ class AmostraMovimentoTests(TemporalBase):
         (Path(self.media_tmp) / amostra.arquivo_dados).unlink()
         apagar_amostra(amostra)
         self.assertEqual(AmostraMovimento.objects.count(), 0)
+
+
+class LateralidadeTests(TestCase):
+    """Leitura da mão (direita/esquerda) informada pelo MediaPipe."""
+
+    @staticmethod
+    def resultado(rotulo):
+        classificacao = type("C", (), {"label": rotulo})()
+        mao = type("H", (), {"classification": [classificacao]})()
+        return type("R", (), {"multi_handedness": [mao]})()
+
+    def test_le_rotulos_validos(self):
+        self.assertEqual(_lateralidade(self.resultado("Left")), "Left")
+        self.assertEqual(_lateralidade(self.resultado("Right")), "Right")
+
+    def test_rotulo_desconhecido_ou_ausente_vira_none(self):
+        self.assertIsNone(_lateralidade(self.resultado("Outra")))
+        self.assertIsNone(_lateralidade(type("R", (), {"multi_handedness": []})()))
+        self.assertIsNone(_lateralidade(object()))
 
 
 class ValidarPayloadTests(TestCase):
@@ -665,6 +685,31 @@ class VerificarAmostraTests(VerificadorBase):
         resultado = verificar_amostra(amostra)
         self.assertFalse(resultado.ok)
         self.assertIn("frame 8: timestamps fora de ordem", resultado.problemas)
+
+    def test_arquivo_da_versao_1_continua_valido(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia())
+        conteudo = self.ler_arquivo(amostra)
+        conteudo["version"] = 1
+        self.escrever_arquivo(amostra, conteudo)
+        amostra.versao_features = 1
+        amostra.save()
+        self.assertTrue(verificar_amostra(amostra).ok)
+
+    def test_mao_invalida(self):
+        amostra = salvar_amostra(self.sinal, self.gerar_sequencia())
+        conteudo = self.ler_arquivo(amostra)
+        conteudo["frames"][2]["mao"] = "Meio"
+        self.escrever_arquivo(amostra, conteudo)
+        resultado = verificar_amostra(amostra)
+        self.assertFalse(resultado.ok)
+        self.assertIn("frame 2: mão 'Meio' inválida", resultado.problemas)
+
+    def test_mao_valida_ou_ausente_nao_invalida(self):
+        sequencia = self.gerar_sequencia()
+        sequencia[0]["mao"] = "Left"
+        sequencia[1]["mao"] = None
+        amostra = salvar_amostra(self.sinal, sequencia)
+        self.assertTrue(verificar_amostra(amostra).ok)
 
     def test_sinal_id_inconsistente(self):
         amostra = salvar_amostra(self.sinal, self.gerar_sequencia())
@@ -1164,7 +1209,7 @@ class TestarMovimentoCommandTests(TemporalMLBase):
         amostra = AmostraMovimento.objects.get(pk=pks[0])
         gerador = random.Random(7)
         conteudo = {
-            "version": 1,
+            "version": FORMATO_VERSAO,
             "sinal_id": self.sinal.pk,
             "quantidade_frames": 20,
             "quantidade_frames_validos": 20,

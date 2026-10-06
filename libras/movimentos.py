@@ -19,7 +19,10 @@ from django.conf import settings
 
 from .models import AmostraMovimento, Sinal
 
-FORMATO_VERSAO = 1
+# Versão 2: cada frame também registra a mão detectada ("mao").
+FORMATO_VERSAO = 2
+VERSOES_SUPORTADAS = (1, 2)
+MAOS_VALIDAS = ("Right", "Left")
 DURACAO_MAX_MS = 30_000
 FRAMES_MAX = 500
 FRAMES_MIN_VALIDOS = 10
@@ -73,6 +76,7 @@ _hands = None
 
 
 def _detectar():
+    """Detector compartilhado; chamar somente com ``_lock`` adquirido."""
     global _hands
     if _hands is None:
         _hands = mp.solutions.hands.Hands(
@@ -90,12 +94,16 @@ def extrair_landmarks(frames):
     Frames sem mão detectada (ou ilegíveis) permanecem na sequência com
     ``landmarks: null`` — nada é descartado silenciosamente. Os valores
     são os 21 marcos crus do MediaPipe (x, y, z normalizados na imagem).
+    ``mao`` guarda a lateralidade informada pelo MediaPipe ("Right" ou
+    "Left"), usada pelo pipeline temporal para espelhar sinais feitos
+    com a mão esquerda.
     """
-    hands = _detectar()
     sequencia = []
     with _lock:
+        hands = _detectar()
         for timestamp_ms, dados_imagem in frames:
             landmarks = None
+            mao = None
             imagem = cv2.imdecode(
                 np.frombuffer(dados_imagem, np.uint8), cv2.IMREAD_COLOR
             )
@@ -108,8 +116,20 @@ def extrair_landmarks(frames):
                         valores.extend((float(ponto.x), float(ponto.y), float(ponto.z)))
                     if len(valores) == LANDMARKS_POR_MAO * VALORES_POR_LANDMARK:
                         landmarks = valores
-            sequencia.append({"timestamp_ms": timestamp_ms, "landmarks": landmarks})
+                        mao = _lateralidade(resultado)
+            sequencia.append(
+                {"timestamp_ms": timestamp_ms, "landmarks": landmarks, "mao": mao}
+            )
     return sequencia
+
+
+def _lateralidade(resultado):
+    """"Right"/"Left" da primeira mão detectada, ou None se indisponível."""
+    try:
+        rotulo = resultado.multi_handedness[0].classification[0].label
+    except (AttributeError, IndexError, TypeError):
+        return None
+    return rotulo if rotulo in MAOS_VALIDAS else None
 
 
 def caminho_relativo(amostra):

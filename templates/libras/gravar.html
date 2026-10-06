@@ -159,9 +159,10 @@
             <div class="panel-divider"></div>
             <h2>Para uma boa coleta</h2>
             <ul>
-                <li><span>01</span> Faça o movimento completo, sem pressa.</li>
-                <li><span>02</span> Mantenha a mão visível do início ao fim.</li>
-                <li><span>03</span> Prefira um ambiente bem iluminado.</li>
+                <li><span>01</span> Use a contagem para posicionar a mão antes de começar.</li>
+                <li><span>02</span> Comece e termine com a mão parada; faça o movimento completo, sem pressa.</li>
+                <li><span>03</span> Mantenha a mão visível do início ao fim.</li>
+                <li><span>04</span> Prefira um ambiente bem iluminado.</li>
             </ul>
             <p><a class="text-link" href="{% url 'gesto_detalhe' sinal.pk %}">Voltar para o sinal</a></p>
         </aside>
@@ -191,6 +192,7 @@
             const INTERVALO_AMOSTRAGEM_MS = 66;
             const FRAMES_MAX = 450;
             const FRAMES_MIN = 10;
+            const CONTAGEM_S = 3;
 
             let stream = null;
             let gravando = false;
@@ -199,11 +201,13 @@
             let inicio = 0;
             let amostrador = null;
             let relogio = null;
+            let contagem = null;
 
             function estado(nome) {
                 const visiveis = {
                     inicial: ['abrir'],
                     aberta: ['iniciar', 'fechar'],
+                    contando: ['parar'],
                     gravando: ['parar'],
                     gravado: ['salvar', 'descartar', 'novamente'],
                     processando: [],
@@ -278,6 +282,37 @@
                 estado('aberta');
             }
 
+            // Contagem regressiva: a pessoa posiciona a mão antes da
+            // gravação, e o sinal começa com a mão parada no quadro.
+            function contarEIniciar() {
+                let restante = CONTAGEM_S;
+                frames = [];
+                mostrarErro('');
+                estado('contando');
+                timer.textContent = `Começa em ${restante}…`;
+                mostrarContador('Posicione a mão e fique parado até a gravação começar.');
+                contagem = setInterval(() => {
+                    restante -= 1;
+                    if (restante > 0) {
+                        timer.textContent = `Começa em ${restante}…`;
+                        return;
+                    }
+                    clearInterval(contagem);
+                    contagem = null;
+                    iniciar();
+                }, 1000);
+            }
+
+            function cancelarContagem() {
+                if (!contagem) return false;
+                clearInterval(contagem);
+                contagem = null;
+                timer.textContent = '00:00 / 00:30';
+                mostrarContador(`Máximo de 30 segundos · mínimo de ${FRAMES_MIN} frames com a mão visível.`);
+                estado(stream ? 'aberta' : 'inicial');
+                return true;
+            }
+
             function iniciar() {
                 frames = [];
                 gravando = true;
@@ -298,6 +333,7 @@
             }
 
             function parar() {
+                if (cancelarContagem()) return;
                 clearInterval(amostrador);
                 clearInterval(relogio);
                 gravando = false;
@@ -353,6 +389,7 @@
             }
 
             function interromperCamera() {
+                cancelarContagem();
                 if (gravando) parar();
                 stream = null;
                 video.srcObject = null;
@@ -362,11 +399,11 @@
             }
 
             botoes.abrir.addEventListener('click', abrirCamera);
-            botoes.iniciar.addEventListener('click', iniciar);
+            botoes.iniciar.addEventListener('click', contarEIniciar);
             botoes.parar.addEventListener('click', parar);
             botoes.salvar.addEventListener('click', salvar);
             botoes.descartar.addEventListener('click', descartar);
-            botoes.novamente.addEventListener('click', () => { frames = []; iniciar(); });
+            botoes.novamente.addEventListener('click', contarEIniciar);
             botoes.fechar.addEventListener('click', () => { fecharCamera(); estado('inicial'); });
             window.addEventListener('beforeunload', fecharCamera);
             estado('inicial');

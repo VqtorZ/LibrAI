@@ -63,14 +63,16 @@ class Command(BaseCommand):
                     f"{entrada['distancia']:.3f} "
                     f"(vizinho mais próximo: #{entrada['vizinho']})"
                 )
-            distancias = [e["distancia"] for e in modelo["loo"][classe]]
-            media = sum(distancias) / len(distancias)
+            distancias = sorted(e["distancia"] for e in modelo["loo"][classe])
+            mediana = temporal._tipica(
+                [(None, None, d) for d in distancias]
+            )
             self.stdout.write(
-                f"  {classe}: média {media:.3f} · máxima {max(distancias):.3f}"
+                f"  {classe}: mediana {mediana:.3f} · máxima {distancias[-1]:.3f}"
             )
             calibracao = modelo["calibracao"][classe]
             if calibracao["negativo_min"] is None:
-                origem = f"máx LOO × margem {modelo['margem']}"
+                origem = f"mediana LOO × margem {modelo['margem']}"
             else:
                 origem = (
                     f"ajustado pelo negativo mais próximo: "

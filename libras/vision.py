@@ -17,6 +17,9 @@ except ImportError:
 MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "libras_alphabet.joblib"
 
 
+# Por quanto tempo um movimento reconhecido (ex.: J) fica na tela.
+EXIBICAO_MOVIMENTO_S = 2.5
+
 # Pontas dos dedos: polegar, indicador, médio, anelar, mindinho.
 FINGERTIPS = [4, 8, 12, 16, 20]
 
@@ -75,6 +78,12 @@ class Camera:
                 self.model_error = f"Não foi possível carregar o modelo: {exc}"
         self.last_label = "Aguardando mão"
         self.last_error = None
+        # Reconhecimento de movimento: criado sob demanda porque depende
+        # do Django, e este módulo também é importado pelos scripts de
+        # coleta/treino do alfabeto, que rodam sem o Django configurado.
+        self._movimento = None
+        self.movimento_label = None
+        self._movimento_ate = 0.0
 
     def _open(self):
         if self._capture is None or not self._capture.isOpened():
@@ -102,6 +111,40 @@ class Camera:
             return "Modelo inválido"
         return label if confidence >= 0.70 else "Sinal não identificado"
 
+    def _detector_movimento(self):
+        if self._movimento is None:
+            from .ao_vivo import DetectorMovimento
+
+            self._movimento = DetectorMovimento()
+        return self._movimento
+
+    def _observar_movimento(self, result):
+        """Alimenta o detector de movimento com o frame atual.
+
+        Um movimento reconhecido (ex.: J) tem prioridade sobre a letra
+        estática por ``EXIBICAO_MOVIMENTO_S`` segundos.
+        """
+        from .movimentos import _lateralidade
+
+        landmarks, mao = None, None
+        if result.multi_hand_landmarks:
+            landmarks = [
+                float(valor)
+                for ponto in result.multi_hand_landmarks[0].landmark
+                for valor in (ponto.x, ponto.y, ponto.z)
+            ]
+            mao = _lateralidade(result)
+        agora = time.monotonic()
+        previsao = self._detector_movimento().observar(
+            int(agora * 1000), landmarks, mao
+        )
+        if previsao and previsao["reconhecido"]:
+            self.movimento_label = previsao["previsto"]
+            self._movimento_ate = agora + EXIBICAO_MOVIMENTO_S
+        if agora >= self._movimento_ate:
+            self.movimento_label = None
+        return self.movimento_label
+
     def _annotate(self, frame):
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         result = self._hands.process(rgb)
@@ -113,7 +156,7 @@ class Camera:
                 frame, hand, mp.solutions.hands.HAND_CONNECTIONS
             )
             label = self.classify(hand.landmark)
-        self.last_label = label
+        self.last_label = self._observar_movimento(result) or label
         return frame
 
     def frames(self):
@@ -152,10 +195,14 @@ class Camera:
 
     def status(self):
         error = self.last_error or self.model_error
+        detector = self._movimento
         return {
             "label": self.last_label,
             "error": error,
             "model_ready": self.model is not None,
+            # O detector só existe depois que a câmera processou frames.
+            "movement_ready": detector.pronto if detector is not None else None,
+            "movement_label": self.movimento_label,
         }
 
 

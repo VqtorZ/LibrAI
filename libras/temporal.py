@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -38,9 +39,12 @@ MODELO_PATH = Path(__file__).resolve().parent.parent / "models" / "movimentos.jo
 # Formato 2: features com deslocamento do pulso, espelhamento,
 # reamostragem e aparo de repouso (ver ``processar_frames``).
 FORMATO_MODELO = 2
-# Fator de segurança sobre a maior distância leave-one-out da classe.
-# 1.5 aceita todos os J reais no leave-one-out; 2.0 aceitava até
-# gestos pela metade. Exemplos negativos apertam o limiar no treino.
+# Fator de segurança sobre a distância leave-one-out TÍPICA (mediana)
+# da classe. Com as gravações reais de J, mediana × 1.5 aceitou todos
+# os J em avaliação honesta e rejeitou J invertido, mão parada e Z
+# simulado; o máximo × 2.0 anterior chegava a aceitar mão parada,
+# porque um único par de amostras distantes estourava o limiar.
+# Exemplos negativos apertam o limiar no treino.
 MARGEM_LIMIAR = 1.5
 # Piso do limiar: evita aceitar tudo quando amostras são idênticas.
 LIMIAR_MINIMO = 0.05
@@ -55,6 +59,17 @@ PESO_TRAJETORIA = 1.0
 FRACAO_REPOUSO = 0.15
 # Menor trajetória aceita pelo aparo de repouso.
 FRAMES_MIN_TRAJETORIA = 8
+
+# Segmentação de movimentos (``Segmentador``), calibrada com as
+# gravações reais de J: mão em repouso fica em ~1–3,5 unidades/s
+# (tremor natural) e o movimento do sinal em ~8–25 (unidades = forma
+# normalizada + pulso em tamanhos de mão, por segundo).
+VELOCIDADE_INICIO = 6.0      # média de 3 frames que inicia um movimento
+VELOCIDADE_REPOUSO = 4.0     # abaixo disto a mão está parada
+PAUSA_MS = 350               # tempo parado (ou sem mão) que encerra
+PRE_MOVIMENTO_MS = 300       # contexto anterior incluído no trecho
+DURACAO_MIN_MOVIMENTO_MS = 400
+DURACAO_MAX_MOVIMENTO_MS = 4000
 
 
 class ErroTemporal(Exception):
@@ -170,6 +185,110 @@ def _mao_esquerda(maos):
     return bool(rotuladas) and rotuladas.count("Left") > len(rotuladas) / 2
 
 
+def _vetor_de_movimento(landmarks):
+    """Forma normalizada + pulso em tamanhos de mão de um único frame."""
+    pontos = np.asarray(landmarks, dtype=float).reshape(LANDMARKS_POR_MAO, 3)
+    tamanho = float(np.linalg.norm(pontos[9, :2] - pontos[0, :2])) or 1.0
+    return np.concatenate([normalizar_frame(landmarks), pontos[0, :2] / tamanho])
+
+
+class Segmentador:
+    """Detecta, frame a frame, onde um movimento começa e termina.
+
+    O movimento começa quando a velocidade média (3 frames) passa de
+    ``VELOCIDADE_INICIO`` e termina após ``PAUSA_MS`` com a mão parada
+    ou fora do quadro (ou ao atingir ``DURACAO_MAX_MOVIMENTO_MS``).
+    É usado ao vivo (``libras.ao_vivo``) e, no treino, para recortar
+    as gravações — os dois lados comparam trechos equivalentes.
+    """
+
+    def __init__(self):
+        self._anterior = None  # (timestamp_ms, vetor) do último frame com mão
+        self._velocidades = deque(maxlen=3)
+        self._inicio = None
+        self._ultimo_movimento = None
+
+    def observar(self, timestamp_ms, landmarks):
+        """Devolve ``(inicio_ms, fim_ms)`` quando um movimento termina."""
+        if landmarks is None:
+            self._anterior = None
+            self._velocidades.clear()
+        else:
+            vetor = _vetor_de_movimento(landmarks)
+            if self._anterior is not None:
+                t_anterior, v_anterior = self._anterior
+                dt = (timestamp_ms - t_anterior) / 1000
+                if dt > 0:
+                    self._velocidades.append(
+                        float(np.linalg.norm(vetor - v_anterior)) / dt
+                    )
+            self._anterior = (timestamp_ms, vetor)
+        velocidade = (
+            sum(self._velocidades) / len(self._velocidades)
+            if self._velocidades else 0.0
+        )
+        if self._inicio is None:
+            if velocidade >= VELOCIDADE_INICIO:
+                self._inicio = self._ultimo_movimento = timestamp_ms
+            return None
+        if landmarks is not None and velocidade >= VELOCIDADE_REPOUSO:
+            self._ultimo_movimento = timestamp_ms
+        parado = timestamp_ms - self._ultimo_movimento >= PAUSA_MS
+        longo = timestamp_ms - self._inicio >= DURACAO_MAX_MOVIMENTO_MS
+        if parado or longo:
+            return self._fechar()
+        return None
+
+    def encerrar(self):
+        """Fecha o movimento em aberto (fim de uma gravação)."""
+        return self._fechar() if self._inicio is not None else None
+
+    def _fechar(self):
+        inicio, fim = self._inicio, self._ultimo_movimento
+        self._inicio = self._ultimo_movimento = None
+        # A duração mínima vale para o movimento em si, sem o contexto.
+        if fim - inicio < DURACAO_MIN_MOVIMENTO_MS:
+            return None
+        return inicio, fim
+
+
+def recortar(frames, inicio, fim):
+    """Frames do movimento ``(inicio, fim)`` mais o contexto anterior."""
+    return [
+        f for f in frames
+        if inicio - PRE_MOVIMENTO_MS <= f["timestamp_ms"] <= fim
+    ]
+
+
+def segmentos(frames):
+    """Todos os movimentos ``(inicio_ms, fim_ms)`` de uma gravação."""
+    segmentador = Segmentador()
+    encontrados = []
+    for frame in frames:
+        segmento = segmentador.observar(frame["timestamp_ms"], frame["landmarks"])
+        if segmento:
+            encontrados.append(segmento)
+    final = segmentador.encerrar()
+    if final:
+        encontrados.append(final)
+    return encontrados
+
+
+def trecho_principal(frames):
+    """Recorta o movimento mais longo da gravação.
+
+    Descarta o que não é o sinal: a mão entrando no quadro logo após
+    "Iniciar gravação" e saindo para clicar em "Parar" — movimentos
+    curtos que, ao vivo, o reconhecedor nunca veria junto do sinal.
+    Sem nenhum movimento detectado, a gravação inteira é usada.
+    """
+    encontrados = segmentos(frames)
+    if not encontrados:
+        return frames
+    inicio, fim = max(encontrados, key=lambda s: s[1] - s[0])
+    return recortar(frames, inicio, fim)
+
+
 def processar_frames(frames):
     """Frames crus (``timestamp_ms``/``landmarks``/``mao``) → trajetória.
 
@@ -204,8 +323,8 @@ def processar_frames(frames):
 
 
 def processar_sequencia(conteudo):
-    """JSON da amostra → trajetória (lista de vetores por passo)."""
-    return processar_frames(conteudo["frames"])
+    """JSON da amostra → trajetória do movimento principal gravado."""
+    return processar_frames(trecho_principal(conteudo["frames"]))
 
 
 def carregar_sequencia(amostra):
@@ -269,9 +388,13 @@ def _loo(entradas):
     return resultado
 
 
+def _tipica(distancias):
+    """Distância leave-one-out típica (mediana) da classe."""
+    return float(np.median([d for _, _, d in distancias])) if distancias else 0.0
+
+
 def _limiar_de(distancias):
-    maxima = max(d for _, _, d in distancias) if distancias else 0.0
-    return max(maxima * MARGEM_LIMIAR, LIMIAR_MINIMO)
+    return max(_tipica(distancias) * MARGEM_LIMIAR, LIMIAR_MINIMO)
 
 
 def _negativo_mais_proximo(negativos, entradas):
@@ -288,21 +411,21 @@ def _negativo_mais_proximo(negativos, entradas):
 def _calibrar(entradas, negativos):
     """Leave-one-out + limiar da classe, apertado pelos exemplos negativos.
 
-    Sem negativos, o limiar é a maior distância LOO vezes a margem.
+    Sem negativos, o limiar é a distância LOO típica vezes a margem.
     Com negativos, ele também não passa do ponto médio entre essa
     distância e o negativo mais parecido — o modelo aprende onde a
-    classe termina. Se algum negativo fica mais perto que os próprios
-    exemplos da classe (sobreposição), o limiar volta à maior
-    distância LOO: aceitar os exemplos reais tem prioridade, e a
+    classe termina. Se algum negativo fica tão perto quanto os
+    próprios exemplos da classe (sobreposição), o limiar volta à
+    distância típica: aceitar os exemplos reais tem prioridade, e a
     regra do vizinho negativo em ``prever`` cuida do resto.
     """
     loo = _loo(entradas)
-    maxima = max(d for _, _, d in loo)
+    tipica = _tipica(loo)
     limiar = _limiar_de(loo)
     negativo_min = _negativo_mais_proximo(negativos, entradas)
-    sobreposicao = negativo_min is not None and negativo_min <= maxima
+    sobreposicao = negativo_min is not None and negativo_min <= tipica
     if negativo_min is not None:
-        teto = maxima if sobreposicao else (maxima + negativo_min) / 2
+        teto = tipica if sobreposicao else (tipica + negativo_min) / 2
         limiar = max(min(limiar, teto), LIMIAR_MINIMO)
     return {
         "loo": loo,
@@ -319,8 +442,8 @@ def _caminho(caminho):
 def treinar(caminho=None):
     """Treina o protótipo: memoriza trajetórias e calibra limiares.
 
-    O limiar de cada classe parte da maior distância leave-one-out
-    intra-classe vezes ``MARGEM_LIMIAR`` e é apertado pelos sinais
+    O limiar de cada classe parte da distância leave-one-out típica
+    (mediana) intra-classe vezes ``MARGEM_LIMIAR`` e é apertado pelos sinais
     marcados como exemplo negativo (``Sinal.negativo``), cujas
     amostras também viram templates "de rejeição" (ver ``_calibrar``
     e ``prever``). Classes com menos de duas amostras ficam de fora

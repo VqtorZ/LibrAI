@@ -35,18 +35,20 @@
                 <li><span>01</span> Use um ambiente bem iluminado.</li>
                 <li><span>02</span> Mantenha apenas uma mão no enquadramento.</li>
                 <li><span>03</span> Deixe a palma visível para a câmera.</li>
+                <li><span>04</span> Em sinais com movimento (J), faça o gesto completo e pare a mão no final.</li>
             </ul>
             <div class="signal-set"><small>ALFABETO MANUAL BRASILEIRO · CONSULTA</small>
                 <div class="alphabet-grid">{% for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" %}<b
                         title="Letra {{ letter }}{% if letter == 'J' or letter == 'Z' %} — sinal com movimento{% endif %}"{% if letter == 'J' or letter == 'Z' %} data-motion{% endif %}>{{ letter }}</b>{% endfor %}</div>
                 <p class="alphabet-note">O modelo reconhece as letras para as quais você coletou amostras e treinou o
-                    classificador. J e Z exigem análise de movimento.</p><a class="source-link"
+                    classificador. J e Z são reconhecidos pelo movimento, depois de gravar amostras em Gestos e
+                    rodar <code>treinar_movimentos</code>.</p><a class="source-link"
                     href="https://www.handtalk.me/br/blog/libras/" target="_blank" rel="noopener">Consultar referência
                     brasileira ↗</a>
             </div>
         </aside>
     </main>
-    <script>const label = document.querySelector('#label'), error = document.querySelector('#error'), meaning = document.querySelector('#meaning'); let previous = ''; function getMeaning(value) { if (/^[A-Z]$/.test(value)) return `Sinal ${value} identificado. Mantenha o gesto firme por alguns instantes.`; if (value === 'Modelo não treinado') return 'Cole amostras de A a Z e treine o modelo para ativar todas as letras.'; if (value === 'Sinal não identificado') return 'A confiança foi baixa. Ajuste a mão e a iluminação.'; return 'Posicione uma mão no enquadramento para começar.'; } async function update() { try { const r = await fetch('{% url "status" %}'); const d = await r.json(); label.textContent = d.label; meaning.textContent = getMeaning(d.label); if (/^[A-Z]$/.test(d.label) && d.label !== previous) { label.classList.remove('gesture-appeared'); void label.offsetWidth; label.classList.add('gesture-appeared') } previous = d.label; error.textContent = d.error || ''; } catch { } } update(); setInterval(update, 600);</script>
+    <script>const label = document.querySelector('#label'), error = document.querySelector('#error'), meaning = document.querySelector('#meaning'); let previous = ''; function getMeaning(value, movement) { if (movement) return `Sinal ${movement} identificado pelo movimento.`; if (/^[A-Z]$/.test(value)) return `Sinal ${value} identificado. Mantenha o gesto firme por alguns instantes.`; if (value === 'Modelo não treinado') return 'Cole amostras de A a Z e treine o modelo para ativar todas as letras.'; if (value === 'Sinal não identificado') return 'A confiança foi baixa. Ajuste a mão e a iluminação.'; return 'Posicione uma mão no enquadramento para começar.'; } async function update() { try { const r = await fetch('{% url "status" %}'); const d = await r.json(); label.textContent = d.label; meaning.textContent = getMeaning(d.label, d.movement_label); if (/^[A-Z]$/.test(d.label) && d.label !== previous) { label.classList.remove('gesture-appeared'); void label.offsetWidth; label.classList.add('gesture-appeared') } previous = d.label; error.textContent = d.error || ''; } catch { } } update(); setInterval(update, 600);</script>
 </body>
 
 </html>

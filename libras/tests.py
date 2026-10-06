@@ -36,6 +36,7 @@ from .movimentos import (
     ler_sequencia,
     validar_payload,
 )
+from .ao_vivo import DetectorMovimento
 from .temporal import distancia_dtw, normalizar_frame, prever, processar_frames
 from .verificacao import (
     resumir,
@@ -1527,13 +1528,13 @@ class ExemplosNegativosTests(TemporalMLBase):
         self.gravar_negativos(0.5)
         modelo = temporal.treinar().modelo
         calibracao = modelo["calibracao"]["J"]
-        maxima = max(e["distancia"] for e in modelo["loo"]["J"])
+        tipica = float(np.median([e["distancia"] for e in modelo["loo"]["J"]]))
         self.assertFalse(calibracao["sobreposicao"])
         self.assertLessEqual(modelo["limiares"]["J"], limiar_original)
         self.assertLessEqual(
-            modelo["limiares"]["J"], (maxima + calibracao["negativo_min"]) / 2 + 1e-9
+            modelo["limiares"]["J"], (tipica + calibracao["negativo_min"]) / 2 + 1e-9
         )
-        self.assertGreaterEqual(modelo["limiares"]["J"], maxima)
+        self.assertGreaterEqual(modelo["limiares"]["J"], tipica)
 
     def test_rejeita_quando_negativo_e_mais_parecido(self):
         self.gravar_negativos(0.07)
@@ -1584,3 +1585,138 @@ class ExemplosNegativosTests(TemporalMLBase):
         self.assertContains(response, "exemplo negativo")
         response = self.client.get(reverse("gesto_novo"))
         self.assertContains(response, "Exemplo negativo")
+
+
+class DetectorAoVivoTests(TemporalMLBase):
+    """Segmentação e reconhecimento de movimentos frame a frame."""
+
+    PASSO_MS = 33  # câmera ao vivo ~30 fps
+
+    @staticmethod
+    def gesto(total, variacao=0.0):
+        return [
+            mao_sintetica(
+                i / (total - 1),
+                dx=(0.3 + variacao) * i / (total - 1),
+                giro=3.0 + variacao,
+            )
+            for i in range(total)
+        ]
+
+    def treinar_gesto(self):
+        for indice in range(5):
+            frames = frames_de(self.gesto(20, variacao=indice * 0.02))
+            for frame in frames:
+                frame["mao"] = None
+            salvar_amostra(self.sinal, frames)
+        return temporal.treinar()
+
+    def alimentar(self, detector, vetores, inicio_ms=0):
+        """Envia os frames ao detector; devolve [(ms, previsão)]."""
+        saidas = []
+        for indice, vetor in enumerate(vetores):
+            ms = inicio_ms + indice * self.PASSO_MS
+            previsao = detector.observar(ms, vetor, "Right" if vetor else None)
+            if previsao is not None:
+                saidas.append((ms, previsao))
+        return saidas
+
+    def detector(self):
+        return DetectorMovimento(Path(self.media_tmp) / "movimentos_teste.joblib")
+
+    def test_reconhece_gesto_entre_pausas(self):
+        self.treinar_gesto()
+        gesto = self.gesto(40, variacao=0.01)  # ~1,3 s a 30 fps
+        sequencia = [gesto[0]] * 20 + gesto + [gesto[-1]] * 20
+        saidas = self.alimentar(self.detector(), sequencia)
+        self.assertEqual(len(saidas), 1)
+        _, previsao = saidas[0]
+        self.assertEqual(previsao["previsto"], "J")
+        self.assertTrue(previsao["reconhecido"])
+
+    def test_mao_parada_nao_dispara(self):
+        self.treinar_gesto()
+        parada = [self.gesto(20)[5]] * 90
+        self.assertEqual(self.alimentar(self.detector(), parada), [])
+
+    def test_mao_saindo_do_quadro_encerra_o_movimento(self):
+        self.treinar_gesto()
+        gesto = self.gesto(40, variacao=0.01)
+        sequencia = [gesto[0]] * 10 + gesto + [None] * 20
+        saidas = self.alimentar(self.detector(), sequencia)
+        self.assertEqual(len(saidas), 1)
+        self.assertTrue(saidas[0][1]["reconhecido"])
+
+    def test_tremor_curto_e_ignorado(self):
+        self.treinar_gesto()
+        base = self.gesto(20)
+        # Um solavanco de 3 frames: abaixo da duração mínima.
+        sequencia = [base[0]] * 20 + [base[10], base[0], base[10]] + [base[0]] * 20
+        self.assertEqual(self.alimentar(self.detector(), sequencia), [])
+
+    def test_sem_modelo_nao_quebra(self):
+        detector = self.detector()
+        gesto = self.gesto(40)
+        sequencia = [gesto[0]] * 10 + gesto + [gesto[-1]] * 20
+        self.assertEqual(self.alimentar(detector, sequencia), [])
+        self.assertFalse(detector.pronto)
+        self.assertIn("não treinado", detector.erro)
+
+    def test_recarrega_modelo_retreinado(self):
+        detector = self.detector()
+        self.assertFalse(detector.pronto)
+        self.treinar_gesto()
+        self.assertTrue(detector.pronto)
+
+    def test_status_informa_movimento(self):
+        response = self.client.get(reverse("status"))
+        payload = response.json()
+        self.assertIn("movement_ready", payload)
+        self.assertIn("movement_label", payload)
+
+
+class SegmentacaoGravacaoTests(TemporalMLBase):
+    """Recorte do movimento principal das gravações (treino ≡ ao vivo)."""
+
+    @staticmethod
+    def gesto(total):
+        return [
+            mao_sintetica(i / (total - 1), dx=0.3 * i / (total - 1), giro=3.0)
+            for i in range(total)
+        ]
+
+    def gravacao(self):
+        """Mão entra (solavanco), espera, faz o gesto, espera, sai."""
+        gesto = self.gesto(20)
+        entrada = [mao_sintetica(0.0, dy=0.3 - 0.1 * i) for i in range(3)]
+        return frames_de(
+            entrada + [gesto[0]] * 15 + gesto + [gesto[-1]] * 15
+            + [mao_sintetica(1.0, dx=0.3, dy=0.1 * i, giro=3.0) for i in range(3)]
+        )
+
+    def test_encontra_o_gesto_e_descarta_entrada_e_saida(self):
+        frames = self.gravacao()
+        trecho = temporal.trecho_principal(frames)
+        inicio_gesto, fim_gesto = 18 * 66, (18 + 19) * 66
+        self.assertLessEqual(trecho[0]["timestamp_ms"], inicio_gesto)
+        self.assertGreaterEqual(
+            trecho[0]["timestamp_ms"], inicio_gesto - temporal.PRE_MOVIMENTO_MS
+        )
+        self.assertGreaterEqual(trecho[-1]["timestamp_ms"], fim_gesto - 66)
+        self.assertLess(trecho[-1]["timestamp_ms"], fim_gesto + 5 * 66)
+
+    def test_sem_movimento_usa_a_gravacao_inteira(self):
+        parada = frames_de([mao_sintetica(0.0)] * 20)
+        self.assertEqual(temporal.trecho_principal(parada), parada)
+
+    def test_movimento_ate_o_fim_da_gravacao_e_fechado(self):
+        frames = frames_de([self.gesto(20)[0]] * 10 + self.gesto(20))
+        self.assertEqual(len(temporal.segmentos(frames)), 1)
+
+    def test_processar_sequencia_usa_o_trecho_principal(self):
+        frames = self.gravacao()
+        conteudo = {"frames": frames}
+        self.assertEqual(
+            temporal.processar_sequencia(conteudo),
+            processar_frames(temporal.trecho_principal(frames)),
+        )

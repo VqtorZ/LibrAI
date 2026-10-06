@@ -32,6 +32,12 @@ EXIBICAO_MOVIMENTO_S = 2.5
 ROTULO_ANALISANDO = "Analisando movimento…"
 # Uma gravação só começa se a câmera entregou um frame há pouco.
 CAMERA_ATIVA_S = 1.5
+# A letra estática é classificada no máximo a cada intervalo: a página
+# consulta o status a cada 600 ms, e classificar todo frame (~20 ms com
+# 400 árvores) derrubava o FPS da câmera do site.
+INTERVALO_CLASSIFICACAO_S = 0.15
+ROTULO_SEM_MAO = "Aguardando mão"
+ROTULO_GRAVANDO = "Gravando amostra"
 
 
 class GravacaoIndisponivel(Exception):
@@ -111,7 +117,13 @@ class Camera:
                 self.model = joblib.load(MODEL_PATH)
             except (OSError, ValueError, ImportError) as exc:
                 self.model_error = f"Não foi possível carregar o modelo: {exc}"
-        self.last_label = "Aguardando mão"
+        if hasattr(self.model, "n_jobs"):
+            # Treinado com n_jobs=-1; para uma mão por vez, paralelizar
+            # custa mais que economiza (~48 ms contra ~20 ms por previsão).
+            self.model.n_jobs = 1
+        self._rotulo_estatico = ROTULO_SEM_MAO
+        self._ultima_classificacao = 0.0
+        self.last_label = ROTULO_SEM_MAO
         self.last_error = None
         # Reconhecimento de movimento: criado sob demanda porque depende
         # do Django, e este módulo também é importado pelos scripts de
@@ -187,6 +199,17 @@ class Camera:
             # Limite de 30 s: para de acumular; a página salva sozinha.
             self._gravacao_no_limite = True
 
+    def _classificar_estatico(self, landmarks, agora):
+        """Letra estática, reclassificada no máximo a cada intervalo."""
+        if landmarks is None:
+            # Sem mão: a próxima mão que aparecer é classificada na hora.
+            self._ultima_classificacao = 0.0
+            self._rotulo_estatico = ROTULO_SEM_MAO
+        elif agora - self._ultima_classificacao >= INTERVALO_CLASSIFICACAO_S:
+            self._rotulo_estatico = self.classify(landmarks)
+            self._ultima_classificacao = agora
+        return self._rotulo_estatico
+
     def _annotate(self, frame):
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         result = self._hands.process(rgb)
@@ -194,20 +217,22 @@ class Camera:
         self._ultimo_frame = agora
         self._mao_presente = bool(result.multi_hand_landmarks)
         # O status é exibido pela interface lateral; mantemos a imagem limpa.
-        label = "Aguardando mão"
+        hand = None
         if result.multi_hand_landmarks:
             hand = result.multi_hand_landmarks[0]
             mp.solutions.drawing_utils.draw_landmarks(
                 frame, hand, mp.solutions.hands.HAND_CONNECTIONS
             )
-            label = self.classify(hand.landmark)
         if self._gravador is not None:
-            # Gravando uma amostra: o reconhecimento de movimento fica em
-            # pausa para não interpretar o próprio gesto sendo gravado.
+            # Gravando uma amostra: só registra os marcos — sem classificar
+            # letras nem movimentos, para o loop manter o FPS da câmera.
             self._registrar_gravacao(*marcos_da_mao(result), agora)
-            self.last_label = label
-        else:
-            self.last_label = self._observar_movimento(result) or label
+            self.last_label = ROTULO_GRAVANDO
+            return frame
+        label = self._classificar_estatico(
+            hand.landmark if hand is not None else None, agora
+        )
+        self.last_label = self._observar_movimento(result) or label
         return frame
 
     # --- gravação de amostras --------------------------------------------
@@ -265,6 +290,7 @@ class Camera:
             self._clientes += 1
         try:
             while True:
+                falhou = True
                 with self._lock:
                     if not self._open():
                         frame = self._error_frame(self.last_error)
@@ -274,11 +300,15 @@ class Camera:
                             self.last_error = "A webcam não retornou uma imagem."
                             frame = self._error_frame(self.last_error)
                         else:
+                            falhou = False
                             frame = self._annotate(cv2.flip(frame, 1))
                     ok, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 82])
                 if ok:
                     yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n"
-                time.sleep(0.03)
+                # A leitura da câmera já espera o próximo frame: a pausa só
+                # evita girar em falso quando a webcam falha. A pausa mínima
+                # deixa as requisições de gravação pegarem o lock.
+                time.sleep(0.03 if falhou else 0.001)
         finally:
             # O último cliente fechou/abandonou a página: devolve a webcam
             # ao sistema (o próprio _open() reabre na próxima visita),

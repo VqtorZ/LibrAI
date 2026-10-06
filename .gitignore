@@ -35,3 +35,6 @@ $RECYCLE.BIN/
 *.temp
 *.log
 .DS_Store
+
+# --- Claude Code (configurações pessoais; o restante de .claude/ é versionado) ---
+.claude/settings.local.json

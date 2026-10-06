@@ -5,8 +5,8 @@ Observação: /video/ não é testado aqui porque abre a webcam (hardware),
 o que torna o teste dependente de máquina — ele é validado
 funcionalmente com o servidor em execução.
 """
-import base64
 import json
+import time
 import math
 import random
 import shutil
@@ -33,7 +33,6 @@ from .movimentos import (
     apagar_amostra,
     salvar_amostra,
     ler_sequencia,
-    validar_payload,
 )
 from .ao_vivo import DetectorMovimento
 from .gravacao import GravadorMovimento, localizar_sinal
@@ -233,18 +232,6 @@ class TemporalBase(TestCase):
             })
         return sequencia
 
-    @staticmethod
-    def gerar_payload(total=15, intervalo_ms=66):
-        """Payload no formato enviado pela página de gravação."""
-        return {
-            "frames": [
-                {
-                    "timestamp_ms": i * intervalo_ms,
-                    "imagem": base64.b64encode(b"frame-falso").decode(),
-                }
-                for i in range(total)
-            ]
-        }
 
 
 class AmostraMovimentoTests(TemporalBase):
@@ -351,51 +338,6 @@ class LateralidadeTests(TestCase):
         self.assertIsNone(_lateralidade(object()))
 
 
-class ValidarPayloadTests(TestCase):
-    """Validação do que chega da gravação antes de qualquer processamento."""
-
-    @staticmethod
-    def payload(timestamps):
-        return {
-            "frames": [
-                {"timestamp_ms": ts, "imagem": base64.b64encode(b"x").decode()}
-                for ts in timestamps
-            ]
-        }
-
-    def test_aceita_payload_valido(self):
-        frames = validar_payload(self.payload([0, 66, 132]))
-        self.assertEqual([ts for ts, _ in frames], [0, 66, 132])
-
-    def test_rejeita_sem_frames(self):
-        with self.assertRaises(AmostraInvalida):
-            validar_payload({"frames": []})
-
-    def test_rejeita_acima_da_duracao_maxima(self):
-        with self.assertRaises(AmostraInvalida):
-            validar_payload(self.payload([0, DURACAO_MAX_MS + 1]))
-
-    def test_rejeita_timestamp_invalido(self):
-        dados = self.payload([0, 66])
-        dados["frames"][1]["timestamp_ms"] = "setenta"
-        with self.assertRaises(AmostraInvalida):
-            validar_payload(dados)
-
-    def test_rejeita_base64_corrompido(self):
-        dados = self.payload([0, 66])
-        dados["frames"][0]["imagem"] = "###não é base64###"
-        with self.assertRaises(AmostraInvalida):
-            validar_payload(dados)
-
-    def test_rejeita_timestamps_fora_de_ordem(self):
-        with self.assertRaises(AmostraInvalida):
-            validar_payload(self.payload([100, 0]))
-
-    def test_rejeita_estrutura_inesperada(self):
-        with self.assertRaises(AmostraInvalida):
-            validar_payload(["frame"])
-
-
 class GestoDetalheEGravarTests(TemporalBase):
     """Rotas novas: detalhe do sinal e estúdio de gravação."""
 
@@ -422,7 +364,10 @@ class GestoDetalheEGravarTests(TemporalBase):
     def test_gravar_abre_para_sinal_de_movimento(self):
         response = self.client.get(reverse("gesto_gravar", args=[self.sinal.pk]))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'id="preview"')
+        # Mesma câmera do reconhecimento, com gravação pelo Espaço.
+        self.assertContains(response, reverse("video_feed"))
+        self.assertContains(response, reverse("gesto_gravacao_iniciar", args=[self.sinal.pk]))
+        self.assertContains(response, "Espaço")
         self.assertContains(response, self.sinal.titulo)
 
     def test_gravar_bloqueia_sinal_estatico(self):
@@ -482,80 +427,6 @@ class GestoAmostraApagarTests(TemporalBase):
             response,
             reverse("gesto_amostra_apagar", args=[self.sinal.pk, amostra.pk]),
         )
-
-
-class GestoAmostraSalvarTests(TemporalBase):
-    """Endpoint de salvamento: validação, segurança e integração da pipeline."""
-
-    def test_rejeita_get(self):
-        response = self.client.get(
-            reverse("gesto_amostra_salvar", args=[self.sinal.pk])
-        )
-        self.assertEqual(response.status_code, 405)
-
-    def test_rejeita_json_invalido(self):
-        response = self.client.post(
-            reverse("gesto_amostra_salvar", args=[self.sinal.pk]),
-            data="{isto não é json",
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("JSON inválido", response.json()["erro"])
-
-    def test_rejeita_payload_vazio(self):
-        response = self.client.post(
-            reverse("gesto_amostra_salvar", args=[self.sinal.pk]),
-            data=json.dumps({"frames": []}),
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("Nenhum frame", response.json()["erro"])
-
-    def test_rejeita_sinal_estatico(self):
-        estatico = Sinal.objects.create(titulo="A")
-        response = self.client.post(
-            reverse("gesto_amostra_salvar", args=[estatico.pk]),
-            data=json.dumps(self.gerar_payload()),
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 404)
-
-    def test_rejeita_sinal_inexistente(self):
-        response = self.client.post(
-            reverse("gesto_amostra_salvar", args=[9999]),
-            data=json.dumps(self.gerar_payload()),
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 404)
-
-    def test_rejeita_amostra_sem_maos_detectadas(self):
-        """Pipeline real: imagens falsas não decodificam, logo não há mão alguma."""
-        response = self.client.post(
-            reverse("gesto_amostra_salvar", args=[self.sinal.pk]),
-            data=json.dumps(self.gerar_payload(total=12)),
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("frames com a mão", response.json()["erro"])
-        self.assertEqual(AmostraMovimento.objects.count(), 0)
-
-    def test_salva_amostra_valida_de_ponta_a_ponta(self):
-        sequencia_falsa = self.gerar_sequencia(total=15)
-        with patch("libras.views.extrair_landmarks", return_value=sequencia_falsa):
-            response = self.client.post(
-                reverse("gesto_amostra_salvar", args=[self.sinal.pk]),
-                data=json.dumps(self.gerar_payload(total=15)),
-                content_type="application/json",
-            )
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
-        self.assertTrue(payload["ok"])
-        self.assertEqual(payload["quantidade_frames"], 15)
-        amostra = AmostraMovimento.objects.get(pk=payload["amostra_id"])
-        self.assertEqual(amostra.sinal, self.sinal)
-        self.assertIsNotNone(amostra.arquivo_dados)
-        conteudo = ler_sequencia(amostra)
-        self.assertEqual(conteudo["sinal_id"], self.sinal.pk)
 
 
 class VerificadorBase(TemporalBase):
@@ -1817,9 +1688,9 @@ class GravarMovimentoTests(TemporalBase):
             call_command("gravar_movimento", "Z", stdout=StringIO())
         self.assertIn("não encontrado", str(contexto.exception))
 
-    def test_amostra_do_site_registra_origem_navegador(self):
+    def test_origem_padrao_e_opencv(self):
         amostra = salvar_amostra(self.sinal, self.gerar_sequencia())
-        self.assertEqual(ler_sequencia(amostra)["origem"], "navegador")
+        self.assertEqual(ler_sequencia(amostra)["origem"], "opencv")
 
 
 class DiagnosticoAoVivoTests(AoVivoBase):
@@ -1877,3 +1748,100 @@ class DiagnosticoAoVivoTests(AoVivoBase):
     def test_camera_exibe_movimento_reconhecido(self):
         previsao = {"reconhecido": True, "previsto": "J"}
         self.assertEqual(self.camera_com(em_movimento=False, previsao=previsao), "J")
+
+
+class GravacaoPelaPaginaTests(TemporalBase):
+    """Gravação pela página do sinal, usando a câmera do reconhecimento.
+
+    A webcam não é aberta: o estado da câmera é simulado (frame recente,
+    mão presente) e os frames entram por ``_registrar_gravacao``, o
+    mesmo caminho usado por ``_annotate``.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from . import vision
+
+        self.camera = vision.camera
+        self.addCleanup(self.camera.descartar_gravacao)
+        self.camera_pronta()
+
+    def camera_pronta(self, mao=True):
+        self.camera._ultimo_frame = time.monotonic()
+        self.camera._mao_presente = mao
+
+    def post(self, nome, sinal=None):
+        return self.client.post(reverse(nome, args=[(sinal or self.sinal).pk]))
+
+    def gravar_frames(self, total=30):
+        inicio = time.monotonic()
+        with self.camera._lock:
+            for i in range(total):
+                self.camera._registrar_gravacao([0.5] * 63, "Right", inicio + i / 30)
+
+    def test_grava_e_salva_pela_pagina(self):
+        self.assertEqual(self.post("gesto_gravacao_iniciar").json(), {"ok": True})
+        status = self.client.get(reverse("status")).json()["recording"]
+        self.assertTrue(status["ativa"])
+        self.assertEqual(status["sinal_id"], self.sinal.pk)
+        self.gravar_frames()
+        resposta = self.post("gesto_gravacao_parar")
+        self.assertEqual(resposta.status_code, 200)
+        dados = resposta.json()
+        self.assertTrue(dados["ok"])
+        amostra = AmostraMovimento.objects.get(pk=dados["amostra_id"])
+        self.assertEqual(amostra.sinal, self.sinal)
+        self.assertEqual(ler_sequencia(amostra)["origem"], "opencv")
+        self.assertTrue(verificar_amostra(amostra).ok)
+        self.assertFalse(self.client.get(reverse("status")).json()["recording"]["ativa"])
+
+    def test_nao_inicia_sem_mao(self):
+        self.camera_pronta(mao=False)
+        resposta = self.post("gesto_gravacao_iniciar")
+        self.assertEqual(resposta.status_code, 409)
+        self.assertIn("Posicione a mão", resposta.json()["erro"])
+
+    def test_nao_inicia_sem_camera_transmitindo(self):
+        self.camera._ultimo_frame = 0.0
+        resposta = self.post("gesto_gravacao_iniciar")
+        self.assertEqual(resposta.status_code, 409)
+        self.assertIn("não está transmitindo", resposta.json()["erro"])
+
+    def test_uma_gravacao_por_vez(self):
+        self.post("gesto_gravacao_iniciar")
+        outro = Sinal.objects.create(titulo="Z", tipo=Sinal.Tipo.MOVIMENTO)
+        resposta = self.post("gesto_gravacao_iniciar", outro)
+        self.assertEqual(resposta.status_code, 409)
+        # Parar pelo outro sinal também não mexe na gravação do J.
+        self.assertEqual(self.post("gesto_gravacao_parar", outro).status_code, 409)
+        self.assertTrue(self.camera.status_gravacao()["ativa"])
+
+    def test_gravacao_sem_mao_suficiente_e_descartada(self):
+        self.post("gesto_gravacao_iniciar")
+        resposta = self.post("gesto_gravacao_parar")
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("Amostra descartada", resposta.json()["erro"])
+        self.assertEqual(AmostraMovimento.objects.count(), 0)
+        self.assertFalse(self.camera.status_gravacao()["ativa"])
+
+    def test_parar_sem_gravacao(self):
+        self.assertEqual(self.post("gesto_gravacao_parar").status_code, 409)
+
+    def test_limite_de_duracao_sinaliza_a_pagina(self):
+        self.post("gesto_gravacao_iniciar")
+        inicio = time.monotonic()
+        with self.camera._lock:
+            self.camera._registrar_gravacao([0.5] * 63, None, inicio + DURACAO_MAX_MS / 1000 + 1)
+        self.assertTrue(self.camera.status_gravacao()["no_limite"])
+
+    def test_rotas_exigem_post_e_sinal_de_movimento(self):
+        url = reverse("gesto_gravacao_iniciar", args=[self.sinal.pk])
+        self.assertEqual(self.client.get(url).status_code, 405)
+        estatico = Sinal.objects.create(titulo="A")
+        self.assertEqual(self.post("gesto_gravacao_iniciar", estatico).status_code, 404)
+        self.assertFalse(self.camera.status_gravacao()["ativa"])
+
+    def test_status_informa_mao_e_gravacao(self):
+        payload = self.client.get(reverse("status")).json()
+        self.assertIn("hand_detected", payload)
+        self.assertEqual(payload["recording"], {"ativa": False})

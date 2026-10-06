@@ -1,30 +1,23 @@
-"""Coleta temporal de sinais por movimento.
+"""Persistência das amostras temporais de sinais por movimento.
 
-Pipeline separada do reconhecimento estático: recebe frames capturados
-pelo navegador, extrai os landmarks de cada frame com o MediaPipe e
-persiste a sequência temporal em arquivos JSON dentro de MEDIA_ROOT.
+As amostras são gravadas pela câmera do OpenCV (``libras.gravacao``,
+usado pela página do sinal e pelo comando gravar_movimento) e
+persistidas como sequências de landmarks em arquivos JSON dentro de
+MEDIA_ROOT; o banco guarda os metadados.
 """
 from __future__ import annotations
 
-import base64
-import binascii
 import json
-import threading
 from pathlib import Path
 
-import cv2
-import mediapipe as mp
-import numpy as np
 from django.conf import settings
 
-from .marcos import MAOS_VALIDAS, marcos_da_mao
 from .models import AmostraMovimento, Sinal
 
 # Versão 2: cada frame também registra a mão detectada ("mao").
 FORMATO_VERSAO = 2
 VERSOES_SUPORTADAS = (1, 2)
 DURACAO_MAX_MS = 30_000
-FRAMES_MAX = 500
 FRAMES_MIN_VALIDOS = 10
 LANDMARKS_POR_MAO = 21
 VALORES_POR_LANDMARK = 3
@@ -32,88 +25,6 @@ VALORES_POR_LANDMARK = 3
 
 class AmostraInvalida(Exception):
     """Amostra temporal rejeitada pela validação."""
-
-
-def validar_payload(dados):
-    """Confere o JSON enviado pela gravação e devolve [(timestamp, bytes)].
-
-    Os timestamps são milissegundos desde o início da gravação e a imagem
-    é um JPEG codificado em base64. Nada vindo do cliente é confiado sem
-    checagem: estrutura, tipos, limites e duração.
-    """
-    if not isinstance(dados, dict):
-        raise AmostraInvalida("Formato de dados inválido.")
-    frames = dados.get("frames")
-    if not isinstance(frames, list) or not frames:
-        raise AmostraInvalida("Nenhum frame recebido.")
-    if len(frames) > FRAMES_MAX:
-        raise AmostraInvalida(f"Máximo de {FRAMES_MAX} frames por amostra.")
-    saida = []
-    for frame in frames:
-        if not isinstance(frame, dict):
-            raise AmostraInvalida("Frame inválido.")
-        timestamp_ms = frame.get("timestamp_ms")
-        imagem = frame.get("imagem")
-        if isinstance(timestamp_ms, bool) or not isinstance(timestamp_ms, int) or timestamp_ms < 0:
-            raise AmostraInvalida("timestamp_ms inválido.")
-        if not isinstance(imagem, str) or not imagem:
-            raise AmostraInvalida("Imagem ausente no frame.")
-        try:
-            dados_imagem = base64.b64decode(imagem, validate=True)
-        except (binascii.Error, ValueError):
-            raise AmostraInvalida("Imagem corrompida no frame.")
-        saida.append((timestamp_ms, dados_imagem))
-    duracao = saida[-1][0] - saida[0][0]
-    if duracao < 0:
-        raise AmostraInvalida("Timestamps fora de ordem.")
-    if duracao > DURACAO_MAX_MS:
-        raise AmostraInvalida("A gravação excede 30 segundos.")
-    return saida
-
-
-_lock = threading.Lock()
-_hands = None
-
-
-def _detectar():
-    """Detector compartilhado; chamar somente com ``_lock`` adquirido."""
-    global _hands
-    if _hands is None:
-        _hands = mp.solutions.hands.Hands(
-            static_image_mode=True,
-            max_num_hands=1,
-            model_complexity=0,
-            min_detection_confidence=0.6,
-        )
-    return _hands
-
-
-def extrair_landmarks(frames):
-    """Extrai os landmarks de cada frame e devolve a sequência temporal.
-
-    Frames sem mão detectada (ou ilegíveis) permanecem na sequência com
-    ``landmarks: null`` — nada é descartado silenciosamente. Os valores
-    são os 21 marcos crus do MediaPipe (x, y, z normalizados na imagem).
-    ``mao`` guarda a lateralidade informada pelo MediaPipe ("Right" ou
-    "Left"), usada pelo pipeline temporal para espelhar sinais feitos
-    com a mão esquerda.
-    """
-    sequencia = []
-    with _lock:
-        hands = _detectar()
-        for timestamp_ms, dados_imagem in frames:
-            landmarks, mao = None, None
-            imagem = cv2.imdecode(
-                np.frombuffer(dados_imagem, np.uint8), cv2.IMREAD_COLOR
-            )
-            if imagem is not None:
-                landmarks, mao = marcos_da_mao(
-                    hands.process(cv2.cvtColor(imagem, cv2.COLOR_BGR2RGB))
-                )
-            sequencia.append(
-                {"timestamp_ms": timestamp_ms, "landmarks": landmarks, "mao": mao}
-            )
-    return sequencia
 
 
 def caminho_relativo(amostra):
@@ -125,14 +36,14 @@ def _caminho_absoluto(amostra):
     return Path(settings.MEDIA_ROOT) / caminho_relativo(amostra)
 
 
-def salvar_amostra(sinal, sequencia, origem="navegador"):
+def salvar_amostra(sinal, sequencia, origem="opencv"):
     """Valida a sequência, grava o arquivo JSON e registra a amostra.
 
     O arquivo é nomeado com o id gerado pelo banco; em caso de falha de
     escrita o registro é revertido para não deixar metadados órfãos.
-    ``origem`` registra o caminho da captura: "navegador" (página de
-    gravação) ou "opencv" (comando gravar_movimento, mesmo caminho do
-    reconhecimento ao vivo).
+    ``origem`` registra o caminho da captura: "opencv" (câmera do
+    reconhecimento) ou "navegador" (amostras antigas, da captura que
+    passava pelo navegador e foi substituída).
     """
     validos = sum(1 for frame in sequencia if frame["landmarks"] is not None)
     if validos < FRAMES_MIN_VALIDOS:

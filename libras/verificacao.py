@@ -11,10 +11,10 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
+from .marcos import MAOS_VALIDAS
 from .movimentos import (
     FRAMES_MIN_VALIDOS,
     LANDMARKS_POR_MAO,
-    MAOS_VALIDAS,
     VALORES_POR_LANDMARK,
     VERSOES_SUPORTADAS,
     AmostraInvalida,

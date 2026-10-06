@@ -30,6 +30,12 @@ EXIBICAO_MOVIMENTO_S = 2.5
 # Exibido enquanto a mão se move: a letra estática seria enganosa
 # (o J começa na configuração do I, por exemplo).
 ROTULO_ANALISANDO = "Analisando movimento…"
+# Uma gravação só começa se a câmera entregou um frame há pouco.
+CAMERA_ATIVA_S = 1.5
+
+
+class GravacaoIndisponivel(Exception):
+    """Pedido de gravação que a câmera não pode atender agora."""
 
 # Pontas dos dedos: polegar, indicador, médio, anelar, mindinho.
 FINGERTIPS = [4, 8, 12, 16, 20]
@@ -113,6 +119,13 @@ class Camera:
         self._movimento = None
         self.movimento_label = None
         self._movimento_ate = 0.0
+        # Gravação de amostras pela página do sinal (mesmo caminho do
+        # comando gravar_movimento): os frames entram no gravador aqui.
+        self._gravador = None
+        self._gravacao_no_limite = False
+        self._mao_presente = False
+        self._ultimo_frame = 0.0
+        self._clientes = 0
 
     def _open(self):
         if self._capture is None or not self._capture.isOpened():
@@ -166,9 +179,20 @@ class Camera:
             return ROTULO_ANALISANDO
         return None
 
+    def _registrar_gravacao(self, landmarks, mao, agora):
+        """Acrescenta o frame à gravação em andamento (chamado com o lock)."""
+        if self._gravador is None or self._gravacao_no_limite:
+            return
+        if not self._gravador.adicionar(agora, landmarks, mao):
+            # Limite de 30 s: para de acumular; a página salva sozinha.
+            self._gravacao_no_limite = True
+
     def _annotate(self, frame):
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         result = self._hands.process(rgb)
+        agora = time.monotonic()
+        self._ultimo_frame = agora
+        self._mao_presente = bool(result.multi_hand_landmarks)
         # O status é exibido pela interface lateral; mantemos a imagem limpa.
         label = "Aguardando mão"
         if result.multi_hand_landmarks:
@@ -177,10 +201,68 @@ class Camera:
                 frame, hand, mp.solutions.hands.HAND_CONNECTIONS
             )
             label = self.classify(hand.landmark)
-        self.last_label = self._observar_movimento(result) or label
+        if self._gravador is not None:
+            # Gravando uma amostra: o reconhecimento de movimento fica em
+            # pausa para não interpretar o próprio gesto sendo gravado.
+            self._registrar_gravacao(*marcos_da_mao(result), agora)
+            self.last_label = label
+        else:
+            self.last_label = self._observar_movimento(result) or label
         return frame
 
+    # --- gravação de amostras --------------------------------------------
+    def iniciar_gravacao(self, sinal):
+        """Começa a gravar uma amostra do sinal com a câmera ao vivo."""
+        from .gravacao import GravadorMovimento
+
+        with self._lock:
+            if self._gravador is not None:
+                raise GravacaoIndisponivel("Já existe uma gravação em andamento.")
+            if time.monotonic() - self._ultimo_frame > CAMERA_ATIVA_S:
+                raise GravacaoIndisponivel(
+                    "A câmera não está transmitindo. Aguarde a imagem aparecer."
+                )
+            if not self._mao_presente:
+                raise GravacaoIndisponivel(
+                    "Posicione a mão na câmera antes de gravar."
+                )
+            self._gravador = GravadorMovimento(sinal)
+            self._gravacao_no_limite = False
+            self._gravador.iniciar(time.monotonic())
+
+    def parar_gravacao(self, sinal):
+        """Encerra a gravação do sinal e salva a amostra.
+
+        O salvamento (banco + arquivo) acontece fora do lock, sem
+        travar a transmissão da câmera.
+        """
+        with self._lock:
+            gravador = self._gravador
+            if gravador is None or gravador.sinal.pk != sinal.pk:
+                raise GravacaoIndisponivel("Não há gravação deste sinal em andamento.")
+            self._gravador = None
+            self._gravacao_no_limite = False
+        return gravador.finalizar()
+
+    def descartar_gravacao(self):
+        with self._lock:
+            self._gravador = None
+            self._gravacao_no_limite = False
+
+    def status_gravacao(self):
+        gravador = self._gravador
+        if gravador is None:
+            return {"ativa": False}
+        return {
+            "ativa": True,
+            "sinal_id": gravador.sinal.pk,
+            "duracao_ms": gravador.duracao_ms(time.monotonic()),
+            "no_limite": self._gravacao_no_limite,
+        }
+
     def frames(self):
+        with self._lock:
+            self._clientes += 1
         try:
             while True:
                 with self._lock:
@@ -198,13 +280,19 @@ class Camera:
                     yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n"
                 time.sleep(0.03)
         finally:
-            # O cliente fechou/abandonou a página de reconhecimento: devolve a
-            # webcam ao sistema (o próprio _open() reabre na próxima visita),
-            # liberando-a para a gravação de movimentos pelo navegador.
+            # O último cliente fechou/abandonou a página: devolve a webcam
+            # ao sistema (o próprio _open() reabre na próxima visita),
+            # liberando-a para o comando gravar_movimento, e descarta uma
+            # gravação que tenha ficado pela metade.
             with self._lock:
-                if self._capture is not None:
-                    self._capture.release()
-                    self._capture = None
+                self._clientes -= 1
+                if self._clientes <= 0:
+                    self._clientes = 0
+                    self._gravador = None
+                    self._gravacao_no_limite = False
+                    if self._capture is not None:
+                        self._capture.release()
+                        self._capture = None
 
     @staticmethod
     def _error_frame(message):
@@ -224,6 +312,8 @@ class Camera:
             # O detector só existe depois que a câmera processou frames.
             "movement_ready": detector.pronto if detector is not None else None,
             "movement_label": self.movimento_label,
+            "hand_detected": self._mao_presente,
+            "recording": self.status_gravacao(),
         }
 
 

@@ -1,6 +1,4 @@
 """Views do LibrAI."""
-import json
-
 from django.contrib import messages
 from django.http import JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -8,14 +6,8 @@ from django.views.decorators.http import require_POST
 
 from .forms import SinalForm
 from .models import AmostraMovimento, Sinal
-from .movimentos import (
-    AmostraInvalida,
-    apagar_amostra,
-    extrair_landmarks,
-    salvar_amostra,
-    validar_payload,
-)
-from .vision import camera
+from .movimentos import AmostraInvalida, apagar_amostra
+from .vision import GravacaoIndisponivel, camera
 
 
 def home(request):
@@ -64,35 +56,51 @@ def gesto_detalhe(request, sinal_id):
 
 
 def gesto_gravar(request, sinal_id):
-    """Página de gravação de amostra temporal para sinais de movimento."""
-    sinal = get_object_or_404(Sinal, pk=sinal_id, tipo=Sinal.Tipo.MOVIMENTO)
+    """Estúdio de gravação: câmera ao vivo com os marcos da mão.
+
+    Mesmo sistema do comando gravar_movimento — a câmera é a do
+    reconhecimento (``libras.vision``), então as amostras saem como o
+    reconhecedor as verá.
+    """
+    sinal = get_object_or_404(
+        Sinal, pk=sinal_id, tipo=Sinal.Tipo.MOVIMENTO, ativo=True
+    )
     return render(request, "libras/gravar.html", {"sinal": sinal})
 
 
-@require_POST
-def gesto_amostra_salvar(request, sinal_id):
-    """Extrai os landmarks dos frames recebidos e salva a amostra temporal.
+def _sinal_de_movimento(sinal_id):
+    return get_object_or_404(
+        Sinal, pk=sinal_id, tipo=Sinal.Tipo.MOVIMENTO, ativo=True
+    )
 
-    O id do sinal vem da própria rota (nunca do corpo da requisição) e só
-    sinais de MOVIMENTO aceitam amostras. O processamento usa uma pipeline
-    independente do reconhecimento estático.
-    """
-    sinal = get_object_or_404(Sinal, pk=sinal_id, tipo=Sinal.Tipo.MOVIMENTO)
+
+@require_POST
+def gesto_gravacao_iniciar(request, sinal_id):
+    """Começa a gravar uma amostra do sinal (o id vem só da rota)."""
+    sinal = _sinal_de_movimento(sinal_id)
     try:
-        dados = json.loads(request.body.decode("utf-8"))
-        frames = validar_payload(dados)
-        sequencia = extrair_landmarks(frames)
-        amostra = salvar_amostra(sinal, sequencia)
-    except json.JSONDecodeError:
-        return JsonResponse({"erro": "JSON inválido."}, status=400)
+        camera.iniciar_gravacao(sinal)
+    except GravacaoIndisponivel as exc:
+        return JsonResponse({"erro": str(exc)}, status=409)
+    return JsonResponse({"ok": True})
+
+
+@require_POST
+def gesto_gravacao_parar(request, sinal_id):
+    """Encerra a gravação e salva a amostra."""
+    sinal = _sinal_de_movimento(sinal_id)
+    try:
+        amostra = camera.parar_gravacao(sinal)
+    except GravacaoIndisponivel as exc:
+        return JsonResponse({"erro": str(exc)}, status=409)
     except AmostraInvalida as exc:
-        return JsonResponse({"erro": str(exc)}, status=400)
+        return JsonResponse({"erro": f"Amostra descartada: {exc}"}, status=400)
     return JsonResponse(
         {
             "ok": True,
             "amostra_id": amostra.pk,
             "quantidade_frames": amostra.quantidade_frames,
-            "duracao_ms": amostra.duracao_ms,
+            "duracao_s": amostra.duracao_segundos,
         }
     )
 

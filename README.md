@@ -42,23 +42,25 @@ automaticamente pela câmera. A coleta usa a mesma resolução do reconhecimento
 ### 1. Cadastrar e gravar
 
 Em **Gestos → Cadastrar novo sinal**, escolha o tipo **Movimento** (ex.: `J`).
-Depois grave as amostras pelo terminal (com a página `/reconhecer/` fechada,
-para liberar a câmera):
+Depois grave as amostras de um destes dois jeitos — os dois usam a mesma câmera,
+resolução e detector do reconhecimento ao vivo, então as amostras saem como o
+reconhecedor as verá:
 
-```powershell
-python manage.py gravar_movimento J
-```
+- **Pelo site:** na página do sinal, **Gravar nova amostra**. A câmera aparece
+  com os 21 pontos da mão e um indicador de "Mão detectada".
+- **Pelo terminal** (com o site fechado, para liberar a câmera):
 
-Uma janela mostra a câmera com os 21 pontos da mão, como na coleta do alfabeto.
-Faça a configuração inicial com a mão parada (no J, o I), aperte **ESPAÇO**,
-faça o movimento, pare a mão e aperte **ESPAÇO** de novo; a amostra é salva na
-hora. **Q** ou **ESC** encerra. Essa gravação usa a mesma câmera, resolução e
-detector do reconhecimento ao vivo, então as amostras saem como o reconhecedor
-as verá.
+  ```powershell
+  python manage.py gravar_movimento J
+  ```
 
-A página do sinal também tem **Gravar nova amostra** pelo navegador, mas ela
-passa por outro caminho de captura (imagem reduzida, sem os pontos na tela) e
-não é a recomendada. O vídeo nunca é armazenado: cada amostra é a sequência dos
+Nos dois, faça a configuração inicial com a mão parada (no J, o I), aperte
+**Espaço**, faça o movimento, pare a mão e aperte **Espaço** de novo; a amostra
+é salva na hora. No terminal, **Q** ou **ESC** encerra. O comando só grava
+sinais já cadastrados como movimento; para o Z, cadastre "Z" antes.
+
+A câmera é a do computador onde o servidor está rodando: quem for gravar
+precisa estar nele. O vídeo nunca é armazenado: cada amostra é a sequência dos
 marcos da mão em `media/movimentos/<sinal>/<amostra>.json`, com a mão usada
 (direita/esquerda) e a origem da captura.
 

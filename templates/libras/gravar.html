@@ -10,47 +10,44 @@
     <link rel="icon" type="image/png" href="{% static 'img/logo.png' %}">
     <link rel="stylesheet" href="{% static 'css/app.css' %}">
     <style>
-        body.gravar {
-            padding-top: var(--header-height);
-        }
-
-        .recorder-layout {
-            max-width: 1240px;
-            margin: 0 auto;
-            padding: 40px 28px 80px;
+        .rec-actions {
             display: grid;
-            grid-template-columns: minmax(0, 1.6fr) minmax(340px, .9fr);
-            gap: 36px;
-            align-items: start;
+            gap: 12px;
+            margin: 22px 0 4px;
         }
 
-        .recorder-stage {
-            position: relative;
-            overflow: hidden;
-            border-radius: var(--radius-lg);
-            border: 1px solid #26375B;
-            background: #16233F;
-            box-shadow: var(--shadow-md);
+        button.primary-button {
+            border: 0;
+            cursor: pointer;
         }
 
-        .recorder-stage video {
-            display: block;
-            width: 100%;
-            aspect-ratio: 16/9;
-            object-fit: cover;
-            transform: scaleX(-1);
+        button.primary-button:disabled {
+            opacity: .45;
+            cursor: not-allowed;
+            transform: none;
         }
 
-        .recorder-off {
-            position: absolute;
-            inset: 0;
-            display: grid;
-            place-content: center;
-            gap: 6px;
-            text-align: center;
-            color: #B9C7E0;
-            font: 500 12px var(--font-mono);
-            letter-spacing: .06em;
+        .rec-button-stop {
+            background: var(--color-error);
+        }
+
+        .hand-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font: 700 12px var(--font-mono);
+            letter-spacing: .04em;
+        }
+
+        .hand-status i {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--color-error);
+        }
+
+        .hand-status.ok i {
+            background: #3CB371;
         }
 
         .rec-dot {
@@ -58,42 +55,9 @@
             height: 7px;
             border-radius: 50%;
             background: var(--color-error);
-            display: block;
+            display: inline-block;
             box-shadow: 0 0 0 4px rgba(217, 90, 71, .22);
             animation: rec-pulse 1.2s infinite;
-        }
-
-        .rec-actions {
-            display: grid;
-            gap: 12px;
-            margin: 26px 0 4px;
-        }
-
-        .secondary-button {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            border: 1px solid var(--color-border);
-            background: var(--color-surface);
-            color: var(--color-text);
-            border-radius: var(--radius-full);
-            padding: 13px 20px;
-            font: 800 13px var(--font-body);
-            cursor: pointer;
-            transition: border-color .2s, background .2s;
-        }
-
-        .secondary-button:hover {
-            border-color: var(--color-primary);
-            background: var(--color-primary-soft);
-        }
-
-        button.primary-button:disabled,
-        button.secondary-button:disabled {
-            opacity: .45;
-            cursor: not-allowed;
-            transform: none;
         }
 
         @keyframes rec-pulse {
@@ -102,314 +66,192 @@
             }
         }
 
-        @media (max-width:860px) {
-            .recorder-layout {
-                grid-template-columns: 1fr;
-                padding: 28px 20px 60px;
-            }
+        .rec-ok {
+            color: #2E8B57;
+            font-weight: 700;
+        }
 
-            .recognition-panel {
-                position: static;
-                min-height: 0;
-                padding: 28px;
-            }
+        .salvas {
+            list-style: none;
+            padding: 0;
+            margin: 8px 0 0;
+            display: grid;
+            gap: 6px;
+            font: 500 13px var(--font-body);
+        }
+
+        kbd {
+            border: 1px solid var(--color-border);
+            border-bottom-width: 2px;
+            border-radius: 4px;
+            padding: 1px 6px;
+            font: 700 11px var(--font-mono);
         }
     </style>
 </head>
 
-<body class="gravar">{% include "libras/_header.html" %}
-    <main class="recorder-layout">
+<body class="recognizer">{% include "libras/_header.html" %}
+    <main class="recognizer-layout">
         <div>
             <div class="page-intro">
                 <p class="section-label">COLETA TEMPORAL</p>
                 <h1>Gravar "{{ sinal.titulo }}"</h1>
             </div>
-            <section class="recorder-stage">
-                <video id="preview" autoplay playsinline muted></video>
-                <div id="camera-off" class="recorder-off">
-                    <span>CÂMERA DESLIGADA</span>
-                    <small style="font-size:10px;color:#8CA0BF">abra a câmera para começar</small>
-                </div>
-                <div class="camera-topline">
-                    <span id="rec-badge" hidden><i class="rec-dot"></i> GRAVANDO</span>
-                    <span>Amostragem local</span>
-                </div>
+            <section class="camera"><img src="{% url 'video_feed' %}"
+                    alt="Câmera ao vivo com os marcos da mão para gravação do sinal">
+                <div class="camera-topline"><span id="rec-badge" hidden><i class="rec-dot"></i> GRAVANDO</span><span>Webcam
+                        local</span></div>
             </section>
-            <p class="camera-caption">Os frames são processados no servidor para extrair os landmarks. Nenhum vídeo é
-                armazenado.</p>
-            <p class="camera-caption"><strong>Recomendado:</strong> grave pelo terminal com
-                <code>python manage.py gravar_movimento {{ sinal.titulo }}</code> — a janela mostra os 21 pontos da mão
-                e usa a mesma câmera do reconhecimento ao vivo, então as amostras saem como o reconhecedor as verá.</p>
+            <p class="camera-caption">Mesma câmera do reconhecimento ao vivo: as amostras saem exatamente como o
+                reconhecedor as verá. Nenhum vídeo é armazenado, só os marcos da mão.</p>
         </div>
         <aside class="recognition-panel">
             <div class="panel-heading">
                 <p class="section-label">SINAL EM COLETA</p>
-                <span class="pulse-label"><i></i> {{ sinal.titulo }}</span>
+                <span id="hand-status" class="hand-status"><i></i> <span>Sem mão</span></span>
             </div>
-            <output id="timer">00:00 / 00:30</output>
-            <p id="frame-contador" class="meaning" aria-live="polite">Máximo de 30 segundos · mínimo de 10 frames com a
-                mão visível.</p>
-            <p id="rec-erro" class="error" role="status"></p>
+            <output id="timer">00.0 s</output>
+            <p id="mensagem" class="meaning" aria-live="polite">Posicione a mão na câmera.</p>
+            <p id="erro" class="error" role="status"></p>
             <div class="rec-actions">
-                <button type="button" id="btnAbrir" class="primary-button">Abrir câmera <span aria-hidden="true">→</span></button>
-                <button type="button" id="btnIniciar" class="primary-button" hidden>Iniciar gravação</button>
-                <button type="button" id="btnParar" class="secondary-button" hidden>Parar gravação</button>
-                <button type="button" id="btnSalvar" class="primary-button" hidden>Salvar amostra</button>
-                <button type="button" id="btnDescartar" class="secondary-button" hidden>Descartar</button>
-                <button type="button" id="btnNovamente" class="secondary-button" hidden>Gravar novamente</button>
-                <button type="button" id="btnFechar" class="secondary-button" hidden>Fechar câmera</button>
+                <button type="button" id="btnGravar" class="primary-button" disabled>Iniciar gravação
+                    <kbd>Espaço</kbd></button>
             </div>
             <div class="panel-divider"></div>
-            <h2>Para uma boa coleta</h2>
+            <h2>Como gravar</h2>
             <ul>
-                <li><span>01</span> Use a contagem para posicionar a mão antes de começar.</li>
-                <li><span>02</span> Comece e termine com a mão parada; faça o movimento completo, sem pressa.</li>
-                <li><span>03</span> Mantenha a mão visível do início ao fim.</li>
-                <li><span>04</span> Prefira um ambiente bem iluminado.</li>
+                <li><span>01</span> Faça a configuração inicial e deixe a mão parada (no J, o I).</li>
+                <li><span>02</span> Aperte <kbd>Espaço</kbd> e faça o movimento completo, sem pressa.</li>
+                <li><span>03</span> Pare a mão no final e aperte <kbd>Espaço</kbd> de novo para salvar.</li>
+                <li><span>04</span> Grave várias amostras — se possível, com pessoas diferentes.</li>
+            </ul>
+            <div class="panel-divider"></div>
+            <h2>Salvas nesta sessão</h2>
+            <ul id="salvas" class="salvas">
+                <li id="nenhuma">Nenhuma ainda.</li>
             </ul>
             <p><a class="text-link" href="{% url 'gesto_detalhe' sinal.pk %}">Voltar para o sinal</a></p>
         </aside>
     </main>
     <script>
         (function () {
-            const video = document.getElementById('preview');
-            const overlay = document.getElementById('camera-off');
-            const badge = document.getElementById('rec-badge');
-            const timer = document.getElementById('timer');
-            const contador = document.getElementById('frame-contador');
-            const erro = document.getElementById('rec-erro');
-            const botoes = {
-                abrir: document.getElementById('btnAbrir'),
-                iniciar: document.getElementById('btnIniciar'),
-                parar: document.getElementById('btnParar'),
-                salvar: document.getElementById('btnSalvar'),
-                descartar: document.getElementById('btnDescartar'),
-                novamente: document.getElementById('btnNovamente'),
-                fechar: document.getElementById('btnFechar'),
-            };
-            const URL_SALVAR = "{% url 'gesto_amostra_salvar' sinal.pk %}";
-            const URL_DETALHE = "{% url 'gesto_detalhe' sinal.pk %}";
+            const SINAL_ID = {{ sinal.pk }};
+            const URL_STATUS = "{% url 'status' %}";
+            const URL_INICIAR = "{% url 'gesto_gravacao_iniciar' sinal.pk %}";
+            const URL_PARAR = "{% url 'gesto_gravacao_parar' sinal.pk %}";
             const CSRF = document.querySelector('meta[name="csrf-token"]').content;
 
-            const DURACAO_MAX_MS = 30000;
-            const INTERVALO_AMOSTRAGEM_MS = 66;
-            const FRAMES_MAX = 450;
-            const FRAMES_MIN = 10;
-            const CONTAGEM_S = 3;
+            const botao = document.getElementById('btnGravar');
+            const badge = document.getElementById('rec-badge');
+            const timer = document.getElementById('timer');
+            const mensagem = document.getElementById('mensagem');
+            const erro = document.getElementById('erro');
+            const maoStatus = document.getElementById('hand-status');
+            const salvas = document.getElementById('salvas');
 
-            let stream = null;
             let gravando = false;
-            let salvando = false;
-            let frames = [];
-            let inicio = 0;
-            let amostrador = null;
-            let relogio = null;
-            let contagem = null;
+            let ocupado = false;
+            let maoDetectada = false;
+            // Muda a cada início/fim de gravação: respostas de status pedidas
+            // antes da mudança chegam desatualizadas e são ignoradas.
+            let versao = 0;
 
-            function estado(nome) {
-                const visiveis = {
-                    inicial: ['abrir'],
-                    aberta: ['iniciar', 'fechar'],
-                    contando: ['parar'],
-                    gravando: ['parar'],
-                    gravado: ['salvar', 'descartar', 'novamente'],
-                    processando: [],
-                }[nome];
-                Object.entries(botoes).forEach(([chave, botao]) => {
-                    botao.hidden = !visiveis.includes(chave);
-                });
-                badge.hidden = nome !== 'gravando';
+            function atualizarBotao() {
+                botao.innerHTML = gravando
+                    ? 'Parar e salvar <kbd>Espaço</kbd>'
+                    : 'Iniciar gravação <kbd>Espaço</kbd>';
+                botao.classList.toggle('rec-button-stop', gravando);
+                botao.disabled = ocupado || (!gravando && !maoDetectada);
+                badge.hidden = !gravando;
             }
 
-            function mostrarErro(mensagem) { erro.textContent = mensagem || ''; }
-
-            function mostrarContador(texto) { contador.textContent = texto; }
-
-            function formatarTempo(ms) {
-                const total = Math.max(0, Math.floor(ms / 1000));
-                const m = String(Math.floor(total / 60)).padStart(2, '0');
-                const s = String(total % 60).padStart(2, '0');
-                return `${m}:${s}`;
+            async function enviar(url) {
+                const resposta = await fetch(url, { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
+                const dados = await resposta.json().catch(() => ({}));
+                if (!resposta.ok || !dados.ok) throw new Error(dados.erro || 'Falha de comunicação com o servidor.');
+                return dados;
             }
 
-            function atualizarPainel(relativo) {
-                timer.textContent = `${formatarTempo(Math.min(relativo, DURACAO_MAX_MS))} / 00:30`;
-                mostrarContador(`${frames.length} frames capturados · mínimo ${FRAMES_MIN} para salvar`);
-            }
-
-            function capturarFrame(relativo) {
-                const largura = 480;
-                const altura = Math.round((video.videoHeight || 270) * largura / (video.videoWidth || 480)) || 270;
-                const canvas = document.createElement('canvas');
-                canvas.width = largura;
-                canvas.height = altura;
-                // Desenha espelhado, na mesma convenção do reconhecedor
-                // (cv2.flip em vision.py) — os landmarks gravados ficam na
-                // mesma orientação do dataset estático.
-                canvas.getContext('2d').drawImage(video, largura, 0, -largura, altura);
-                return {
-                    timestamp_ms: Math.round(relativo),
-                    imagem: canvas.toDataURL('image/jpeg', 0.7).split(',')[1],
-                };
-            }
-
-            async function abrirCamera(novaTentativa = false) {
-                mostrarErro('');
-                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                    mostrarErro('Este navegador não dá acesso à câmera.');
-                    return;
-                }
+            async function iniciar() {
+                ocupado = true;
+                atualizarBotao();
+                erro.textContent = '';
                 try {
-                    stream = await navigator.mediaDevices.getUserMedia({
-                        video: { width: { ideal: 960 }, height: { ideal: 540 } },
-                        audio: false,
-                    });
+                    await enviar(URL_INICIAR);
+                    versao += 1;
+                    gravando = true;
+                    mensagem.textContent = 'Gravando… faça o movimento e pare a mão no final.';
                 } catch (falha) {
-                    const semPermissao = falha && falha.name === 'NotAllowedError';
-                    if (semPermissao) {
-                        mostrarErro('Permissão de câmera negada. Libere o acesso nas configurações do navegador.');
-                        return;
-                    }
-                    if (!novaTentativa) {
-                        mostrarErro('A câmera está ocupada. Se a página de reconhecimento estiver aberta, feche-a — o servidor libera a webcam em instantes. Tentando novamente…');
-                        setTimeout(() => abrirCamera(true), 2000);
-                        return;
-                    }
-                    mostrarErro('Não foi possível acessar a câmera. Feche a página de reconhecimento e tente de novo.');
-                    return;
+                    erro.textContent = falha.message;
                 }
-                video.srcObject = stream;
-                overlay.hidden = true;
-                try { await video.play(); } catch (falha) { }
-                stream.getVideoTracks().forEach(trilha => trilha.addEventListener('ended', interromperCamera));
-                estado('aberta');
+                ocupado = false;
+                atualizarBotao();
             }
 
-            // Contagem regressiva: a pessoa posiciona a mão antes da
-            // gravação, e o sinal começa com a mão parada no quadro.
-            function contarEIniciar() {
-                let restante = CONTAGEM_S;
-                frames = [];
-                mostrarErro('');
-                estado('contando');
-                timer.textContent = `Começa em ${restante}…`;
-                mostrarContador('Posicione a mão e fique parado até a gravação começar.');
-                contagem = setInterval(() => {
-                    restante -= 1;
-                    if (restante > 0) {
-                        timer.textContent = `Começa em ${restante}…`;
-                        return;
-                    }
-                    clearInterval(contagem);
-                    contagem = null;
-                    iniciar();
-                }, 1000);
-            }
-
-            function cancelarContagem() {
-                if (!contagem) return false;
-                clearInterval(contagem);
-                contagem = null;
-                timer.textContent = '00:00 / 00:30';
-                mostrarContador(`Máximo de 30 segundos · mínimo de ${FRAMES_MIN} frames com a mão visível.`);
-                estado(stream ? 'aberta' : 'inicial');
-                return true;
-            }
-
-            function iniciar() {
-                frames = [];
-                gravando = true;
-                inicio = performance.now();
-                mostrarErro('');
-                atualizarPainel(0);
-                amostrador = setInterval(() => {
-                    const relativo = performance.now() - inicio;
-                    if (relativo >= DURACAO_MAX_MS || frames.length >= FRAMES_MAX) {
-                        parar();
-                        return;
-                    }
-                    if (video.readyState >= 2) frames.push(capturarFrame(relativo));
-                    atualizarPainel(relativo);
-                }, INTERVALO_AMOSTRAGEM_MS);
-                relogio = setInterval(() => atualizarPainel(performance.now() - inicio), 100);
-                estado('gravando');
-            }
-
-            function parar() {
-                if (cancelarContagem()) return;
-                clearInterval(amostrador);
-                clearInterval(relogio);
+            async function parar() {
+                ocupado = true;
+                atualizarBotao();
+                try {
+                    const dados = await enviar(URL_PARAR);
+                    mensagem.innerHTML = `<span class="rec-ok">Amostra #${dados.amostra_id} salva</span> · ${dados.quantidade_frames} frames · ${dados.duracao_s} s. Pode gravar a próxima.`;
+                    const nenhuma = document.getElementById('nenhuma');
+                    if (nenhuma) nenhuma.remove();
+                    const item = document.createElement('li');
+                    item.textContent = `Amostra #${dados.amostra_id} · ${dados.quantidade_frames} frames · ${dados.duracao_s} s`;
+                    salvas.prepend(item);
+                } catch (falha) {
+                    erro.textContent = falha.message;
+                    mensagem.textContent = 'Posicione a mão e tente de novo.';
+                }
+                versao += 1;
                 gravando = false;
-                atualizarPainel(frames.length ? frames[frames.length - 1].timestamp_ms : 0);
-                if (frames.length < FRAMES_MIN) {
-                    mostrarErro(`Gravação curta demais: capture pelo menos ${FRAMES_MIN} frames.`);
-                }
-                estado('gravado');
+                ocupado = false;
+                timer.textContent = '00.0 s';
+                atualizarBotao();
             }
 
-            function descartar() {
-                frames = [];
-                timer.textContent = '00:00 / 00:30';
-                mostrarErro('');
-                mostrarContador(`Máximo de 30 segundos · mínimo de ${FRAMES_MIN} frames com a mão visível.`);
-                estado(stream ? 'aberta' : 'inicial');
-            }
-
-            async function salvar() {
-                if (salvando || frames.length < FRAMES_MIN) return;
-                salvando = true;
-                mostrarErro('');
-                estado('processando');
-                timer.textContent = 'Processando…';
-                mostrarContador('Extraindo os landmarks com o MediaPipe. Isso pode levar alguns segundos.');
-                try {
-                    const resposta = await fetch(URL_SALVAR, {
-                        method: 'POST',
-                        headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ frames }),
-                    });
-                    const dados = await resposta.json().catch(() => ({}));
-                    if (resposta.ok && dados.ok) {
-                        fecharCamera();
-                        window.location.assign(URL_DETALHE);
-                        return;
-                    }
-                    mostrarErro(dados.erro || 'Não foi possível salvar a amostra.');
-                } catch (falha) {
-                    mostrarErro('Falha de comunicação com o servidor.');
-                }
-                salvando = false;
-                estado('gravado');
-            }
-
-            function fecharCamera() {
-                if (stream) {
-                    stream.getTracks().forEach(trilha => trilha.stop());
-                    stream = null;
-                }
-                video.srcObject = null;
-                overlay.hidden = false;
-            }
-
-            function interromperCamera() {
-                cancelarContagem();
+            function alternar() {
+                if (ocupado) return;
                 if (gravando) parar();
-                stream = null;
-                video.srcObject = null;
-                overlay.hidden = false;
-                mostrarErro('A câmera foi interrompida. Os frames capturados foram mantidos.');
-                estado('inicial');
+                else if (maoDetectada) iniciar();
+                else erro.textContent = 'Posicione a mão na câmera antes de gravar.';
             }
 
-            botoes.abrir.addEventListener('click', abrirCamera);
-            botoes.iniciar.addEventListener('click', contarEIniciar);
-            botoes.parar.addEventListener('click', parar);
-            botoes.salvar.addEventListener('click', salvar);
-            botoes.descartar.addEventListener('click', descartar);
-            botoes.novamente.addEventListener('click', contarEIniciar);
-            botoes.fechar.addEventListener('click', () => { fecharCamera(); estado('inicial'); });
-            window.addEventListener('beforeunload', fecharCamera);
-            estado('inicial');
+            async function acompanhar() {
+                const pedida = versao;
+                try {
+                    const resposta = await fetch(URL_STATUS);
+                    const d = await resposta.json();
+                    if (pedida !== versao || ocupado) return;
+                    maoDetectada = !!d.hand_detected;
+                    maoStatus.classList.toggle('ok', maoDetectada);
+                    maoStatus.querySelector('span').textContent = maoDetectada ? 'Mão detectada' : 'Sem mão';
+                    const gravacao = d.recording || {};
+                    if (gravacao.ativa && gravacao.sinal_id === SINAL_ID) {
+                        timer.textContent = `${(gravacao.duracao_ms / 1000).toFixed(1).padStart(4, '0')} s`;
+                        // Limite de 30 s atingido: salva sozinho.
+                        if (gravacao.no_limite && gravando && !ocupado) parar();
+                    } else if (gravacao.ativa) {
+                        erro.textContent = 'Há outra gravação em andamento na câmera.';
+                    } else if (gravando && !ocupado) {
+                        // A gravação foi descartada no servidor (ex.: câmera reiniciada).
+                        gravando = false;
+                        erro.textContent = 'A gravação foi interrompida. Tente de novo.';
+                    }
+                    if (d.error) erro.textContent = d.error;
+                } catch (falha) { }
+                atualizarBotao();
+            }
+
+            botao.addEventListener('click', alternar);
+            document.addEventListener('keydown', (evento) => {
+                if (evento.code !== 'Space' || evento.repeat) return;
+                if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+                evento.preventDefault();
+                alternar();
+            });
+            acompanhar();
+            setInterval(acompanhar, 250);
         })();
     </script>
 </body>

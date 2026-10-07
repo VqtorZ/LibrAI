@@ -11,11 +11,12 @@ import mediapipe as mp
 # Permite executar este arquivo diretamente a partir da raiz do projeto.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from libras.caminhos import AMOSTRAS_ESTATICAS
 from libras.vision import abrir_camera, extract_features
 
 
 LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-OUTPUT = Path("dataset/landmarks.csv")
+OUTPUT = AMOSTRAS_ESTATICAS
 N_FEATURES = 63  # Só as coordenadas normalizadas; as geométricas são recalculadas no treino.
 HEADER = ["label"] + [f"f{i}" for i in range(N_FEATURES)]
 

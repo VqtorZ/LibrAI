@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from libras.caminhos import AMOSTRAS_MOVIMENTO, BANCO
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = "troque-esta-chave-em-producao"
 DEBUG = True
@@ -39,14 +41,16 @@ TEMPLATES = [{
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
-DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
+# Todos os dados ficam em dados/ (ver libras/caminhos.py).
+DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BANCO}}
 LANGUAGE_CODE = "pt-br"
 TIME_ZONE = "America/Sao_Paulo"
 USE_I18N = True
 USE_TZ = True
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
-MEDIA_ROOT = BASE_DIR / "media"
+# As amostras de movimento (JSON) são os únicos arquivos "de mídia".
+MEDIA_ROOT = AMOSTRAS_MOVIMENTO
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Diagnóstico do reconhecimento de movimentos no terminal do runserver.

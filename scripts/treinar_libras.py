@@ -13,11 +13,12 @@ from sklearn.metrics import classification_report
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from libras.caminhos import AMOSTRAS_ESTATICAS, COMPRESSAO_MODELOS, MODELO_ALFABETO
 from libras.vision import geometric_features
 
 
-DATASET = Path("dataset/landmarks.csv")
-MODEL = Path("models/libras_alphabet.joblib")
+DATASET = AMOSTRAS_ESTATICAS
+MODEL = MODELO_ALFABETO
 BASE_COLS = 63
 
 
@@ -49,7 +50,7 @@ def main():
     model.fit(X_train, y_train)
     print(classification_report(y_test, model.predict(X_test), zero_division=0))
     MODEL.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(model, MODEL)
+    joblib.dump(model, MODEL, compress=COMPRESSAO_MODELOS)
     print(f"Modelo salvo em {MODEL}.")
 
 

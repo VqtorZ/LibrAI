@@ -2,8 +2,9 @@
 
 As amostras são gravadas pela câmera do OpenCV (``libras.gravacao``,
 usado pela página do sinal e pelo comando gravar_movimento) e
-persistidas como sequências de landmarks em arquivos JSON dentro de
-MEDIA_ROOT; o banco guarda os metadados.
+persistidas como sequências de landmarks em arquivos JSON em
+``dados/amostras_movimento/<id>-<sinal>/<amostra>.json`` (MEDIA_ROOT);
+o banco guarda os metadados e o caminho de cada arquivo.
 """
 from __future__ import annotations
 
@@ -11,6 +12,7 @@ import json
 from pathlib import Path
 
 from django.conf import settings
+from django.utils.text import slugify
 
 from .models import AmostraMovimento, Sinal
 
@@ -27,9 +29,19 @@ class AmostraInvalida(Exception):
     """Amostra temporal rejeitada pela validação."""
 
 
+def pasta_do_sinal(sinal):
+    """Pasta das amostras do sinal: id + título, ex.: ``2-j``.
+
+    O id garante que a pasta seja única; o título deixa claro de qual
+    sinal ela é. Se o título mudar, as amostras antigas continuam onde
+    estão (o caminho de cada uma fica salvo no banco).
+    """
+    return f"{sinal.pk}-{slugify(sinal.titulo) or 'sinal'}"
+
+
 def caminho_relativo(amostra):
     """Caminho do JSON da amostra relativo a MEDIA_ROOT."""
-    return f"movimentos/{amostra.sinal_id}/{amostra.pk}.json"
+    return f"{pasta_do_sinal(amostra.sinal)}/{amostra.pk}.json"
 
 
 def _caminho_absoluto(amostra):
@@ -110,7 +122,7 @@ def apagar_amostra(amostra):
 
     A remoção do arquivo é melhor esforço (com checagem de caminho seguro);
     se falhar, o registro ainda é apagado — o arquivo órfão fica em
-    ``media/``, que é ignorada pelo Git.
+    ``dados/amostras_movimento/``, que é ignorada pelo Git.
     """
     if amostra.arquivo_dados:
         try:

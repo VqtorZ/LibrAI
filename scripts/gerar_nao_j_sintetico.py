@@ -9,7 +9,7 @@ relativa da mão em todos os frames, com o punho parado.
 O arquivo sai no mesmo formato versionado das amostras reais
 (etapa 4.1), pronto para:
 
-    python manage.py testar_movimento --arquivo dataset/nao_j_sintetico.json
+    python manage.py testar_movimento --arquivo dados/sinteticos/nao_j_sintetico.json
 
 O conteúdo carrega a marcação explícita "origem": "sintetico".
 """
@@ -17,7 +17,7 @@ import json
 import math
 from pathlib import Path
 
-SAIDA = Path(__file__).resolve().parent.parent / "dataset" / "nao_j_sintetico.json"
+SAIDA = Path(__file__).resolve().parent.parent / "dados" / "sinteticos" / "nao_j_sintetico.json"
 FRAMES = 36
 INTERVALO_MS = 66
 LANDMARKS = 21

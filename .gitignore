@@ -10,10 +10,15 @@ build/
 dist/
 
 # --- Django ---
-db.sqlite3
-db.sqlite3-journal
 local_settings.py
-media/
+
+# --- Dados locais (ver libras/caminhos.py) ---
+# O banco e as gravações de movimento ficam só nesta máquina; os modelos
+# treinados e as amostras estáticas são versionados.
+dados/banco.sqlite3
+dados/banco.sqlite3-journal
+dados/amostras_movimento/
+backups/
 
 # --- Variaveis de ambiente / segredos ---
 .env

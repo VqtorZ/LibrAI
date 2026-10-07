@@ -31,11 +31,12 @@ from pathlib import Path
 import joblib
 import numpy as np
 
+from .caminhos import COMPRESSAO_MODELOS, MODELO_MOVIMENTOS
 from .models import AmostraMovimento, Sinal
 from .movimentos import LANDMARKS_POR_MAO, VALORES_POR_LANDMARK, ler_sequencia
 from .verificacao import verificar_amostra, verificar_conteudo
 
-MODELO_PATH = Path(__file__).resolve().parent.parent / "models" / "movimentos.joblib"
+MODELO_PATH = MODELO_MOVIMENTOS
 # Formato 2: features com deslocamento do pulso, espelhamento,
 # reamostragem e aparo de repouso (ver ``processar_frames``).
 FORMATO_MODELO = 2
@@ -529,7 +530,7 @@ def treinar(caminho=None):
         "margem": MARGEM_LIMIAR,
     }
     destino.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(modelo, destino)
+    joblib.dump(modelo, destino, compress=COMPRESSAO_MODELOS)
     return TreinoResultado(
         modelo=modelo, trajetorias=trajetorias,
         invalidas=invalidas, excluidas=excluidas,

@@ -242,7 +242,7 @@ class AmostraMovimentoTests(TemporalBase):
         self.assertEqual(AmostraMovimento.objects.count(), 1)
         self.assertEqual(amostra.sinal, self.sinal)
         self.assertEqual(
-            amostra.arquivo_dados, f"movimentos/{self.sinal.pk}/{amostra.pk}.json"
+            amostra.arquivo_dados, f"{self.sinal.pk}-j/{amostra.pk}.json"
         )
         self.assertTrue(Path(self.media_tmp).joinpath(amostra.arquivo_dados).is_file())
 

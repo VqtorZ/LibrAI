@@ -44,8 +44,9 @@ class AmostraMovimento(models.Model):
     """Amostra temporal gravada para um sinal do tipo MOVIMENTO.
 
     A sequência de landmarks fica em um arquivo JSON em
-    ``movimentos/<sinal_id>/<amostra_id>.json`` dentro de ``MEDIA_ROOT``;
-    o banco guarda apenas os metadados e a referência ao arquivo.
+    ``dados/amostras_movimento/<id>-<sinal>/<amostra_id>.json``
+    (MEDIA_ROOT); o banco guarda apenas os metadados e a referência ao
+    arquivo.
     """
 
     sinal = models.ForeignKey(

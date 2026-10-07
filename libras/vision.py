@@ -1,13 +1,13 @@
 """Captura OpenCV e classificação de letras estáticas de Libras."""
 from __future__ import annotations
 
-from pathlib import Path
 import threading
 import time
 
 import cv2
 import mediapipe as mp
 
+from .caminhos import MODELO_ALFABETO
 from .marcos import marcos_da_mao
 
 try:
@@ -16,7 +16,7 @@ except ImportError:
     joblib = None
 
 
-MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "libras_alphabet.joblib"
+MODEL_PATH = MODELO_ALFABETO
 
 
 # Resolução única da webcam: reconhecimento, coleta do alfabeto e

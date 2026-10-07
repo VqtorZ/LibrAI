@@ -1,6 +1,6 @@
 """Etapa 4.1 — verificador de amostras temporais.
 
-Lê as amostras gravadas em ``media/movimentos/`` e confere a
+Lê as amostras gravadas em ``dados/amostras_movimento/`` e confere a
 estrutura dos JSONs, a consistência com os metadados do banco e a
 presença de landmarks suficientes. Diagnóstico apenas: não treina,
 não classifica e não promete reconhecimento — apenas declara se a

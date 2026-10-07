@@ -8,7 +8,7 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
 ## 1. Estado atual (onde paramos)
 
 - **Branch de trabalho:** `melhorias-movimento` (enviado ao GitHub,
-  `origin/melhorias-movimento`). Tem **25 commits que ainda não estão no
+  `origin/melhorias-movimento`). Tem **27 commits que ainda não estão no
   `main`** (o `main` está em `e61c9d3`). O merge (ou PR) espera a aprovação do
   usuário: https://github.com/VqtorZ/LibrAI/pull/new/melhorias-movimento
 - **Testes:** 203 passando (`libras/tests/`, divididos por área).
@@ -22,17 +22,21 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
     `dados/amostras_movimento/2-j/`. As 5 amostras antigas do navegador foram
     apagadas pelo usuário.
   - `#3 Z`, movimento: **20 amostras gravadas pelo site** (~25 fps — confirma
-    a correção de FPS do site; antes ficaria ~10). **Ainda não treinado**: o
-    modelo atual só tem o J (a página Gestos mostra "Precisa treinar").
+    a correção de FPS do site; antes ficaria ~10).
   - Nenhum exemplo negativo gravado ainda.
 - **Modelo de movimentos** (`dados/modelos_treinados/movimentos.joblib`,
-  versionado, formato 2, salvo comprimido): treinado em 2026-10-06T22:48Z,
-  classe única `J` (26 amostras), limiar 0.766.
+  versionado, formato 2, salvo comprimido): treinado pelo usuário no site em
+  2026-10-07T02:57Z com **J (26 amostras, limiar 0.766) e Z (20, limiar
+  0.889)**, sem negativos.
 - **Modelo do alfabeto** (`dados/modelos_treinados/alfabeto.joblib`, era
   `models/libras_alphabet.joblib`): RandomForest de 400 árvores, comprimido de
   42,9 MB para 5,7 MB com previsões idênticas. Dataset
-  `dados/amostras_estaticas/landmarks.csv` com 10.933 amostras de **21 letras**
-  (ABCDEFGILMNOPQRSTUVWY). Faltam H, J, K, X e Z; em Libras, H, K e X também
+  `dados/amostras_estaticas/landmarks.csv`: em 2026-10-07 o usuário pediu para
+  **apagar as amostras de F, T, I e R** (1.644 linhas) para regravá-las; restam
+  9.289 amostras de **17 letras** (ABCDEGLMNOPQSUVWY). Backup do CSV anterior em
+  `backups/antes-apagar-FTIR-2026-10-07/`. **O modelo do alfabeto NÃO foi
+  retreinado** e ainda reconhece F/T/I/R; retreinar antes de recoletar essas
+  letras faria o sistema deixar de reconhecê-las. Faltam H, J, K, X e Z; em Libras, H, K e X também
   envolvem movimento (a validar com o usuário).
 - **Resultado confirmado pelo usuário:** com as amostras gravadas pelo OpenCV,
   **o J é reconhecido ao vivo no `/reconhecer/`**.
@@ -49,8 +53,9 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
   pose final de um movimento é ignorada por 1,5 s), dicas em cartões e a grade
   do alfabeto com dados reais. Conferida por prévias estáticas (template real
   + quadro simulado + status roteirizado), **não testada com a webcam**.
-- **Próximo passo combinado:** o usuário treina o Z pelo botão do site (Gestos
-  → Treinar reconhecimento) e testa J vs Z ao vivo no `/reconhecer/`.
+- **Próximo passo combinado:** o usuário vai **regravar F, T, I e R**
+  (`manage.py coletar_alfabeto F` etc.) e depois rodar `treinar_alfabeto`.
+  Também testar J vs Z ao vivo (Z já treinado).
 
 ---
 

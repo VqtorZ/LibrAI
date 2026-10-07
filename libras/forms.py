@@ -10,6 +10,7 @@ class SinalForm(forms.ModelForm):
     A validação acontece no backend: o título é obrigatório, sem espaços
     desnecessários, e a descrição permanece opcional. O tipo default é
     estático; sinais de movimento habilitam a gravação de amostras.
+    Exemplos negativos (movimentos a rejeitar) só existem para movimento.
     """
 
     tipo = forms.ChoiceField(
@@ -22,10 +23,11 @@ class SinalForm(forms.ModelForm):
 
     class Meta:
         model = Sinal
-        fields = ["titulo", "tipo", "descricao"]
+        fields = ["titulo", "tipo", "negativo", "descricao"]
         labels = {
             "titulo": "Título do sinal",
             "tipo": "Tipo do sinal",
+            "negativo": "Exemplo negativo (o modelo deve rejeitar este movimento)",
             "descricao": "Descrição / observação",
         }
         widgets = {
@@ -51,3 +53,11 @@ class SinalForm(forms.ModelForm):
 
     def clean_tipo(self):
         return self.cleaned_data.get("tipo") or Sinal.Tipo.ESTATICO
+
+    def clean(self):
+        dados = super().clean()
+        if dados.get("negativo") and dados.get("tipo") != Sinal.Tipo.MOVIMENTO:
+            self.add_error(
+                "negativo", "Exemplos negativos precisam ser do tipo movimento."
+            )
+        return dados

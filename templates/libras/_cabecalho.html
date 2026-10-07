@@ -1,0 +1,60 @@
+{% load static %}
+{% with pagina=request.resolver_match.url_name %}
+<a class="pular-conteudo" href="#conteudo">Pular para o conteúdo</a>
+<header class="site-header" id="site-header">
+  <a class="brand" href="{% url 'inicio' %}" aria-label="LibrAI — página inicial"><img class="brand-logo"
+      src="{% static 'img/logo.png' %}" alt=""><span class="brand-name">LibrAI</span></a>
+  <nav class="header-nav" aria-label="Navegação principal">
+    <a href="{% url 'inicio' %}#projeto">O projeto</a>
+    <a href="{% url 'inicio' %}#como-funciona">Como funciona</a>
+    <a href="{% url 'inicio' %}#reconhece">O que reconhece</a>
+    <a href="{% url 'gestos' %}"{% if pagina == 'gestos' or pagina|slice:':6' == 'gesto_' or pagina|slice:':9' == 'alfabeto_' %} class="is-active" aria-current="page"{% endif %}>Gestos</a>
+  </nav>
+  <div class="header-actions">
+    {% if user.is_authenticated %}
+    <a class="conta-ola{% if pagina == 'trocar_senha' %} is-active{% endif %}" href="{% url 'trocar_senha' %}" title="{{ user.email }} — trocar minha senha">Olá, {{ user.first_name|default:user.email }}</a>
+    <form method="post" action="{% url 'sair' %}" class="conta-sair">{% csrf_token %}<button type="submit">Sair</button></form>
+    {% else %}
+    <a class="conta-entrar{% if pagina == 'entrar' %} is-active{% endif %}" href="{% url 'entrar' %}">Entrar</a>
+    {% endif %}
+    <a class="header-cta{% if pagina == 'reconhecer' %} is-active{% endif %}" href="{% url 'reconhecer' %}"{% if pagina == 'reconhecer' %} aria-current="page"{% endif %}>Reconhecer <span aria-hidden="true">→</span></a>
+    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="mobile-menu"
+      aria-label="Abrir menu"><span class="menu-bar" aria-hidden="true"></span><span class="menu-bar"
+        aria-hidden="true"></span><span class="menu-bar" aria-hidden="true"></span></button>
+  </div>
+</header>
+<nav class="mobile-menu" id="mobile-menu" aria-label="Menu">
+  <a href="{% url 'inicio' %}#projeto">O projeto</a>
+  <a href="{% url 'inicio' %}#como-funciona">Como funciona</a>
+  <a href="{% url 'inicio' %}#reconhece">O que reconhece</a>
+  <a href="{% url 'gestos' %}"{% if pagina == 'gestos' or pagina|slice:':6' == 'gesto_' or pagina|slice:':9' == 'alfabeto_' %} class="is-active" aria-current="page"{% endif %}>Gestos</a>
+  {% if user.is_authenticated %}
+  <a href="{% url 'trocar_senha' %}"{% if pagina == 'trocar_senha' %} class="is-active" aria-current="page"{% endif %}>Trocar minha senha</a>
+  <form method="post" action="{% url 'sair' %}" class="mobile-sair">{% csrf_token %}<button type="submit">Sair ({{ user.first_name|default:user.email }})</button></form>
+  {% else %}
+  <a href="{% url 'entrar' %}"{% if pagina == 'entrar' %} class="is-active" aria-current="page"{% endif %}>Entrar</a>
+  {% endif %}
+  <a class="mobile-cta" href="{% url 'reconhecer' %}"{% if pagina == 'reconhecer' %} aria-current="page"{% endif %}>Reconhecer</a>
+</nav>
+{% endwith %}
+<script>
+  (function () {
+    const header = document.getElementById('site-header');
+    const toggle = header.querySelector('.menu-toggle');
+    const menu = document.getElementById('mobile-menu');
+    const isOpen = () => menu.classList.contains('is-open');
+    function setOpen(open) {
+      menu.classList.toggle('is-open', open);
+      toggle.setAttribute('aria-expanded', String(open));
+      toggle.setAttribute('aria-label', open ? 'Fechar menu' : 'Abrir menu');
+    }
+    toggle.addEventListener('click', () => setOpen(!isOpen()));
+    menu.addEventListener('click', event => { if (event.target.closest('a')) setOpen(false); });
+    document.addEventListener('click', event => {
+      if (isOpen() && !event.target.closest('#site-header') && !event.target.closest('#mobile-menu')) setOpen(false);
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && isOpen()) { setOpen(false); toggle.focus(); }
+    });
+  })();
+</script>

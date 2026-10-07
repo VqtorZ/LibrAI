@@ -1,0 +1,176 @@
+/* ==========================================================================
+   LibrAI — Tela de login (área dos administradores)
+   Reaproveita a câmera escura e a mão animada da home (home.css) e os
+   campos de formulário de app.css.
+   ========================================================================== */
+
+.entrar {
+    position: relative;
+    isolation: isolate;
+    min-height: calc(100vh - var(--header-height));
+    padding-block: 48px 72px;
+}
+
+.entrar::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background:
+        radial-gradient(900px 520px at 90% 0%, rgba(252, 169, 115, .18), transparent 60%),
+        radial-gradient(900px 600px at 0% 80%, rgba(120, 164, 230, .2), transparent 60%);
+    /* Dissolve embaixo, sem corte reto (igual ao topo da home). */
+    -webkit-mask-image: linear-gradient(to bottom, #000 60%, transparent);
+    mask-image: linear-gradient(to bottom, #000 60%, transparent);
+    pointer-events: none;
+}
+
+.entrar-grade {
+    display: grid;
+    grid-template-columns: 1fr minmax(360px, 440px);
+    gap: 56px;
+    align-items: center;
+}
+
+.entrar-visual {
+    display: grid;
+    justify-items: center;
+    gap: 22px;
+}
+
+.entrar-camera {
+    width: min(100%, 400px);
+}
+
+.entrar-frase {
+    max-width: 30ch;
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: 1.1rem;
+    font-weight: 700;
+    line-height: 1.5;
+    text-align: center;
+}
+
+.entrar-cartao {
+    padding: 36px;
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    box-shadow: 0 30px 70px rgba(28, 43, 74, .14);
+}
+
+.entrar-cartao h1 {
+    margin: 16px 0 8px;
+    font-size: clamp(2.2rem, 4vw, 2.8rem);
+    letter-spacing: -.03em;
+}
+
+.entrar-texto {
+    margin: 0 0 22px;
+    color: var(--color-text-secondary);
+    font-size: 15px;
+    line-height: 1.6;
+}
+
+.entrar-erro {
+    margin: 0 0 18px;
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
+    background: rgba(217, 90, 71, .08);
+    border: 1px solid rgba(217, 90, 71, .4);
+    color: var(--color-error);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.entrar-erro p {
+    margin: 0;
+}
+
+.entrar-aviso {
+    margin: 0 0 16px;
+    color: var(--color-link);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.entrar-form {
+    display: grid;
+    gap: 18px;
+}
+
+.entrar-form .form-field label {
+    font-size: 14px;
+}
+
+.entrar-form .form-field input {
+    padding: 14px 16px;
+    font-size: 16px;
+}
+
+.entrar-senha {
+    position: relative;
+}
+
+.entrar-senha input {
+    padding-right: 96px !important;
+}
+
+.entrar-mostrar {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    padding: 7px 12px;
+    border: 0;
+    border-radius: var(--radius-full);
+    background: var(--color-primary-soft);
+    color: var(--color-link);
+    font: 800 12px var(--font-body);
+    cursor: pointer;
+    transform: translateY(-50%);
+}
+
+.entrar-mostrar:hover {
+    background: #D5E3F8;
+}
+
+/* Trocar minha senha */
+.senha-dica {
+    margin: 4px 0 0;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.senha-mostrar {
+    position: static;
+    justify-self: start;
+    transform: none;
+}
+
+.entrar-botao {
+    justify-content: center;
+    margin-top: 4px;
+}
+
+.entrar-rodape {
+    margin: 22px 0 0;
+    text-align: center;
+}
+
+@media (max-width:900px) {
+    .entrar-grade {
+        grid-template-columns: 1fr;
+    }
+
+    .entrar-visual {
+        display: none;
+    }
+
+    .entrar-cartao {
+        max-width: 480px;
+        margin-inline: auto;
+        padding: 28px;
+    }
+}

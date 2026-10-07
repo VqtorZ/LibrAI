@@ -1,0 +1,82 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Entrar — LibrAI</title>
+    <link rel="icon" type="image/png" href="{% static 'img/logo.png' %}">
+    <script>document.documentElement.classList.add('js');</script>
+    <link rel="stylesheet" href="{% static 'css/app.css' %}?v={{ versao_estaticos }}">
+    <link rel="stylesheet" href="{% static 'css/home.css' %}?v={{ versao_estaticos }}">
+    <link rel="stylesheet" href="{% static 'css/entrar.css' %}?v={{ versao_estaticos }}">
+</head>
+
+<body class="pagina-entrar">{% include "libras/_cabecalho.html" %}
+    <main id="conteudo" class="home entrar">
+        <div class="section-wrap entrar-grade">
+            <section class="entrar-visual entra" style="--d:1" aria-hidden="true">
+                <div class="h-camera entrar-camera">
+                    <div class="h-camera-topo"><span class="h-ao-vivo"><i></i> LIBRAI</span><span>21 pontos</span></div>
+                    {% include "libras/_mao_svg.html" %}
+                    <div class="h-scan"></div>
+                </div>
+                <p class="entrar-frase">Cada sinal gravado ensina o LibrAI a entender mais mãos.</p>
+            </section>
+
+            <section class="entrar-cartao entra" style="--d:0" aria-labelledby="titulo-entrar">
+                <p class="etiqueta"><span class="etiqueta-ponto"></span>Área dos administradores</p>
+                <h1 id="titulo-entrar">Entrar</h1>
+                <p class="entrar-texto">Para cadastrar, gravar e treinar sinais. O reconhecimento é livre para todos — não
+                    precisa de conta.</p>
+
+                {% if form.non_field_errors %}
+                <div class="entrar-erro" role="alert">
+                    {% for erro in form.non_field_errors %}<p>{{ erro }}</p>{% endfor %}
+                </div>
+                {% endif %}
+                {% if next and not form.errors and not user.is_authenticated %}
+                <p class="entrar-aviso">Entre para continuar.</p>
+                {% endif %}
+
+                <form method="post" action="{% url 'entrar' %}" class="entrar-form" novalidate>
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ next }}">
+                    <div class="form-field">
+                        <label for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
+                        {{ form.username }}
+                        {% for erro in form.username.errors %}<p class="form-error">{{ erro }}</p>{% endfor %}
+                    </div>
+                    <div class="form-field">
+                        <label for="{{ form.password.id_for_label }}">{{ form.password.label }}</label>
+                        <div class="entrar-senha">
+                            {{ form.password }}
+                            <button type="button" class="entrar-mostrar" id="mostrar-senha"
+                                aria-controls="{{ form.password.id_for_label }}" aria-pressed="false">Mostrar</button>
+                        </div>
+                        {% for erro in form.password.errors %}<p class="form-error">{{ erro }}</p>{% endfor %}
+                    </div>
+                    <button type="submit" class="primary-button botao-grande entrar-botao">Entrar <span
+                            aria-hidden="true">→</span></button>
+                </form>
+                <p class="entrar-rodape"><a class="text-link" href="{% url 'inicio' %}">← Voltar para o site</a></p>
+            </section>
+        </div>
+    </main>
+    <script>
+        (function () {
+            const botao = document.getElementById('mostrar-senha');
+            const campo = document.getElementById(botao.getAttribute('aria-controls'));
+            botao.addEventListener('click', () => {
+                const mostrar = campo.type === 'password';
+                campo.type = mostrar ? 'text' : 'password';
+                botao.textContent = mostrar ? 'Esconder' : 'Mostrar';
+                botao.setAttribute('aria-pressed', String(mostrar));
+                campo.focus();
+            });
+        })();
+    </script>
+</body>
+
+</html>

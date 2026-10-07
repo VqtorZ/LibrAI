@@ -7,92 +7,128 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ sinal.titulo }} — LibrAI</title>
     <link rel="icon" type="image/png" href="{% static 'img/logo.png' %}">
-    <link rel="stylesheet" href="{% static 'css/app.css' %}">
-    <style>
-        .amostra-rodape {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-        }
-
-        .amostra-rodape form {
-            margin: 0;
-        }
-
-        .amostra-apagar {
-            border: 1px solid rgba(217, 90, 71, .4);
-            background: transparent;
-            color: var(--color-error);
-            border-radius: var(--radius-full);
-            padding: 7px 14px;
-            font: 800 11px var(--font-body);
-            cursor: pointer;
-            transition: background .2s, border-color .2s;
-        }
-
-        .amostra-apagar:hover {
-            background: rgba(217, 90, 71, .08);
-            border-color: var(--color-error);
-        }
-    </style>
+    <link rel="stylesheet" href="{% static 'css/app.css' %}?v={{ versao_estaticos }}">
 </head>
 
-<body class="gestos">{% include "libras/_header.html" %}
-    <main class="section-wrap gestures-page">
-        <div class="page-intro">
-            <p class="section-label">VOCABULÁRIO</p>
-            <h1>{{ sinal.titulo }}</h1>
-            <p class="gestures-subtitle">{{ sinal.descricao|default:"Sem descrição cadastrada." }}</p>
-            <p class="gesto-card-date">{{ sinal.get_tipo_display }} · cadastrado em {{ sinal.criado_em|date:"d/m/Y" }}</p>
+<body class="gestos">{% include "libras/_cabecalho.html" %}
+    <main class="section-wrap gestures-page" id="conteudo">
+        <p class="voltar"><a class="text-link" href="{% url 'gestos' %}">← Todos os gestos</a></p>
+        <div class="sinal-cabecalho">
+            <div class="sinal-letra" aria-hidden="true">{{ sinal.titulo|slice:":2" }}</div>
+            <div>
+                <p class="section-label">{% if sinal.negativo %}EXEMPLO NEGATIVO{% else %}{{ sinal.get_tipo_display|upper }}{% endif %}</p>
+                <h1>{{ sinal.titulo }}</h1>
+                <p class="gestures-subtitle">{{ sinal.descricao|default:"Sem descrição cadastrada." }}</p>
+                {% if sinal.negativo %}<p class="nota-negativo">Este sinal ensina o modelo a <strong>rejeitar</strong>
+                    movimentos parecidos — ele nunca aparece como resultado.</p>{% endif %}
+            </div>
+            <a class="botao-excluir" id="abrir-excluir" href="{% url 'gesto_excluir' sinal.pk %}">Excluir sinal</a>
         </div>
         {% if messages %}
         <ul class="messages">{% for message in messages %}<li class="{{ message.tags }}">{{ message }}</li>{% endfor %}</ul>
         {% endif %}
         {% if sinal.tipo == "MOVIMENTO" %}
+        <section class="sinal-resumo" aria-label="Resumo das amostras">
+            <div class="resumo-item">
+                <span class="resumo-numero">{{ amostras|length }}</span>
+                <span class="resumo-rotulo">{% if amostras|length == 1 %}amostra{% else %}amostras{% endif %}</span>
+            </div>
+            <div class="resumo-item">
+                <span class="resumo-numero">{{ duracao_media_s|floatformat:1 }} s</span>
+                <span class="resumo-rotulo">duração média</span>
+            </div>
+            <div class="resumo-item">
+                <span class="resumo-numero">{{ fps_medio|floatformat:0 }}</span>
+                <span class="resumo-rotulo">quadros por segundo</span>
+            </div>
+            <div class="resumo-item resumo-situacao">
+                <span class="situacao situacao--{{ situacao.codigo }}">{{ situacao.rotulo }}</span>
+                <span class="resumo-rotulo">{{ situacao.descricao }}{% if modelo_treinado_em %} Último treino:
+                    {{ modelo_treinado_em|date:"d/m/Y \à\s H:i" }}.{% endif %}</span>
+            </div>
+        </section>
         <div class="gestures-toolbar">
-            <span class="section-label">{{ amostras|length }} {% if amostras|length == 1 %}amostra{% else %}amostras{% endif %}</span>
-            <a class="primary-button" href="{% url 'gesto_gravar' sinal.pk %}">Gravar nova amostra <span aria-hidden="true">→</span></a>
+            <span class="section-label">Amostras gravadas</span>
+            <div class="toolbar-acoes">
+                {% if situacao.codigo == "treinar" %}{% include "libras/_botao_treinar.html" with voltar=request.path secundario=True %}{% endif %}
+                <a class="primary-button" href="{% url 'gesto_gravar' sinal.pk %}">Gravar nova amostra <span aria-hidden="true">→</span></a>
+            </div>
         </div>
         {% if amostras %}
-        <div class="gesto-grid">
-            {% for amostra in amostras %}
-            <article class="gesto-card">
-                <div class="gesto-card-top">
-                    <h3>Amostra #{{ amostra.pk }}</h3>
-                    <span class="gesto-status">{{ amostra.quantidade_frames }} frames</span>
-                </div>
-                <p class="gesto-card-desc">Duração de {{ amostra.duracao_segundos }} s · capturada a {{ amostra.fps }} fps
-                    · {{ amostra.quantidade_landmarks }} landmarks por frame.</p>
-                <div class="amostra-rodape">
-                    <p class="gesto-card-date">Gravada em {{ amostra.criado_em|date:"d/m/Y à\s H:i" }}</p>
-                    <form method="post"
-                        action="{% url 'gesto_amostra_apagar' sinal.pk amostra.pk %}"
-                        onsubmit="return confirm('Apagar a amostra #{{ amostra.pk }}? Esta ação não pode ser desfeita.');">
-                        {% csrf_token %}
-                        <button type="submit" class="amostra-apagar">Apagar</button>
-                    </form>
-                </div>
-            </article>
-            {% endfor %}
+        <div class="tabela-amostras-wrap">
+            <table class="tabela-amostras">
+                <thead>
+                    <tr>
+                        <th scope="col">Amostra</th>
+                        <th scope="col">Gravada em</th>
+                        <th scope="col">Duração</th>
+                        <th scope="col">Quadros</th>
+                        <th scope="col">FPS</th>
+                        <th scope="col"><span class="visualmente-oculto">Ações</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for amostra in amostras %}
+                    <tr>
+                        <th scope="row">#{{ amostra.pk }}</th>
+                        <td>{{ amostra.criado_em|date:"d/m/Y H:i" }}</td>
+                        <td>{{ amostra.duracao_segundos }} s</td>
+                        <td>{{ amostra.quantidade_frames }}</td>
+                        <td>{{ amostra.fps|floatformat:0 }}</td>
+                        <td class="acoes">
+                            <form method="post" action="{% url 'gesto_amostra_apagar' sinal.pk amostra.pk %}"
+                                onsubmit="return confirm('Apagar a amostra #{{ amostra.pk }}? Esta ação não pode ser desfeita.');">
+                                {% csrf_token %}
+                                <button type="submit" class="amostra-apagar"
+                                    aria-label="Apagar a amostra {{ amostra.pk }}">Apagar</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
         {% else %}
         <div class="empty-state">
             <p class="empty-title">Ainda não há amostras gravadas.</p>
-            <p>Grave a primeira sequência temporal deste sinal — ela será a base do futuro reconhecimento de movimento.</p>
+            <p>Grave a primeira amostra deste sinal: mão parada, Espaço, o movimento completo, mão parada, Espaço.</p>
+            <a class="primary-button" href="{% url 'gesto_gravar' sinal.pk %}">Gravar nova amostra <span aria-hidden="true">→</span></a>
         </div>
+        {% endif %}
+        {% if antigas %}
+        <p class="nota-antigas"><strong>{{ antigas|length }} amostra{{ antigas|length|pluralize }}
+                antiga{{ antigas|length|pluralize }}</strong> (gravada{{ antigas|length|pluralize }} com a câmera do
+            servidor) {{ antigas|length|pluralize:"fica,ficam" }} guardada{{ antigas|length|pluralize }}, mas fora do
+            treino: os pontos daquela época eram medidos de outro jeito. Grave o sinal de novo pelo site.</p>
         {% endif %}
         {% else %}
         <div class="empty-state">
             <p class="empty-title">Sinal estático</p>
-            <p>Este sinal é reconhecido pelo pipeline estático, frame a frame. A gravação de amostras temporais é
+            <p>Este sinal é reconhecido quadro a quadro pelo classificador do alfabeto. A gravação de amostras é
                 exclusiva dos sinais do tipo movimento.</p>
         </div>
         {% endif %}
-        <div class="gestures-toolbar">
-            <a class="text-link" href="{% url 'gestos' %}">Voltar para Gestos</a>
-        </div>
     </main>
+
+    <dialog class="excluir-janela" id="janela-excluir" aria-labelledby="titulo-excluir">
+        {% include "libras/_confirmar_exclusao.html" with total_amostras=total_todas dentro_da_janela=True %}
+    </dialog>
+    <script>
+        // "Excluir sinal" abre a confirmação na própria página; sem suporte
+        // a <dialog>, o link leva à página de confirmação.
+        (function () {
+            const janela = document.getElementById('janela-excluir');
+            const abrir = document.getElementById('abrir-excluir');
+            if (!janela.showModal) return;
+            abrir.addEventListener('click', (evento) => {
+                evento.preventDefault();
+                janela.showModal();
+            });
+            janela.querySelector('[data-fechar]').addEventListener('click', () => janela.close());
+            // Clicar fora da caixa também cancela.
+            janela.addEventListener('click', (evento) => { if (evento.target === janela) janela.close(); });
+        })();
+    </script>
 </body>
 
 </html>

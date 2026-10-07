@@ -10,10 +10,22 @@ build/
 dist/
 
 # --- Django ---
-db.sqlite3
-db.sqlite3-journal
 local_settings.py
-media/
+
+# --- Dados (ver libras/caminhos.py) ---
+# Com o site no ar, os dados nascem no servidor (gravações da equipe e
+# treinos pelo site): nada disso vai para o Git, senão um "git pull" no
+# servidor brigaria com eles. Cópia de segurança: manage.py backup_dados.
+# Continuam versionados: dados/legado/ e dados/sinteticos/.
+dados/banco.sqlite3
+dados/banco.sqlite3-journal
+dados/amostras_movimento/
+dados/amostras_estaticas/
+dados/modelos_treinados/
+backups/
+
+# --- Django: destino do collectstatic no servidor ---
+staticfiles/
 
 # --- Variaveis de ambiente / segredos ---
 .env
@@ -35,3 +47,9 @@ $RECYCLE.BIN/
 *.temp
 *.log
 .DS_Store
+
+# --- Claude Code (configurações pessoais; o restante de .claude/ é versionado) ---
+.claude/settings.local.json
+
+# Link do túnel em uso (publicar.cmd)
+dados/link_publico.txt

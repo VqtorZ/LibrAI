@@ -19,6 +19,14 @@ class Sinal(models.Model):
         "tipo", max_length=20, choices=Tipo.choices, default=Tipo.ESTATICO
     )
     descricao = models.TextField("descrição", blank=True)
+    negativo = models.BooleanField(
+        "exemplo negativo",
+        default=False,
+        help_text=(
+            "Movimento que NÃO deve ser reconhecido (ex.: J incompleto, "
+            "I parado). Suas amostras ensinam o modelo a rejeitar."
+        ),
+    )
     criado_em = models.DateTimeField("criado em", auto_now_add=True)
     atualizado_em = models.DateTimeField("atualizado em", auto_now=True)
     ativo = models.BooleanField("ativo", default=True)
@@ -36,8 +44,9 @@ class AmostraMovimento(models.Model):
     """Amostra temporal gravada para um sinal do tipo MOVIMENTO.
 
     A sequência de landmarks fica em um arquivo JSON em
-    ``movimentos/<sinal_id>/<amostra_id>.json`` dentro de ``MEDIA_ROOT``;
-    o banco guarda apenas os metadados e a referência ao arquivo.
+    ``dados/amostras_movimento/<id>-<sinal>/<amostra_id>.json``
+    (MEDIA_ROOT); o banco guarda apenas os metadados e a referência ao
+    arquivo.
     """
 
     sinal = models.ForeignKey(

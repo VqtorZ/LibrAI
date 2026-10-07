@@ -1,0 +1,23 @@
+{% url 'treinar_movimentos' as url_padrao %}
+<form class="form-treinar" method="post" action="{{ url_treino|default:url_padrao }}">
+    {% csrf_token %}
+    <input type="hidden" name="voltar" value="{{ voltar }}">
+    <button type="submit" class="{% if secundario %}secondary-button{% else %}primary-button{% endif %} botao-treinar">
+        <span class="botao-treinar-texto">{{ texto|default:"Treinar reconhecimento" }}</span>
+        <span class="spinner" aria-hidden="true"></span>
+    </button>
+</form>
+<script>
+    // Treinar leva alguns segundos: o botão mostra que está trabalhando
+    // e não aceita um segundo clique.
+    document.querySelectorAll('.form-treinar').forEach((form) => {
+        if (form.dataset.pronto) return;
+        form.dataset.pronto = '1';
+        form.addEventListener('submit', () => {
+            const botao = form.querySelector('button');
+            botao.disabled = true;
+            botao.classList.add('is-loading');
+            botao.querySelector('.botao-treinar-texto').textContent = 'Treinando… aguarde';
+        });
+    });
+</script>

@@ -6,8 +6,8 @@ from .models import AmostraMovimento, Sinal
 
 @admin.register(Sinal)
 class SinalAdmin(admin.ModelAdmin):
-    list_display = ("titulo", "tipo", "ativo", "criado_em", "atualizado_em")
-    list_filter = ("ativo", "tipo")
+    list_display = ("titulo", "tipo", "negativo", "ativo", "criado_em", "atualizado_em")
+    list_filter = ("ativo", "tipo", "negativo")
     list_editable = ("ativo",)
     search_fields = ("titulo", "descricao")
     ordering = ("-criado_em",)

@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Novo sinal — LibrAI</title>
     <link rel="icon" type="image/png" href="{% static 'img/logo.png' %}">
-    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}?v={{ versao_estaticos }}">
     <style>
         .form-field select {
             width: 100%;
@@ -28,8 +28,8 @@
     </style>
 </head>
 
-<body class="gestos">{% include "libras/_header.html" %}
-    <main class="section-wrap gestures-page gestures-page-form">
+<body class="gestos">{% include "libras/_cabecalho.html" %}
+    <main class="section-wrap gestures-page gestures-page-form" id="conteudo">
         <div class="page-intro">
             <p class="section-label">CADASTRO COLABORATIVO</p>
             <h1>Novo sinal</h1>
@@ -51,6 +51,12 @@
                 <p class="form-hint">Estático: pose fixa, reconhecida frame a frame. Movimento: habilita a gravação de
                     amostras temporais.</p>
             </div>
+            <div class="form-field form-field-check" id="campo-negativo">
+                <label for="{{ form.negativo.id_for_label }}">{{ form.negativo }} <span>{{ form.negativo.label }}</span></label>
+                {% for error in form.negativo.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                <p class="form-hint">Grave aqui gestos parecidos que NÃO são o sinal (ex.: "J incompleto", "I
+                    parado"): eles ensinam o modelo onde o sinal termina.</p>
+            </div>
             <div class="form-field">
                 <label for="{{ form.descricao.id_for_label }}">{{ form.descricao.label }}</label>
                 {{ form.descricao }}
@@ -63,6 +69,22 @@
             </div>
         </form>
     </main>
+    <script>
+        // "Exemplo negativo" só vale para sinais de movimento: some (e é
+        // desmarcado) quando o tipo é estático. O servidor também valida.
+        (function () {
+            const tipo = document.getElementById('{{ form.tipo.id_for_label }}');
+            const campo = document.getElementById('campo-negativo');
+            const caixa = campo.querySelector('input[type="checkbox"]');
+            function atualizar() {
+                const movimento = tipo.value === 'MOVIMENTO';
+                campo.hidden = !movimento;
+                if (!movimento) caixa.checked = false;
+            }
+            tipo.addEventListener('change', atualizar);
+            atualizar();
+        })();
+    </script>
 </body>
 
 </html>

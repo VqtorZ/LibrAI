@@ -206,3 +206,34 @@ class PublicarTests(SimpleTestCase):
             "True ['https://*.trycloudflare.com', 'https://127.0.0.1'] HTTP_CF_CONNECTING_IP 200",
             resultado.stderr,
         )
+
+
+class DesligarTests(SimpleTestCase):
+    NETSTAT = (
+        "  TCP    0.0.0.0:135            0.0.0.0:0              LISTENING       1588\n"
+        "  TCP    127.0.0.1:8080         0.0.0.0:0              LISTENING       4242\n"
+        "  TCP    127.0.0.1:50649        127.0.0.1:8080         TIME_WAIT       0\n"
+    )
+
+    def test_acha_o_servidor_pela_porta(self):
+        from libras.management.commands.desligar import pid_na_porta, tunel_da_porta
+
+        self.assertEqual(pid_na_porta(self.NETSTAT, 8080), 4242)
+        self.assertIsNone(pid_na_porta(self.NETSTAT, 8090))
+        self.assertTrue(tunel_da_porta('"cloudflared.exe" tunnel --url http://127.0.0.1:8080', 8080))
+        self.assertFalse(tunel_da_porta('"cloudflared.exe" tunnel --url http://127.0.0.1:8090', 8080))
+
+    def test_nunca_encerra_outro_programa(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        from libras.management.commands import desligar
+
+        resultado = type("R", (), {"stdout": self.NETSTAT})()
+        with patch.object(desligar.subprocess, "run", return_value=resultado) as rodar, \
+                patch.object(desligar, "processos", return_value={4242: ("chrome.exe", "chrome.exe --x")}):
+            with self.assertRaises(CommandError) as contexto:
+                call_command("desligar")
+        self.assertIn("outro programa", str(contexto.exception))
+        comandos = [chamada.args[0][0] for chamada in rodar.call_args_list]
+        self.assertNotIn("taskkill", comandos)

@@ -21,7 +21,22 @@ de conta nem de mexer no roteador.
 3. Mande o link para a equipe (WhatsApp etc.). O link também fica gravado em
    `dados/link_publico.txt`.
 
-**Deixe a janela aberta.** Fechar a janela (ou Ctrl+C) tira o site do ar.
+**Deixe a janela aberta.**
+
+## Desligar
+
+Qualquer um destes tira o site (e o link) do ar:
+
+- fechar a janela preta do publicar no X;
+- no **cmd**, dentro da pasta do projeto, digitar `desligar`:
+
+  ```
+  cd "%USERPROFILE%\OneDrive\Desktop\OpenCV-Libras"
+  desligar
+  ```
+
+  O comando só encerra o servidor do publicar e o túnel dele. Se a porta
+  estiver com outro programa, ele avisa e não mexe em nada.
 
 ## Importante
 

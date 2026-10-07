@@ -115,6 +115,7 @@ painel do Django em `/admin/`.
 | `python manage.py gerar_nao_j_sintetico` | Recria o arquivo sintético não-J |
 | `python manage.py criar_admin email --nome Nome [--master]` | Cria ou atualiza uma conta de administrador |
 | `publicar.cmd` (ou `manage.py publicar` com `LIBRAI_ENV=.env.publico`) | Põe o site no ar com link público (Ctrl+C desliga) |
+| `desligar.cmd` (ou `manage.py desligar`) | Tira do ar o site ligado pelo publicar |
 | `python manage.py backup_dados` | Gera `backups/librai-<data>.zip` com banco, amostras e modelos |
 | `python manage.py test libras` | Roda os testes |
 

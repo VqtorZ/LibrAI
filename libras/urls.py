@@ -8,6 +8,7 @@ urlpatterns = [
     path("api/status/", views.status, name="status"),
     path("gestos/", views.gestos, name="gestos"),
     path("gestos/novo/", views.gesto_novo, name="gesto_novo"),
+    path("gestos/treinar/", views.treinar_movimentos, name="treinar_movimentos"),
     path("gestos/<int:sinal_id>/", views.gesto_detalhe, name="gesto_detalhe"),
     path("gestos/<int:sinal_id>/gravar/", views.gesto_gravar, name="gesto_gravar"),
     path(

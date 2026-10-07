@@ -1,17 +1,55 @@
 """Views do LibrAI."""
+from datetime import datetime
+from string import ascii_uppercase
+
 from django.contrib import messages
+from django.db.models import Avg, Count, Q
 from django.http import JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
+from .captura.camera import GravacaoIndisponivel, camera
 from .forms import SinalForm
 from .models import AmostraMovimento, Sinal
-from .captura.camera import GravacaoIndisponivel, camera
+from .movimento import classificador
 from .movimento.amostras import AmostraInvalida, apagar_amostra
 
 
+def _modelo_de_movimentos():
+    """Modelo de movimentos treinado, ou None se ainda não houver."""
+    try:
+        return classificador.carregar_modelo()
+    except classificador.ErroTemporal:
+        return None
+
+
 def inicio(request):
-    return render(request, "libras/inicio.html")
+    """Home: apresenta o projeto com o que o LibrAI reconhece de verdade hoje."""
+    estaticas = {str(c) for c in getattr(camera.model, "classes_", [])}
+    modelo = _modelo_de_movimentos()
+    movimento = set(modelo["classes"]) if modelo else set()
+    alfabeto = [
+        {
+            "letra": letra,
+            "tipo": "movimento" if letra in movimento
+            else "estatico" if letra in estaticas else "pendente",
+        }
+        for letra in ascii_uppercase
+    ]
+    contexto = {
+        "alfabeto": alfabeto,
+        "total_letras": sum(1 for item in alfabeto if item["tipo"] != "pendente"),
+        # Letras que a demonstração da home mostra como "reconhecidas".
+        "letras_demo": [item["letra"] for item in alfabeto if item["tipo"] != "pendente"],
+        "total_movimento": len(movimento),
+        "total_amostras": AmostraMovimento.objects.filter(
+            ativo=True, sinal__ativo=True
+        ).count(),
+        "total_sinais": Sinal.objects.filter(ativo=True).count(),
+    }
+    return render(request, "libras/inicio.html", contexto)
 
 
 def reconhecer(request):
@@ -29,9 +67,24 @@ def status(request):
 
 
 def gestos(request):
-    """Lista os sinais ativos cadastrados para o LibrAI."""
-    sinais = Sinal.objects.filter(ativo=True)
-    return render(request, "libras/gestos.html", {"sinais": sinais})
+    """Lista os sinais ativos, com amostras e situação no reconhecimento."""
+    sinais = list(
+        Sinal.objects.filter(ativo=True).annotate(
+            total_amostras=Count("amostras", filter=Q(amostras__ativo=True))
+        )
+    )
+    de_movimento = [s for s in sinais if s.tipo == Sinal.Tipo.MOVIMENTO]
+    situacoes = classificador.situacao_dos_sinais(de_movimento)
+    for sinal in sinais:
+        sinal.situacao = situacoes.get(sinal.pk)
+    precisa_treinar = any(
+        s["codigo"] == "treinar" for s in situacoes.values()
+    )
+    return render(
+        request,
+        "libras/gestos.html",
+        {"sinais": sinais, "precisa_treinar": precisa_treinar, "tem_movimento": bool(de_movimento)},
+    )
 
 
 def gesto_novo(request):
@@ -48,11 +101,63 @@ def gesto_detalhe(request, sinal_id):
     """Página do sinal: dados cadastrais e amostras de movimento gravadas."""
     sinal = get_object_or_404(Sinal, pk=sinal_id)
     amostras = AmostraMovimento.objects.filter(sinal=sinal, ativo=True)
-    return render(
-        request,
-        "libras/gesto_detalhe.html",
-        {"sinal": sinal, "amostras": amostras},
+    contexto = {"sinal": sinal, "amostras": amostras}
+    if sinal.tipo == Sinal.Tipo.MOVIMENTO:
+        medias = amostras.aggregate(duracao=Avg("duracao_ms"), fps=Avg("fps"))
+        modelo = _modelo_de_movimentos()
+        contexto.update({
+            "duracao_media_s": (medias["duracao"] or 0) / 1000,
+            "fps_medio": medias["fps"] or 0,
+            "situacao": classificador.situacao_dos_sinais([sinal])[sinal.pk],
+            "modelo_treinado_em": (
+                datetime.fromisoformat(modelo["treinado_em"]) if modelo else None
+            ),
+        })
+    return render(request, "libras/gesto_detalhe.html", contexto)
+
+
+@require_POST
+def treinar_movimentos(request):
+    """Treina o modelo de movimentos pelo site (mesmo treino do comando).
+
+    O reconhecimento ao vivo recarrega o modelo sozinho quando o
+    arquivo muda. Com dezenas de amostras o treino leva poucos
+    segundos; volta para a página de onde o pedido veio.
+    """
+    voltar = request.POST.get("voltar") or reverse("gestos")
+    if not url_has_allowed_host_and_scheme(voltar, allowed_hosts={request.get_host()}):
+        voltar = reverse("gestos")
+    try:
+        treino = classificador.treinar()
+    except classificador.ErroTemporal as exc:
+        messages.error(request, f"Não foi possível treinar: {exc}")
+        return redirect(voltar)
+    modelo = treino.modelo
+    sinais = ", ".join(
+        f"{c} ({modelo['amostras_por_classe'][c]} amostras)" for c in modelo["classes"]
     )
+    texto = f"Modelo treinado: {sinais}"
+    if modelo["negativos"]:
+        texto += f" e {len(modelo['negativos'])} exemplo(s) negativo(s)"
+    messages.success(request, texto + ". O reconhecimento ao vivo já usa o modelo novo.")
+    for classe, quantidade in treino.excluidas:
+        messages.warning(
+            request, f"{classe} ficou de fora: tem {quantidade} amostra (mínimo 2)."
+        )
+    if treino.invalidas:
+        messages.warning(
+            request,
+            f"{len(treino.invalidas)} amostra(s) com problema foram ignoradas "
+            "(rode verificar_movimentos para detalhes).",
+        )
+    for classe in modelo["classes"]:
+        if modelo["calibracao"][classe]["sobreposicao"]:
+            messages.warning(
+                request,
+                f"Um exemplo negativo está tão perto de {classe} quanto os próprios "
+                f"exemplos de {classe}. Revise as gravações negativas.",
+            )
+    return redirect(voltar)
 
 
 def gesto_gravar(request, sinal_id):

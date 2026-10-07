@@ -184,13 +184,16 @@ class GestoDetalheEGravarTests(TemporalBase):
         self.assertContains(response, "Ainda não há amostras gravadas")
 
     def test_detalhe_lista_amostras(self):
-        AmostraMovimento.objects.create(
+        amostra = AmostraMovimento.objects.create(
             sinal=self.sinal, quantidade_frames=42, duracao_ms=2800,
             arquivo_dados="movimentos/1/1.json", fps=15.0,
         )
         response = self.client.get(reverse("gesto_detalhe", args=[self.sinal.pk]))
-        self.assertContains(response, "1 amostra")
-        self.assertContains(response, "Amostra #")
+        # Resumo no topo e uma linha por amostra na tabela.
+        self.assertContains(response, 'class="resumo-rotulo">amostra<')
+        self.assertContains(response, "2,8 s")  # formato brasileiro
+        self.assertContains(response, f'<th scope="row">#{amostra.pk}</th>', html=False)
+        self.assertContains(response, "<td>42</td>", html=False)
 
     def test_detalhe_de_sinal_inexistente_retorna_404(self):
         response = self.client.get(reverse("gesto_detalhe", args=[9999]))

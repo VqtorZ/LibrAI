@@ -1,0 +1,1128 @@
+/* ==========================================================================
+   LibrAI — Home
+   Público principal: pessoas surdas. A página comunica visualmente
+   (ícones, passos numerados, cores com significado, frases curtas) e
+   as animações são suaves e contínuas — nada pisca. Quem pede menos
+   movimento no sistema vê tudo estático (ver o fim do arquivo), e sem
+   JavaScript todo o conteúdo aparece normalmente (regras com .js).
+   Usa os tokens de app.css.
+   ========================================================================== */
+
+.home {
+    overflow: clip;
+}
+
+.botao-grande {
+    padding: 17px 26px;
+    font-size: 15px;
+}
+
+.home svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.home svg .cheio {
+    fill: currentColor;
+}
+
+/* --------------------------------------------------------------------------
+   Entrada do topo (escalonada por --d)
+   -------------------------------------------------------------------------- */
+.js .entra {
+    opacity: 0;
+    animation: entra .8s cubic-bezier(.2, .7, .2, 1) forwards;
+    animation-delay: calc(var(--d, 0) * 110ms + 80ms);
+}
+
+@keyframes entra {
+    from {
+        opacity: 0;
+        transform: translateY(22px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* Grupos que aparecem em sequência ao rolar (filhos com --i). */
+.js .reveal.grupo {
+    opacity: 1;
+    transform: none;
+}
+
+.js .grupo:not(.is-visible)>* {
+    opacity: 0;
+}
+
+.js .grupo.is-visible>* {
+    animation: sobe .7s cubic-bezier(.2, .7, .2, 1) backwards;
+    animation-delay: calc(var(--i, 0) * 100ms);
+}
+
+@keyframes sobe {
+    from {
+        opacity: 0;
+        transform: translateY(26px);
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Hero
+   -------------------------------------------------------------------------- */
+.h-hero {
+    position: relative;
+    isolation: isolate;
+    padding: 56px 0 48px;
+}
+
+/* Fundo em degradê que se dissolve embaixo (sem corte reto na borda). */
+.h-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 -120px;
+    z-index: -1;
+    background:
+        radial-gradient(1000px 520px at 85% 10%, rgba(252, 169, 115, .18), transparent 60%),
+        radial-gradient(900px 600px at 0% 75%, rgba(120, 164, 230, .2), transparent 60%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 65%, transparent);
+    mask-image: linear-gradient(to bottom, #000 65%, transparent);
+    pointer-events: none;
+}
+
+.h-hero-grid {
+    display: grid;
+    grid-template-columns: 1.05fr .95fr;
+    gap: 56px;
+    align-items: center;
+    min-height: 600px;
+}
+
+.h-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    padding: 8px 15px;
+    border-radius: var(--radius-full);
+    background: var(--color-primary-soft);
+    color: var(--color-link);
+    font: 600 12px var(--font-mono);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.h-ponto {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-secondary-hover);
+    animation: pulso-ponto 2.4s ease-out infinite;
+}
+
+@keyframes pulso-ponto {
+    0% {
+        box-shadow: 0 0 0 0 rgba(232, 131, 71, .55);
+    }
+
+    100% {
+        box-shadow: 0 0 0 10px rgba(232, 131, 71, 0);
+    }
+}
+
+.h-titulo {
+    margin: 22px 0;
+    font-size: clamp(2.7rem, 6vw, 4.7rem);
+    line-height: 1.02;
+    letter-spacing: -.035em;
+}
+
+.h-titulo span,
+.h-titulo em {
+    display: block;
+}
+
+.h-titulo em {
+    padding-bottom: .08em;
+    /* Azul da marca com um brilho pêssego que atravessa o texto devagar. */
+    background: linear-gradient(100deg, #3E6AC9 0%, #3E6AC9 42%, #F0955A 50%, #3E6AC9 58%, #3E6AC9 100%);
+    background-size: 300% 100%;
+    background-position: 100% 0;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.js .h-titulo em {
+    animation:
+        entra .8s cubic-bezier(.2, .7, .2, 1) calc(var(--d, 0) * 110ms + 80ms) forwards,
+        brilho-texto 8s ease-in-out 1.2s infinite;
+}
+
+@keyframes brilho-texto {
+
+    0%,
+    55% {
+        background-position: 100% 0;
+    }
+
+    100% {
+        background-position: 0 0;
+    }
+}
+
+.h-lead {
+    margin: 0;
+    max-width: 34em;
+    color: var(--color-text-secondary);
+    font-size: clamp(1.06rem, 1.6vw, 1.24rem);
+    line-height: 1.7;
+}
+
+.h-acoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 32px;
+}
+
+.h-selos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 24px;
+    margin: 28px 0 0;
+    padding: 0;
+    list-style: none;
+    color: var(--color-text-secondary);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.h-selos span {
+    margin-right: 4px;
+    color: var(--color-success);
+}
+
+/* Palco: câmera com a mão animada */
+.h-palco {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-height: 540px;
+}
+
+.h-brilho {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.h-brilho-1 {
+    top: 0;
+    right: 0;
+    width: 360px;
+    height: 360px;
+    background: radial-gradient(circle, rgba(252, 169, 115, .55), transparent 70%);
+    animation: flutua 9s ease-in-out infinite;
+}
+
+.h-brilho-2 {
+    bottom: 0;
+    left: 0;
+    width: 320px;
+    height: 320px;
+    background: radial-gradient(circle, rgba(120, 164, 230, .6), transparent 70%);
+    animation: flutua 11s ease-in-out infinite reverse;
+}
+
+@keyframes flutua {
+    50% {
+        transform: translateY(-14px);
+    }
+}
+
+.h-camera {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: min(100%, 410px);
+    aspect-ratio: 4 / 5;
+    overflow: hidden;
+    border-radius: 34px;
+    background: linear-gradient(160deg, #1C2B4A, #24375F 60%, #2C4676);
+    border: 1px solid rgba(255, 255, 255, .08);
+    box-shadow: 0 34px 80px rgba(28, 43, 74, .34);
+}
+
+/* Grade sutil de "visão computacional" */
+.h-camera::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, .05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, .05) 1px, transparent 1px);
+    background-size: 34px 34px;
+}
+
+.h-camera-topo {
+    position: absolute;
+    top: 18px;
+    left: 22px;
+    right: 22px;
+    display: flex;
+    justify-content: space-between;
+    color: #B9C7E0;
+    font: 500 11px var(--font-mono);
+    letter-spacing: .1em;
+}
+
+.h-ao-vivo {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.h-ao-vivo i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #6FDD8F;
+    animation: pulso-verde 2s ease-out infinite;
+}
+
+@keyframes pulso-verde {
+    0% {
+        box-shadow: 0 0 0 0 rgba(111, 221, 143, .6);
+    }
+
+    100% {
+        box-shadow: 0 0 0 9px rgba(111, 221, 143, 0);
+    }
+}
+
+/* Mão: as conexões se desenham, os pontos surgem, as pontas dos dedos
+   "respiram" e a mão balança devagar, como quem sinaliza. */
+.mao-svg {
+    position: relative;
+    width: 76%;
+    height: auto;
+    overflow: visible;
+}
+
+.home .mao-svg {
+    stroke: none;
+}
+
+.mao-grupo {
+    transform-origin: 50% 90%;
+    animation: acena 6s ease-in-out 2.2s infinite;
+}
+
+@keyframes acena {
+
+    0%,
+    100% {
+        transform: rotate(0);
+    }
+
+    30% {
+        transform: rotate(-4deg) translateY(-4px);
+    }
+
+    65% {
+        transform: rotate(3deg);
+    }
+}
+
+.mao-linhas line {
+    stroke: #8DB3EC;
+    stroke-width: 4.5;
+    stroke-linecap: round;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: desenha .5s ease forwards;
+    animation-delay: calc(.5s + var(--i) * 65ms);
+}
+
+@keyframes desenha {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+.mao-pontos circle {
+    fill: #fff;
+    stroke: #78A4E6;
+    stroke-width: 3;
+    transform-box: fill-box;
+    transform-origin: center;
+    transform: scale(0);
+    animation: surge .45s cubic-bezier(.3, 1.6, .5, 1) forwards;
+    animation-delay: calc(.35s + var(--i) * 60ms);
+}
+
+.mao-pontos circle.ponta {
+    fill: #FCA973;
+    stroke: #FDE7D4;
+    animation:
+        surge .45s cubic-bezier(.3, 1.6, .5, 1) calc(.35s + var(--i) * 60ms) forwards,
+        respira 2.8s ease-in-out calc(2.4s + var(--i) * 90ms) infinite;
+}
+
+@keyframes surge {
+    to {
+        transform: scale(1);
+    }
+}
+
+@keyframes respira {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.3);
+    }
+}
+
+/* Linha de varredura, como a câmera "lendo" a mão */
+.h-scan {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -100px;
+    height: 100px;
+    background: linear-gradient(180deg, transparent, rgba(120, 164, 230, .22));
+    border-bottom: 2px solid rgba(141, 179, 236, .75);
+    animation: varre 5s ease-in-out 2s infinite;
+}
+
+@keyframes varre {
+    0% {
+        top: -100px;
+    }
+
+    55%,
+    100% {
+        top: 100%;
+    }
+}
+
+.h-resultado {
+    position: absolute;
+    left: 0;
+    bottom: 60px;
+    display: grid;
+    gap: 4px;
+    min-width: 160px;
+    padding: 16px 22px;
+    border-radius: 22px;
+    background: var(--color-surface);
+    box-shadow: 0 20px 50px rgba(28, 43, 74, .2);
+    animation: flutua 7s ease-in-out infinite;
+}
+
+.h-resultado-rotulo {
+    color: var(--color-success);
+    font: 600 10.5px var(--font-mono);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
+
+.h-resultado-letra {
+    font-size: 56px;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--color-text);
+}
+
+.h-resultado-letra.troca {
+    animation: troca .55s cubic-bezier(.2, .8, .2, 1);
+}
+
+@keyframes troca {
+    from {
+        opacity: 0;
+        transform: translateY(14px) scale(.85);
+    }
+}
+
+.h-chip-pontos {
+    position: absolute;
+    top: 70px;
+    right: 0;
+    padding: 12px 18px;
+    border-radius: 20px;
+    background: var(--color-secondary);
+    color: var(--color-text);
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.25;
+    box-shadow: 0 18px 40px rgba(232, 131, 71, .3);
+    animation: flutua 8s ease-in-out infinite reverse;
+}
+
+.h-chip-pontos b {
+    display: block;
+    font-size: 28px;
+}
+
+.h-chip-pontos small {
+    display: block;
+    font-weight: 600;
+    opacity: .85;
+}
+
+/* --------------------------------------------------------------------------
+   Números (dados reais do sistema)
+   -------------------------------------------------------------------------- */
+.h-numeros {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-block: 8px 20px;
+}
+
+.h-numero {
+    display: grid;
+    align-content: start;
+    gap: 8px;
+    padding: 26px;
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+}
+
+.h-numero strong {
+    font-size: clamp(2.3rem, 4vw, 3.1rem);
+    font-weight: 800;
+    line-height: 1;
+    color: var(--color-link);
+}
+
+.h-numero:nth-child(even) strong {
+    color: var(--color-secondary-hover);
+}
+
+.h-numero span {
+    color: var(--color-text-secondary);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+/* --------------------------------------------------------------------------
+   Seções
+   -------------------------------------------------------------------------- */
+.h-secao {
+    padding-block: 96px 30px;
+}
+
+.h-secao-topo {
+    max-width: 740px;
+    margin-bottom: 44px;
+}
+
+.h-secao-topo h2 {
+    margin: 12px 0 16px;
+    font-size: clamp(2rem, 4.2vw, 3.1rem);
+    line-height: 1.08;
+    letter-spacing: -.02em;
+}
+
+.h-texto {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: 1.1rem;
+    line-height: 1.75;
+}
+
+/* Princípios */
+.h-principios {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+.h-cartao {
+    padding: 30px;
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    transition: transform .3s, box-shadow .3s, border-color .3s;
+}
+
+.h-cartao:hover {
+    transform: translateY(-6px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--color-primary);
+}
+
+.h-icone {
+    display: grid;
+    place-items: center;
+    width: 58px;
+    height: 58px;
+    border-radius: 18px;
+    background: var(--color-primary-soft);
+    color: var(--color-link);
+    transition: transform .35s cubic-bezier(.3, 1.5, .5, 1);
+}
+
+.h-icone svg {
+    width: 30px;
+    height: 30px;
+}
+
+.h-cartao:nth-child(2) .h-icone {
+    background: var(--color-secondary-soft);
+    color: #A35416;
+}
+
+.h-cartao:hover .h-icone {
+    transform: rotate(-8deg) scale(1.1);
+}
+
+.h-cartao h3 {
+    margin: 22px 0 8px;
+    font-size: 1.2rem;
+}
+
+.h-cartao p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: 15px;
+    line-height: 1.7;
+}
+
+/* Faixa escura: o que você pode fazer */
+.h-faixa {
+    position: relative;
+    overflow: hidden;
+    margin-top: 70px;
+    padding-block: 96px;
+    background: linear-gradient(160deg, #1C2B4A, #233A66);
+    color: #fff;
+}
+
+.h-faixa::before,
+.h-faixa::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.h-faixa::before {
+    top: -160px;
+    right: -120px;
+    width: 460px;
+    height: 460px;
+    background: radial-gradient(circle, rgba(252, 169, 115, .22), transparent 70%);
+    animation: flutua 12s ease-in-out infinite;
+}
+
+.h-faixa::after {
+    bottom: -180px;
+    left: -140px;
+    width: 480px;
+    height: 480px;
+    background: radial-gradient(circle, rgba(120, 164, 230, .25), transparent 70%);
+    animation: flutua 14s ease-in-out infinite reverse;
+}
+
+.h-faixa .section-wrap {
+    position: relative;
+    z-index: 1;
+}
+
+.h-faixa .section-label {
+    color: #A9C2EC;
+}
+
+.h-faixa h2 {
+    color: #fff;
+}
+
+.h-acoes-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+}
+
+.h-acao {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 28px 24px;
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, .06);
+    border: 1px solid rgba(255, 255, 255, .12);
+    color: #fff;
+    text-decoration: none;
+    transition: transform .3s, background .3s, border-color .3s;
+}
+
+.h-acao:hover {
+    transform: translateY(-6px);
+    background: rgba(255, 255, 255, .1);
+    border-color: var(--color-secondary);
+}
+
+.h-acao:focus-visible {
+    outline: 3px solid var(--color-secondary);
+    outline-offset: 3px;
+}
+
+.h-acao-num {
+    display: grid;
+    place-items: center;
+    width: 58px;
+    height: 58px;
+    border-radius: 18px;
+    background: var(--color-secondary);
+    color: var(--color-text);
+    font-size: 20px;
+    font-weight: 800;
+    transition: transform .35s cubic-bezier(.3, 1.5, .5, 1);
+}
+
+.h-acao-num svg {
+    width: 28px;
+    height: 28px;
+    stroke-width: 2.2;
+}
+
+.h-acao:nth-child(even) .h-acao-num {
+    background: var(--color-primary);
+}
+
+.h-acao:hover .h-acao-num {
+    transform: rotate(-8deg) scale(1.08);
+}
+
+.h-acao h3 {
+    margin: 6px 0 0;
+    color: #fff;
+    font-size: 1.15rem;
+}
+
+.h-acao p {
+    flex-grow: 1;
+    margin: 0;
+    color: #C9D5EA;
+    font-size: 14.5px;
+    line-height: 1.65;
+}
+
+.h-acao-ir {
+    color: var(--color-secondary);
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.h-acao-ir span {
+    display: inline-block;
+    transition: transform .25s;
+}
+
+.h-acao:hover .h-acao-ir span {
+    transform: translateX(5px);
+}
+
+/* Como funciona: 4 passos ligados por uma trilha que se preenche */
+.h-passos {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 22px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.h-passos::before {
+    content: "";
+    position: absolute;
+    top: 36px;
+    left: 12%;
+    right: 12%;
+    height: 4px;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
+    transform-origin: left;
+}
+
+.js .h-passos::before {
+    transform: scaleX(0);
+    transition: transform 1.6s cubic-bezier(.2, .7, .2, 1) .3s;
+}
+
+.js .h-passos.is-visible::before {
+    transform: scaleX(1);
+}
+
+.h-passos li {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+    text-align: center;
+}
+
+.js .h-passos:not(.is-visible) li {
+    opacity: 0;
+}
+
+.js .h-passos.is-visible li {
+    animation: sobe .7s cubic-bezier(.2, .7, .2, 1) backwards;
+    animation-delay: calc(var(--i) * 220ms + .2s);
+}
+
+.h-passo-icone {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    background: var(--color-surface);
+    border: 3px solid var(--color-primary);
+    color: var(--color-link);
+    box-shadow: var(--shadow-sm);
+}
+
+.h-passo-icone svg {
+    width: 32px;
+    height: 32px;
+}
+
+.h-passos li:nth-child(even) .h-passo-icone {
+    border-color: var(--color-secondary);
+    color: #A35416;
+}
+
+.h-passo-num {
+    color: var(--color-text-muted);
+    font: 600 11px var(--font-mono);
+    letter-spacing: .12em;
+}
+
+.h-passo-num::before {
+    content: "PASSO ";
+}
+
+.h-passos h3 {
+    margin: 0;
+    font-size: 1.12rem;
+}
+
+.h-passos p {
+    max-width: 24ch;
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: 14.5px;
+    line-height: 1.6;
+}
+
+/* Alfabeto: o que já reconhece */
+.h-legenda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 26px;
+    margin: 0 0 22px;
+    padding: 0;
+    list-style: none;
+    color: var(--color-text-secondary);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.h-amostra-cor {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    margin-right: 6px;
+    border-radius: 5px;
+    vertical-align: -3px;
+}
+
+.h-amostra-cor.estatico {
+    background: var(--color-primary-hover);
+}
+
+.h-amostra-cor.movimento {
+    background: var(--color-secondary-hover);
+}
+
+.h-amostra-cor.pendente {
+    border: 2px dashed #B7C3D6;
+}
+
+.h-alfabeto {
+    display: grid;
+    grid-template-columns: repeat(13, 1fr);
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.h-letra {
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 3px;
+    aspect-ratio: 1 / 1.15;
+    border-radius: 16px;
+    transition: transform .25s;
+}
+
+.h-letra:hover {
+    transform: translateY(-4px) scale(1.05);
+}
+
+.h-letra.estatico {
+    background: linear-gradient(160deg, #8DB3EC, #4F7ED3);
+    color: #fff;
+    box-shadow: 0 8px 20px rgba(79, 126, 211, .25);
+}
+
+.h-letra.movimento {
+    background: linear-gradient(160deg, #FDB98A, #D9712F);
+    color: #fff;
+    box-shadow: 0 8px 20px rgba(217, 113, 47, .28);
+}
+
+.h-letra.pendente {
+    border: 2px dashed #C6D0DF;
+    color: var(--color-text-muted);
+}
+
+.h-letra-glifo {
+    font-size: clamp(1.3rem, 2.4vw, 1.95rem);
+    font-weight: 800;
+    line-height: 1;
+}
+
+.h-letra-estado {
+    font: 600 8.5px var(--font-mono);
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    opacity: .92;
+}
+
+.js .h-alfabeto:not(.is-visible) .h-letra {
+    opacity: 0;
+}
+
+.js .h-alfabeto.is-visible .h-letra {
+    animation: estala .55s cubic-bezier(.3, 1.5, .5, 1) backwards;
+    animation-delay: calc(var(--i) * 35ms);
+}
+
+@keyframes estala {
+    from {
+        opacity: 0;
+        transform: scale(.55);
+    }
+}
+
+.h-nota {
+    max-width: 62ch;
+    margin: 26px 0 0;
+    color: var(--color-text-muted);
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+/* Chamada final */
+.h-cta {
+    position: relative;
+    overflow: hidden;
+    margin-top: 90px;
+    padding-block: 100px;
+    background: linear-gradient(130deg, #1F3F8F, #2F5BC0 55%, #B95C25);
+    color: #fff;
+}
+
+.h-cta::before {
+    content: "";
+    position: absolute;
+    top: -200px;
+    right: 10%;
+    width: 520px;
+    height: 520px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 255, 255, .14), transparent 70%);
+    animation: flutua 10s ease-in-out infinite;
+    pointer-events: none;
+}
+
+.h-cta-dentro {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: 14px;
+    text-align: center;
+}
+
+.h-kicker.claro {
+    background: rgba(255, 255, 255, .16);
+    color: #fff;
+}
+
+.h-cta h2 {
+    max-width: 17ch;
+    margin: 8px 0;
+    color: #fff;
+    font-size: clamp(2rem, 4.6vw, 3.4rem);
+    line-height: 1.08;
+}
+
+.h-cta p {
+    max-width: 46ch;
+    margin: 0;
+    color: rgba(255, 255, 255, .92);
+    font-size: 1.12rem;
+    line-height: 1.7;
+}
+
+.h-cta .h-acoes {
+    justify-content: center;
+}
+
+.botao-claro {
+    background: #fff;
+    color: var(--color-text);
+}
+
+.botao-claro:hover {
+    background: var(--color-secondary-soft);
+    color: var(--color-text);
+}
+
+.botao-contorno {
+    background: transparent;
+    color: #fff;
+    border-color: rgba(255, 255, 255, .6);
+}
+
+.botao-contorno:hover {
+    background: rgba(255, 255, 255, .12);
+    border-color: #fff;
+}
+
+/* --------------------------------------------------------------------------
+   Responsividade
+   -------------------------------------------------------------------------- */
+@media (max-width:1024px) {
+    .h-hero-grid {
+        grid-template-columns: 1fr;
+        min-height: 0;
+        gap: 40px;
+    }
+
+    .h-palco {
+        min-height: 500px;
+    }
+
+    .h-numeros,
+    .h-acoes-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .h-passos {
+        grid-template-columns: repeat(2, 1fr);
+        row-gap: 40px;
+    }
+
+    .h-passos::before {
+        display: none;
+    }
+
+    .h-alfabeto {
+        grid-template-columns: repeat(9, 1fr);
+    }
+}
+
+@media (max-width:640px) {
+    .h-hero {
+        padding-top: 36px;
+    }
+
+    .h-palco {
+        min-height: 430px;
+    }
+
+    .h-camera {
+        width: 84%;
+    }
+
+    .h-resultado {
+        bottom: 30px;
+        min-width: 130px;
+        padding: 12px 16px;
+    }
+
+    .h-resultado-letra {
+        font-size: 44px;
+    }
+
+    .h-chip-pontos {
+        top: 40px;
+    }
+
+    .h-principios,
+    .h-acoes-grid,
+    .h-passos {
+        grid-template-columns: 1fr;
+    }
+
+    .h-numeros {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .h-numero {
+        padding: 20px;
+    }
+
+    .h-alfabeto {
+        grid-template-columns: repeat(6, 1fr);
+        gap: 8px;
+    }
+
+    .h-secao {
+        padding-block: 70px 20px;
+    }
+
+    .h-acoes .botao-grande {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Menos movimento: tudo aparece de imediato e a varredura some.
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+
+    .home *,
+    .home *::before,
+    .home *::after {
+        animation-delay: 0s !important;
+        transition-delay: 0s !important;
+    }
+
+    .h-scan {
+        display: none;
+    }
+}

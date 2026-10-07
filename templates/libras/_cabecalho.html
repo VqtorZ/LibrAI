@@ -1,14 +1,17 @@
 {% load static %}
+{% with pagina=request.resolver_match.url_name %}
+<a class="pular-conteudo" href="#conteudo">Pular para o conteúdo</a>
 <header class="site-header" id="site-header">
   <a class="brand" href="{% url 'inicio' %}" aria-label="LibrAI — página inicial"><img class="brand-logo"
       src="{% static 'img/logo.png' %}" alt=""><span class="brand-name">LibrAI</span></a>
-  <nav class="header-nav" aria-label="Navegação principal"><a href="{% url 'inicio' %}#projeto">O projeto</a><a
-      href="{% url 'inicio' %}#como-funciona">Como funciona</a><a href="{% url 'inicio' %}#impacto">Impacto</a><a
-      href="{% url 'inicio' %}#esg">Compromisso</a><a href="{% url 'gestos' %}">Gestos</a>
-    <!-- Futuro: link "Aprender" entra nesta navegação. -->
+  <nav class="header-nav" aria-label="Navegação principal">
+    <a href="{% url 'inicio' %}#projeto">O projeto</a>
+    <a href="{% url 'inicio' %}#como-funciona">Como funciona</a>
+    <a href="{% url 'inicio' %}#reconhece">O que reconhece</a>
+    <a href="{% url 'gestos' %}"{% if pagina == 'gestos' or pagina|slice:':6' == 'gesto_' %} class="is-active" aria-current="page"{% endif %}>Gestos</a>
   </nav>
   <div class="header-actions">
-    <a class="header-cta" href="{% url 'reconhecer' %}">Reconhecer <span aria-hidden="true">→</span></a>
+    <a class="header-cta{% if pagina == 'reconhecer' %} is-active{% endif %}" href="{% url 'reconhecer' %}"{% if pagina == 'reconhecer' %} aria-current="page"{% endif %}>Reconhecer <span aria-hidden="true">→</span></a>
     <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="mobile-menu"
       aria-label="Abrir menu"><span class="menu-bar" aria-hidden="true"></span><span class="menu-bar"
         aria-hidden="true"></span><span class="menu-bar" aria-hidden="true"></span></button>
@@ -17,12 +20,11 @@
 <nav class="mobile-menu" id="mobile-menu" aria-label="Menu">
   <a href="{% url 'inicio' %}#projeto">O projeto</a>
   <a href="{% url 'inicio' %}#como-funciona">Como funciona</a>
-  <a href="{% url 'inicio' %}#impacto">Impacto</a>
-  <a href="{% url 'inicio' %}#esg">Compromisso</a>
-  <a href="{% url 'gestos' %}">Gestos</a>
-  <a class="mobile-cta" href="{% url 'reconhecer' %}">Reconhecer</a>
-  <!-- Futuro: link "Aprender" entra neste menu. -->
+  <a href="{% url 'inicio' %}#reconhece">O que reconhece</a>
+  <a href="{% url 'gestos' %}"{% if pagina == 'gestos' or pagina|slice:':6' == 'gesto_' %} class="is-active" aria-current="page"{% endif %}>Gestos</a>
+  <a class="mobile-cta" href="{% url 'reconhecer' %}"{% if pagina == 'reconhecer' %} aria-current="page"{% endif %}>Reconhecer</a>
 </nav>
+{% endwith %}
 <script>
   (function () {
     const header = document.getElementById('site-header');

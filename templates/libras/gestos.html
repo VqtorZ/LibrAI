@@ -7,35 +7,57 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Gestos — LibrAI</title>
     <link rel="icon" type="image/png" href="{% static 'img/logo.png' %}">
-    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}?v={{ versao_estaticos }}">
 </head>
 
 <body class="gestos">{% include "libras/_cabecalho.html" %}
-    <main class="section-wrap gestures-page">
+    <main class="section-wrap gestures-page" id="conteudo">
         <div class="page-intro">
             <p class="section-label">CADASTRO COLABORATIVO</p>
             <h1>Gestos</h1>
-            <p class="gestures-subtitle">Esta área reúne os sinais cadastrados para o LibrAI. Cada sinal é
-                uma entrada do vocabulário que o projeto poderá aprender a reconhecer.</p>
+            <p class="gestures-subtitle">Os sinais que o LibrAI está aprendendo. Cadastre um sinal, grave exemplos
+                dele e treine: o reconhecimento ao vivo passa a usar o que vocês ensinaram.</p>
         </div>
         {% if messages %}
         <ul class="messages">{% for message in messages %}<li class="{{ message.tags }}">{{ message }}</li>{% endfor %}</ul>
         {% endif %}
+        {% if precisa_treinar %}
+        <div class="aviso-treino" role="status">
+            <span class="aviso-icone" aria-hidden="true">↻</span>
+            <div>
+                <strong>Há sinais com amostras novas.</strong>
+                <p>Treine o modelo para o reconhecimento ao vivo usar tudo o que foi gravado.</p>
+            </div>
+            {% include "libras/_botao_treinar.html" with voltar=request.path %}
+        </div>
+        {% endif %}
         <div class="gestures-toolbar">
             <span class="section-label">{{ sinais|length }} {% if sinais|length == 1 %}sinal{% else %}sinais{% endif %}</span>
-            <a class="primary-button" href="{% url 'gesto_novo' %}">Cadastrar novo sinal <span aria-hidden="true">→</span></a>
+            <div class="toolbar-acoes">
+                {% if tem_movimento and not precisa_treinar %}{% include "libras/_botao_treinar.html" with voltar=request.path secundario=True %}{% endif %}
+                <a class="primary-button" href="{% url 'gesto_novo' %}">Cadastrar novo sinal <span aria-hidden="true">→</span></a>
+            </div>
         </div>
         {% if sinais %}
         <div class="gesto-grid">
             {% for sinal in sinais %}
             <article class="gesto-card">
                 <div class="gesto-card-top">
-                    <h3>{{ sinal.titulo }}</h3>
-                    <span class="gesto-status">{{ sinal.get_tipo_display }}{% if sinal.negativo %} · negativo{% endif %}</span>
+                    <h2 class="gesto-card-titulo"><a href="{% url 'gesto_detalhe' sinal.pk %}">{{ sinal.titulo }}</a></h2>
+                    <span class="gesto-tipo gesto-tipo--{{ sinal.tipo|lower }}">{% if sinal.negativo %}Negativo{% else %}{{ sinal.get_tipo_display }}{% endif %}</span>
                 </div>
-                <p class="gesto-card-desc">{{ sinal.descricao|default:"—" }}</p>
-                <p class="gesto-card-date">Cadastrado em {{ sinal.criado_em|date:"d/m/Y à\s H:i" }}</p>
-                <a class="source-link" href="{% url 'gesto_detalhe' sinal.pk %}">Ver detalhes ↗</a>
+                <p class="gesto-card-desc">{{ sinal.descricao|default:"Sem descrição." }}</p>
+                {% if sinal.tipo == "MOVIMENTO" %}
+                <div class="gesto-card-dados">
+                    <span class="gesto-amostras"><strong>{{ sinal.total_amostras }}</strong> {% if sinal.total_amostras == 1 %}amostra{% else %}amostras{% endif %}</span>
+                    <span class="situacao situacao--{{ sinal.situacao.codigo }}" title="{{ sinal.situacao.descricao }}">{{ sinal.situacao.rotulo }}</span>
+                </div>
+                {% else %}
+                <div class="gesto-card-dados">
+                    <span class="gesto-amostras">Reconhecido quadro a quadro</span>
+                </div>
+                {% endif %}
+                <span class="gesto-card-link" aria-hidden="true">Ver sinal →</span>
             </article>
             {% endfor %}
         </div>

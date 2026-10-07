@@ -252,7 +252,12 @@ def treinar(caminho=None):
         },
         "limiares": {c: calibracao[c]["limiar"] for c in classes},
         "negativos": [
-            {"amostra_id": a.pk, "sinal": a.sinal.titulo, "trajetoria": t}
+            {
+                "amostra_id": a.pk,
+                "sinal": a.sinal.titulo,
+                "sinal_id": a.sinal.pk,
+                "trajetoria": t,
+            }
             for a, t in negativos
         ],
         "calibracao": {
@@ -290,6 +295,70 @@ def carregar_modelo(caminho=None):
             "treinar_movimentos."
         )
     return modelo
+
+
+def amostras_no_modelo(modelo):
+    """{sinal_id: {ids das amostras}} que o modelo usou no treino."""
+    por_sinal = {}
+    for classe, entradas in modelo["templates"].items():
+        sinal_id = modelo["sinal_id"][classe]
+        por_sinal.setdefault(sinal_id, set()).update(e["amostra_id"] for e in entradas)
+    for entrada in modelo["negativos"]:
+        # Modelos antigos não guardavam o sinal_id dos negativos.
+        if "sinal_id" in entrada:
+            por_sinal.setdefault(entrada["sinal_id"], set()).add(entrada["amostra_id"])
+    return por_sinal
+
+
+def situacao_dos_sinais(sinais, caminho=None):
+    """Situação de cada sinal de movimento frente ao modelo, para as páginas.
+
+    Devolve ``{sinal_id: {"codigo", "rotulo", "descricao"}}`` com os
+    códigos ``sem_amostras``, ``poucas`` (sinal comum com uma amostra
+    só: não entra no treino), ``pronto`` (as amostras ativas são
+    exatamente as do modelo) e ``treinar`` (há amostras novas ou
+    apagadas desde o último treino, ou não há modelo).
+    """
+    try:
+        modelo = carregar_modelo(caminho)
+    except ErroTemporal:
+        modelo = None
+    no_modelo = amostras_no_modelo(modelo) if modelo else {}
+    situacoes = {}
+    for sinal in sinais:
+        ativas = set(
+            sinal.amostras.filter(ativo=True).values_list("pk", flat=True)
+        )
+        if not ativas:
+            codigo = "sem_amostras"
+        elif len(ativas) < 2 and not sinal.negativo:
+            codigo = "poucas"
+        elif ativas == no_modelo.get(sinal.pk):
+            codigo = "pronto"
+        else:
+            codigo = "treinar"
+        situacoes[sinal.pk] = {"codigo": codigo, **SITUACOES[codigo]}
+    return situacoes
+
+
+SITUACOES = {
+    "sem_amostras": {
+        "rotulo": "Sem amostras",
+        "descricao": "Grave amostras para este sinal entrar no reconhecimento.",
+    },
+    "poucas": {
+        "rotulo": "Grave mais",
+        "descricao": "São necessárias pelo menos 2 amostras para treinar.",
+    },
+    "pronto": {
+        "rotulo": "No reconhecimento",
+        "descricao": "O modelo atual já usa todas as amostras deste sinal.",
+    },
+    "treinar": {
+        "rotulo": "Precisa treinar",
+        "descricao": "Há amostras novas ou apagadas: treine o modelo para atualizar.",
+    },
+}
 
 
 def _sem(entradas, excluir_amostra):

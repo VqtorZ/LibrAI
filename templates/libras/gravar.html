@@ -8,7 +8,7 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>Gravar movimento — LibrAI</title>
     <link rel="icon" type="image/png" href="{% static 'img/logo.png' %}">
-    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}?v={{ versao_estaticos }}">
     <style>
         .rec-actions {
             display: grid;
@@ -91,7 +91,7 @@
 </head>
 
 <body class="recognizer">{% include "libras/_cabecalho.html" %}
-    <main class="recognizer-layout">
+    <main class="recognizer-layout" id="conteudo">
         <div>
             <div class="page-intro">
                 <p class="section-label">COLETA TEMPORAL</p>

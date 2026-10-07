@@ -617,8 +617,9 @@ class ExemplosNegativosTests(TemporalMLBase):
 
     def test_paginas_exibem_negativo(self):
         response = self.client.get(reverse("gestos"))
-        self.assertContains(response, "negativo")
+        self.assertContains(response, "Negativo")
         response = self.client.get(reverse("gesto_detalhe", args=[self.negativo.pk]))
-        self.assertContains(response, "exemplo negativo")
+        self.assertContains(response, "EXEMPLO NEGATIVO")
+        self.assertContains(response, "<strong>rejeitar</strong>", html=False)
         response = self.client.get(reverse("gesto_novo"))
         self.assertContains(response, "Exemplo negativo")

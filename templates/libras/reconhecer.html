@@ -32,7 +32,6 @@
                     <span class="rc-chip"><i class="rc-ao-vivo"></i> AO VIVO</span>
                     <span class="rc-chip rc-mao" id="indicador-mao" data-estado="nao"><i></i> <span>Sem mão</span></span>
                 </div>
-                <div class="rc-selo" id="selo-camera" aria-hidden="true" data-estado="esperando">✋</div>
             </div>
 
             <aside class="rc-painel">
@@ -126,7 +125,6 @@
             const explica = $('meaning');
             const erro = $('error');
             const mao = $('indicador-mao');
-            const selo = $('selo-camera');
             const palavraEl = $('palavra');
 
             const ESTADOS = {
@@ -157,23 +155,18 @@
                 if (chave === mostrado) return;
                 mostrado = chave;
                 resultado.dataset.estado = estado.nome;
-                selo.dataset.estado = estado.nome;
                 if (estado.letra) {
                     letra.textContent = estado.letra;
-                    selo.textContent = estado.letra;
                     titulo.textContent = estado.nome === 'movimento'
                         ? `Letra ${estado.letra}, com movimento` : `Letra ${estado.letra}`;
                     explica.textContent = estado.nome === 'movimento'
                         ? 'Reconhecida pelo movimento completo.' : 'Mantenha a mão parada por um instante.';
-                    for (const alvo of [letra, selo]) {
-                        alvo.classList.remove('troca');
-                        void alvo.offsetWidth;
-                        alvo.classList.add('troca');
-                    }
+                    letra.classList.remove('troca');
+                    void letra.offsetWidth;
+                    letra.classList.add('troca');
                 } else {
                     const info = ESTADOS[estado.nome];
                     letra.textContent = info.simbolo;
-                    selo.textContent = info.simbolo;
                     titulo.textContent = info.titulo;
                     explica.textContent = info.texto;
                 }

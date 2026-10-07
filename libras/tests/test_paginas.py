@@ -166,7 +166,7 @@ class ReconhecerTests(TemporalMLBase):
         alfabeto = {item["letra"]: item["tipo"] for item in response.context["alfabeto"]}
         self.assertEqual(alfabeto["J"], "movimento")
         self.assertContains(response, f"{response.context['total_letras']} de 26 letras")
-        for elemento in ('id="label"', 'id="indicador-mao"', 'id="palavra"', 'id="selo-camera"'):
+        for elemento in ('id="label"', 'id="indicador-mao"', 'id="palavra"'):
             self.assertContains(response, elemento)
         self.assertContains(response, "css/reconhecer.css?v=")
 

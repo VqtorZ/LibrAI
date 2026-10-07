@@ -11,6 +11,11 @@
     padding-bottom: 96px;
 }
 
+/* Página mais larga que o padrão do site: a câmera é o centro dela. */
+.rc .section-wrap {
+    max-width: 1380px;
+}
+
 .rc svg {
     fill: none;
     stroke: currentColor;
@@ -22,13 +27,14 @@
 /* --------------------------------------------------------------------------
    Topo
    -------------------------------------------------------------------------- */
+/* Topo compacto: a câmera precisa caber inteira na tela de um notebook. */
 .rc-topo {
-    padding-top: 44px;
+    padding-top: 28px;
 }
 
 .rc-topo h1 {
-    margin: 18px 0 10px;
-    font-size: clamp(2.2rem, 4.6vw, 3.4rem);
+    margin: 12px 0 6px;
+    font-size: clamp(2rem, 3.6vw, 2.8rem);
     line-height: 1.05;
     letter-spacing: -.03em;
 }
@@ -50,10 +56,10 @@
    -------------------------------------------------------------------------- */
 .rc-palco {
     display: grid;
-    grid-template-columns: minmax(0, 1.55fr) minmax(330px, .95fr);
+    grid-template-columns: minmax(0, 2fr) minmax(320px, .82fr);
     gap: 26px;
     align-items: start;
-    margin-top: 30px;
+    margin-top: 22px;
 }
 
 .rc-camera {
@@ -64,6 +70,16 @@
     background: linear-gradient(160deg, #1C2B4A, #24375F 60%, #2C4676);
     border: 1px solid rgba(255, 255, 255, .08);
     box-shadow: 0 30px 70px rgba(28, 43, 74, .28);
+}
+
+/* Em telas largas, a câmera cresce até caber inteira na altura da tela
+   (cabeçalho + topo ocupam ~280 px): em notebooks baixos ela encolhe só o
+   necessário, em monitores altos usa a coluna toda. */
+@media (min-width:1025px) {
+    .rc-camera {
+        width: 100%;
+        max-width: max(480px, calc((100vh - 280px) * 16 / 9));
+    }
 }
 
 .rc-camera img {
@@ -200,42 +216,6 @@
 
 .rc-mao[data-estado="sim"] i {
     background: #6FDD8F;
-}
-
-/* Selo do resultado sobre a câmera (visível sem olhar para o painel) */
-.rc-selo {
-    position: absolute;
-    left: 22px;
-    bottom: 22px;
-    display: grid;
-    place-items: center;
-    min-width: 76px;
-    height: 76px;
-    padding: 0 14px;
-    border-radius: 22px;
-    background: #fff;
-    color: var(--color-text);
-    font-size: 40px;
-    font-weight: 800;
-    line-height: 1;
-    box-shadow: 0 14px 34px rgba(0, 0, 0, .28);
-    transition: background .3s, color .3s;
-}
-
-.rc-selo[data-estado="letra"] {
-    background: linear-gradient(160deg, #8DB3EC, #4F7ED3);
-    color: #fff;
-}
-
-/* Laranja mais escuro que o da grade: letra branca grande com contraste. */
-.rc-selo[data-estado="movimento"] {
-    background: linear-gradient(160deg, #E9894A, #B8501A);
-    color: #fff;
-}
-
-.rc-selo[data-estado="analisando"] {
-    background: var(--color-secondary-soft);
-    color: #A35416;
 }
 
 /* Painel */
@@ -582,14 +562,6 @@
         display: none;
     }
 
-    .rc-selo {
-        left: 14px;
-        bottom: 14px;
-        min-width: 58px;
-        height: 58px;
-        font-size: 30px;
-        border-radius: 18px;
-    }
 
     .rc-painel {
         padding: 22px;

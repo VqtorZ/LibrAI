@@ -8,7 +8,7 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
 ## 1. Estado atual (onde paramos)
 
 - **Branch de trabalho:** `melhorias-movimento` (enviado ao GitHub,
-  `origin/melhorias-movimento`). Tem **24 commits que ainda não estão no
+  `origin/melhorias-movimento`). Tem **25 commits que ainda não estão no
   `main`** (o `main` está em `e61c9d3`). O merge (ou PR) espera a aprovação do
   usuário: https://github.com/VqtorZ/LibrAI/pull/new/melhorias-movimento
 - **Testes:** 203 passando (`libras/tests/`, divididos por área).
@@ -44,7 +44,7 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
   headless) e **aprovado pelo usuário** ("ficou perfeito").
 - **Página Reconhecer renovada** (mesma linguagem da home): estados visuais com
   cor/símbolo/frase, indicador "Mão detectada", selo do resultado sobre a
-  câmera, "Soletrando" (forma palavras; letra parada fica provisória até o
+  câmera (removido a pedido do usuário: poluía o vídeo), "Soletrando" (forma palavras; letra parada fica provisória até o
   próximo sinal e é descartada se um movimento for reconhecido — evita "IJ";
   pose final de um movimento é ignorada por 1,5 s), dicas em cartões e a grade
   do alfabeto com dados reais. Conferida por prévias estáticas (template real
@@ -253,6 +253,10 @@ rejeição não-J com arquivo sintético, hoje em `dados/sinteticos/nao_j_sintet
 23. página Reconhecer renovada (`reconhecer.css`, estados, Soletrando),
     componentes `.etiqueta`/`.alfabeto-*` compartilhados, `views._alfabeto()`;
     203 testes
+24. (mesmo commit da memória) + reconhecer: sem o selo dentro da câmera
+    (pedido do usuário) e câmera maior — página com 1380 px, coluna da câmera
+    2fr × painel .82fr (+38% a 1440 px), topo compacto e, em telas largas,
+    largura limitada pela altura da tela para o vídeo caber inteiro
 
 ---
 

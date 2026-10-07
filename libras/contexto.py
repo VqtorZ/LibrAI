@@ -1,7 +1,8 @@
 """Variáveis disponíveis em todos os templates."""
 from django.conf import settings
 
-ESTILOS = ("css/app.css", "css/home.css", "css/reconhecer.css", "css/entrar.css")
+# Arquivos estáticos que mudam com frequência (CSS e o JS da câmera).
+ESTILOS = ("css/app.css", "css/home.css", "css/reconhecer.css", "css/entrar.css", "js/camera-maos.js")
 
 
 def versao_estaticos(request):

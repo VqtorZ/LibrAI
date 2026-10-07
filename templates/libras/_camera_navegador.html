@@ -1,0 +1,19 @@
+{% load static %}{% comment %}Câmera do navegador com os pontos da mão (Reconhecer, Gravar letras,
+Gravar movimento). O JS em static/js/camera-maos.js (iniciarCameraDaPagina) liga tudo.{% endcomment %}
+<div class="rc-camera" id="camera" data-modelo="{% static 'modelos/hand_landmarker.task' %}">
+    <video id="video" playsinline muted aria-label="Imagem da sua câmera"></video>
+    <canvas id="pontos" aria-hidden="true"></canvas>
+    <div class="rc-mira" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="rc-scan" aria-hidden="true"></div>
+    <div class="rc-camera-topo">
+        <span class="rc-chip" id="chip-camera"><i class="rc-ao-vivo"></i> <span>AO VIVO</span></span>
+        <span class="rc-chip rc-mao" id="indicador-mao" data-estado="nao"><i></i> <span>Sem mão</span></span>
+    </div>
+    <div class="rc-aviso" id="aviso-camera" data-estado="carregando" role="status">
+        <span class="rc-aviso-icone" aria-hidden="true"></span>
+        <p id="aviso-texto">Carregando o detector de mão…</p>
+        <button type="button" class="rc-mini" id="tentar-camera" hidden>Tentar de novo</button>
+    </div>
+</div>
+<p class="rc-privacidade"><span aria-hidden="true">🔒</span> Sua imagem não sai do seu aparelho: só os pontos da mão
+    são enviados.</p>

@@ -1,7 +1,10 @@
 # LibrAI
 
-Aplicação local em Django que reconhece sinais de Libras pela webcam usando
-OpenCV e os 21 marcos da mão do MediaPipe. São dois pipelines independentes:
+Aplicação Django que reconhece sinais de Libras pela webcam usando os 21
+marcos da mão do MediaPipe. A câmera é a do **navegador** de quem usa o site: o
+MediaPipe roda ali mesmo e só os pontos da mão vão para o servidor (a imagem
+nunca sai do aparelho). Por isso o site pode ficar na internet e cada pessoa
+usa a própria webcam. São dois pipelines independentes:
 
 - **Alfabeto estático:** um classificador RandomForest reconhece a letra frame
   a frame.
@@ -15,31 +18,31 @@ OpenCV-Libras/
 ├── config/                  configurações do Django (settings, urls)
 ├── libras/                  o app
 │   ├── caminhos.py          ONDE FICA CADA DADO (fonte única dos caminhos)
-│   ├── captura/             câmera do servidor e leitura dos pontos da mão
-│   │   ├── camera.py        transmissão, letra estática, movimento ao vivo, gravação
-│   │   └── marcos.py        63 valores da mão + mão direita/esquerda
 │   ├── estatico/            alfabeto estático
+│   │   ├── amostras.py      CSV das amostras gravadas pelo site
 │   │   ├── features.py      como a mão vira números (coordenadas + distâncias)
-│   │   └── treino.py        treino do RandomForest
+│   │   ├── treino.py        treino do RandomForest
+│   │   └── classificador.py letra ao vivo (recarrega o modelo sozinho)
 │   ├── movimento/           sinais com movimento, na ordem do fluxo:
-│   │   ├── gravacao.py      grava a amostra pela câmera
-│   │   ├── amostras.py      salva/lê o JSON da amostra
+│   │   ├── amostras.py      valida os quadros do navegador e salva/lê o JSON
 │   │   ├── verificacao.py   confere se as gravações estão íntegras
 │   │   ├── segmentacao.py   recorta o trecho em que a mão se moveu
 │   │   ├── trajetoria.py    transforma os frames em números comparáveis
 │   │   ├── classificador.py DTW: treino, limiar de rejeição e previsão
-│   │   └── ao_vivo.py       reconhecimento na câmera do /reconhecer/
+│   │   ├── ao_vivo.py       detector de movimento quadro a quadro
+│   │   └── sessoes.py       uma sessão ao vivo por aba do navegador
 │   ├── management/commands/ todos os comandos do manage.py (abaixo)
 │   ├── tests/               testes divididos por área
 │   └── models.py, views.py, urls.py, forms.py, admin.py
 ├── dados/                   TODOS OS DADOS
 │   ├── banco.sqlite3                      banco (sinais e registro das amostras) — só local
-│   ├── amostras_estaticas/landmarks.csv   amostras do alfabeto (letra + 63 números por linha)
+│   ├── amostras_estaticas/alfabeto.csv    amostras do alfabeto (letra + 63 números por linha)
 │   ├── amostras_movimento/<id>-<sinal>/   uma amostra de movimento por JSON (ex.: 2-j/7.json) — só local
 │   ├── modelos_treinados/                 alfabeto.joblib e movimentos.joblib
+│   ├── legado/                            dados do tempo da câmera do servidor (fora dos treinos)
 │   └── sinteticos/                        dados artificiais de teste (nunca entram no treino)
 ├── templates/libras/        páginas (inicio, reconhecer, gestos, gravar…)
-└── static/                  CSS e imagens
+└── static/                  CSS, imagens, js/camera-maos.js e o modelo do MediaPipe (modelos/)
 ```
 
 O banco e as gravações de movimento (`dados/banco.sqlite3` e
@@ -57,10 +60,18 @@ python manage.py migrate
 python manage.py runserver
 ```
 
-Abra `http://127.0.0.1:8000/` e selecione **Iniciar reconhecimento**. A câmera
-é aberta pelo processo Python; permita o acesso nas Configurações de
-Privacidade do Windows e feche aplicativos que já a estejam usando. Só uma
-página (ou comando) por vez consegue usar a câmera.
+Abra `http://127.0.0.1:8000/` e vá em **Reconhecer**. O navegador pede
+permissão para usar a câmera: aceite. O navegador só libera a câmera em
+`localhost` ou em sites `https`. O detector de mão (MediaPipe Tasks Vision) é
+baixado de um CDN na primeira visita, então é preciso internet.
+
+### Formato dos dados (versão 3)
+
+Os pontos vêm espelhados como numa selfie, com x e z corrigidos pela proporção
+da imagem, para que webcams diferentes deem os mesmos números para o mesmo
+gesto. Amostras e modelos gravam a versão do formato; os da época da câmera do
+servidor (versões 1 e 2) ficam guardados, mas fora dos treinos, e a página do
+sinal pede para regravá-lo.
 
 ## Acesso
 
@@ -81,9 +92,7 @@ painel do Django em `/admin/`.
 
 | Comando | O que faz |
 |---|---|
-| `python manage.py coletar_alfabeto A` | Coleta amostras de uma letra estática (S salva, Q sai) |
 | `python manage.py treinar_alfabeto` | Treina o classificador do alfabeto |
-| `python manage.py gravar_movimento J` | Grava amostras de um sinal de movimento (Espaço grava/para, Q sai) |
 | `python manage.py verificar_movimentos` | Confere a integridade e o FPS das gravações |
 | `python manage.py treinar_movimentos` | Treina o reconhecimento de movimentos |
 | `python manage.py testar_movimento --amostra 7` | Testa uma gravação (sem ela no modelo) |
@@ -94,39 +103,28 @@ painel do Django em `/admin/`.
 
 ## Alfabeto estático
 
-Colete cada letra variando pessoas, mãos, iluminação e distância, e treine:
-
-```powershell
-python manage.py coletar_alfabeto A
-python manage.py treinar_alfabeto
-```
-
-O modelo é carregado pela câmera ao iniciar o servidor (reinicie o
-`runserver` depois de treinar). A coleta usa a mesma resolução do
-reconhecimento (960×540).
+Em **Gestos → Gravar letras**, escolha a letra, faça o sinal e aperte
+**Espaço** para salvar cada amostra. Varie pessoas, mãos, iluminação e
+distância. Depois clique em **Treinar alfabeto** (ou rode
+`python manage.py treinar_alfabeto`). O reconhecimento recarrega o modelo
+sozinho, sem reiniciar o servidor.
 
 ## Sinais com movimento
 
 ### 1. Cadastrar e gravar
 
 Em **Gestos → Cadastrar novo sinal**, escolha o tipo **Movimento** (ex.: `J`).
-Depois grave as amostras de um destes dois jeitos — os dois usam a mesma câmera,
-resolução e detector do reconhecimento ao vivo, então as amostras saem como o
-reconhecedor as verá:
-
-- **Pelo site:** na página do sinal, **Gravar nova amostra**. A câmera aparece
-  com os 21 pontos da mão e um indicador de "Mão detectada".
-- **Pelo terminal** (com o site fechado, para liberar a câmera):
-  `python manage.py gravar_movimento J`.
-
-Nos dois, faça a configuração inicial com a mão parada (no J, o I), aperte
+Depois, na página do sinal, clique em **Gravar nova amostra**. A câmera
+aparece com os 21 pontos da mão e um indicador de "Mão detectada". É o mesmo
+detector do reconhecimento ao vivo, então as amostras saem como o reconhecedor
+as verá. Faça a configuração inicial com a mão parada (no J, o I), aperte
 **Espaço**, faça o movimento, pare a mão e aperte **Espaço** de novo; a amostra
-é salva na hora. O comando só grava sinais já cadastrados como movimento.
+é salva na hora.
 
-A câmera é a do computador onde o servidor está rodando: quem for gravar
-precisa estar nele. O vídeo nunca é armazenado — só os pontos da mão, com a mão
-usada (direita/esquerda) e a origem da captura. Grave várias amostras por
-sinal, de preferência com pessoas diferentes.
+Cada pessoa grava da própria casa, com a própria webcam. O vídeo nunca sai do
+navegador: só os pontos da mão são enviados, com a mão usada
+(direita/esquerda). Grave várias amostras por sinal, de preferência com
+pessoas diferentes.
 
 ### 2. Exemplos negativos
 
@@ -141,7 +139,7 @@ Rode `verificar_movimentos`, `treinar_movimentos` e `testar_movimento` (ver
 **Comandos**). Depois de treinar, o `/reconhecer/` reconhece o movimento ao
 vivo: faça o sinal e pare a mão no final. Enquanto a mão se move, a tela mostra
 "Analisando movimento…". O modelo é recarregado sozinho quando é retreinado, e
-o terminal do `runserver` registra cada movimento com a distância, o limiar e
+o log do servidor registra cada movimento com a distância, o limiar e
 o motivo de ter sido aceito, rejeitado ou ignorado.
 
 ### Como funciona

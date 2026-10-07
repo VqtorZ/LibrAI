@@ -5,6 +5,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>Reconhecer — LibrAI</title>
     <link rel="icon" type="image/png" href="{% static 'img/logo.png' %}">
     <script>document.documentElement.classList.add('js');</script>
@@ -24,14 +25,8 @@
 
         <!-- ====================== CÂMERA + RESULTADO ===================== -->
         <section class="section-wrap rc-palco">
-            <div class="rc-camera">
-                <img src="{% url 'video' %}" alt="Imagem da sua câmera, com os pontos da mão desenhados">
-                <div class="rc-mira" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-                <div class="rc-scan" aria-hidden="true"></div>
-                <div class="rc-camera-topo">
-                    <span class="rc-chip"><i class="rc-ao-vivo"></i> AO VIVO</span>
-                    <span class="rc-chip rc-mao" id="indicador-mao" data-estado="nao"><i></i> <span>Sem mão</span></span>
-                </div>
+            <div>
+                {% include "libras/_camera_navegador.html" %}
             </div>
 
             <aside class="rc-painel">
@@ -46,7 +41,6 @@
                         <p id="meaning" class="rc-explica">Coloque uma mão na frente da câmera.</p>
                     </div>
                 </div>
-                <p id="error" class="error" role="status"></p>
 
                 <div class="rc-soletrando">
                     <div class="rc-soletrando-topo">
@@ -115,16 +109,17 @@
         </section>
     </main>
 
-    <script>
-        (function () {
-            const URL_STATUS = "{% url 'status' %}";
+    <script type="module">
+        import { iniciarCameraDaPagina, criarEnvioAoVivo } from "{% static 'js/camera-maos.js' %}?v={{ versao_estaticos }}";
+
+        {
+            const URL_QUADROS = "{% url 'api_quadros' %}";
+            const CSRF = document.querySelector('meta[name="csrf-token"]').content;
             const $ = (id) => document.getElementById(id);
             const resultado = $('resultado');
             const letra = $('label');
             const titulo = $('titulo-estado');
             const explica = $('meaning');
-            const erro = $('error');
-            const mao = $('indicador-mao');
             const palavraEl = $('palavra');
 
             const ESTADOS = {
@@ -132,20 +127,16 @@
                 analisando: { simbolo: '…', titulo: 'Analisando o movimento', texto: 'Termine o gesto e pare a mão.' },
                 incerto: { simbolo: '?', titulo: 'Não reconheci', texto: 'Ajuste a mão ou a luz e tente de novo.' },
                 sem_modelo: { simbolo: '!', titulo: 'Alfabeto não treinado', texto: 'Colete amostras e treine o alfabeto para ativar as letras.' },
-                gravando: { simbolo: '●', titulo: 'Câmera gravando', texto: 'Uma amostra está sendo gravada na página de Gestos.' },
-                camera: { simbolo: '!', titulo: 'Câmera indisponível', texto: 'Feche outros programas que usam a câmera e recarregue a página.' },
             };
 
-            // Traduz o status da câmera em um estado visual.
+            // Traduz a resposta do servidor em um estado visual.
             function estadoDe(d) {
                 const rotulo = d.label || '';
                 if (d.movement_label) return { nome: 'movimento', letra: d.movement_label };
                 if (/^[A-Z]$/.test(rotulo)) return { nome: 'letra', letra: rotulo };
                 if (rotulo.startsWith('Analisando')) return { nome: 'analisando' };
                 if (rotulo === 'Sinal não identificado') return { nome: 'incerto' };
-                if (rotulo === 'Modelo não treinado' || rotulo === 'Modelo inválido') return { nome: 'sem_modelo' };
-                if (rotulo === 'Gravando amostra') return { nome: 'gravando' };
-                if (d.error && /webcam|câmera/i.test(d.error)) return { nome: 'camera' };
+                if (rotulo === 'Modelo não treinado') return { nome: 'sem_modelo' };
                 return { nome: 'esperando' };
             }
 
@@ -251,17 +242,18 @@
             $('botao-apagar').addEventListener('click', () => { if (provisoria) provisoria = null; else palavra.pop(); desenharPalavra(); });
             $('botao-limpar').addEventListener('click', () => { palavra = []; provisoria = null; desenharPalavra(); });
 
-            async function atualizar() {
-                try {
-                    const d = await (await fetch(URL_STATUS)).json();
+            // A câmera do navegador manda os quadros ao servidor em lotes;
+            // cada resposta atualiza o painel e o Soletrando.
+            const envio = criarEnvioAoVivo({
+                url: URL_QUADROS,
+                csrf: CSRF,
+                aoResposta: (d) => {
                     const estado = estadoDe(d);
                     mostrar(estado);
                     soletrar(estado);
-                    mao.dataset.estado = d.hand_detected ? 'sim' : 'nao';
-                    mao.querySelector('span').textContent = d.hand_detected ? 'Mão detectada' : 'Sem mão';
-                    erro.textContent = estado.nome === 'camera' ? '' : (d.error || '');
-                } catch (falha) { }
-            }
+                },
+            });
+            iniciarCameraDaPagina({ aoQuadro: (quadro) => envio.adicionar(quadro) });
 
             // Grade do alfabeto aparece ao rolar.
             const revelar = new IntersectionObserver((itens) => itens.forEach((item) => {
@@ -269,9 +261,7 @@
             }), { threshold: 0.15 });
             document.querySelectorAll('.reveal').forEach((el) => revelar.observe(el));
 
-            atualizar();
-            setInterval(atualizar, 400);
-        })();
+        }
     </script>
 </body>
 

@@ -1,9 +1,8 @@
-"""Amostras de movimento: persistência, marcos da mão e verificação."""
+"""Amostras de movimento: persistência, validação dos quadros e verificação."""
 from pathlib import Path
 
 from django.test import TestCase
 
-from libras.captura.marcos import lateralidade as _lateralidade, marcos_da_mao
 from libras.models import AmostraMovimento, Sinal
 from libras.movimento.amostras import (
     FORMATO_VERSAO,
@@ -12,6 +11,9 @@ from libras.movimento.amostras import (
     apagar_amostra,
     ler_sequencia,
     salvar_amostra,
+    sequencia_de_gravacao,
+    validar_marcos,
+    validar_quadros,
 )
 from libras.movimento.verificacao import resumir, verificar_amostra, verificar_conteudo
 
@@ -103,44 +105,46 @@ class AmostraMovimentoTests(TemporalBase):
         self.assertEqual(AmostraMovimento.objects.count(), 0)
 
 
-class LateralidadeTests(TestCase):
-    """Leitura da mão (direita/esquerda) informada pelo MediaPipe."""
+class ValidarQuadrosTests(TestCase):
+    """Nada vindo do navegador é aceito sem checagem."""
 
-    @staticmethod
-    def resultado(rotulo):
-        classificacao = type("C", (), {"label": rotulo})()
-        mao = type("H", (), {"classification": [classificacao]})()
-        return type("R", (), {"multi_handedness": [mao]})()
+    def test_marcos_validos_viram_float(self):
+        self.assertEqual(validar_marcos([1] * 63), [1.0] * 63)
+        self.assertIsNone(validar_marcos(None))
 
-    def test_le_rotulos_validos(self):
-        self.assertEqual(_lateralidade(self.resultado("Left")), "Left")
-        self.assertEqual(_lateralidade(self.resultado("Right")), "Right")
+    def test_marcos_invalidos(self):
+        for ruim in ([0.5] * 62, [0.5] * 64, "abc", [True] * 63, [None] * 63,
+                     [float("nan")] * 63, [float("inf")] * 63, [11.0] * 63):
+            with self.subTest(ruim=str(ruim)[:30]):
+                with self.assertRaises(AmostraInvalida):
+                    validar_marcos(ruim)
 
-    def test_rotulo_desconhecido_ou_ausente_vira_none(self):
-        self.assertIsNone(_lateralidade(self.resultado("Outra")))
-        self.assertIsNone(_lateralidade(type("R", (), {"multi_handedness": []})()))
-        self.assertIsNone(_lateralidade(object()))
+    def test_converte_para_o_formato_das_amostras(self):
+        quadros = validar_quadros([
+            {"t": 10.6, "marcos": [0.5] * 63, "mao": "Left"},
+            {"t": 20, "marcos": None, "mao": "Right"},
+        ])
+        self.assertEqual(quadros[0], {"timestamp_ms": 10, "landmarks": [0.5] * 63, "mao": "Left"})
+        # Sem pontos, a mão informada é descartada.
+        self.assertEqual(quadros[1], {"timestamp_ms": 20, "landmarks": None, "mao": None})
 
+    def test_quadros_invalidos(self):
+        casos = [None, [], {"t": 1}, [1, 2], [{"t": -1, "marcos": None}],
+                 [{"t": "1", "marcos": None}], [{"t": True, "marcos": None}],
+                 [{"t": 5, "marcos": None}, {"t": 4, "marcos": None}],
+                 [{"t": 1, "marcos": None, "mao": "Meio"}]]
+        for ruim in casos:
+            with self.subTest(ruim=str(ruim)[:40]):
+                with self.assertRaises(AmostraInvalida):
+                    validar_quadros(ruim)
 
-class MarcosDaMaoTests(TestCase):
-    """Leitura dos 63 valores e da mão a partir do resultado do MediaPipe."""
+    def test_maximo_de_quadros(self):
+        with self.assertRaises(AmostraInvalida):
+            validar_quadros([{"t": i, "marcos": None} for i in range(4)], maximo=3)
 
-    def test_le_valores_e_mao(self):
-        ponto = type("P", (), {"x": 0.1, "y": 0.2, "z": 0.3})()
-        mao = type("M", (), {"landmark": [ponto] * 21})()
-        classificacao = type("C", (), {"label": "Left"})()
-        lado = type("H", (), {"classification": [classificacao]})()
-        resultado = type(
-            "R", (), {"multi_hand_landmarks": [mao], "multi_handedness": [lado]}
-        )()
-        valores, rotulo = marcos_da_mao(resultado)
-        self.assertEqual(len(valores), 63)
-        self.assertEqual(valores[:3], [0.1, 0.2, 0.3])
-        self.assertEqual(rotulo, "Left")
-
-    def test_sem_mao(self):
-        resultado = type("R", (), {"multi_hand_landmarks": None})()
-        self.assertEqual(marcos_da_mao(resultado), (None, None))
+    def test_gravacao_comeca_no_zero(self):
+        sequencia = sequencia_de_gravacao([{"t": 1000, "marcos": None}, {"t": 1033, "marcos": None}])
+        self.assertEqual([q["timestamp_ms"] for q in sequencia], [0, 33])
 
 
 class VerificarAmostraTests(VerificadorBase):

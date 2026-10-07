@@ -1,110 +1,99 @@
 # LibrAI — memória do projeto
 
 Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
-Última atualização: **2026-10-06**.
+Última atualização: **2026-10-07**.
 
 ---
 
 ## 1. Estado atual (onde paramos)
 
 - **Branch de trabalho:** `melhorias-movimento` (enviado ao GitHub,
-  `origin/melhorias-movimento`). Tem **33 commits que ainda não estão no
-  `main`** (o `main` está em `e61c9d3`). O merge (ou PR) espera a aprovação do
+  `origin/melhorias-movimento`). Tem 34+ commits que ainda não estão no `main`
+  (o `main` está em `e61c9d3`). O merge (ou PR) espera a aprovação do
   usuário: https://github.com/VqtorZ/LibrAI/pull/new/melhorias-movimento
-- **Testes:** 247 passando (`libras/tests/`, divididos por área).
-- **Estrutura reorganizada em 2026-10-06** (seção 3): dados em `dados/`, código
-  em `libras/captura/`, `libras/estatico/`, `libras/movimento/`; `scripts/` não
-  existe mais (tudo via `manage.py`). Backup local de antes da reorganização
-  (banco + 26 gravações + CSV) em `backups/antes-reorganizacao-2026-10-06/`,
-  fora do Git — pode ser apagado quando o usuário quiser.
-- **Sinais cadastrados (`dados/banco.sqlite3`, fora do Git):**
-  - `#2 J`, movimento: **26 amostras, todas de origem `opencv`** (~27 fps), em
-    `dados/amostras_movimento/2-j/`. As 5 amostras antigas do navegador foram
-    apagadas pelo usuário.
-  - `#3 Z`, movimento: **20 amostras gravadas pelo site** (~25 fps — confirma
-    a correção de FPS do site; antes ficaria ~10).
-  - Nenhum exemplo negativo gravado ainda.
-- **Modelo de movimentos** (`dados/modelos_treinados/movimentos.joblib`,
-  versionado, formato 2, salvo comprimido): treinado pelo usuário no site em
-  2026-10-07T02:57Z com **J (26 amostras, limiar 0.766) e Z (20, limiar
-  0.889)**, sem negativos.
-- **Alfabeto estático — RECOMEÇANDO DO ZERO (2026-10-07):** a pedido do
-  usuário, **todas as amostras do CSV foram apagadas** (9.579 de 19 letras,
-  inclusive I e R recém-gravadas pelo site); `dados/amostras_estaticas/landmarks.csv`
-  tem só o cabeçalho. Backups: `backups/antes-apagar-FTIR-2026-10-07/` e
-  `backups/antes-apagar-alfabeto-2026-10-07/` (fora do Git; o histórico do Git
-  também guarda o CSV antigo). O usuário vai **regravar todas as letras pelo
-  site** (Gestos → Gravar letras). Depois, a pedido do usuário ("resetar do
-  zero"), **o modelo `alfabeto.joblib` também foi apagado** (cópia em
-  `backups/antes-apagar-alfabeto-2026-10-07/alfabeto.joblib`; também no
-  histórico do Git): sem ele, o ao vivo mostra "Alfabeto não treinado" e a home
-  conta só J e Z. O próximo modelo nasce do zero no primeiro "Treinar alfabeto".
-  Ao apagar, já havia 43 amostras novas de A gravadas pelo site (preservadas).
-- **Resultado confirmado pelo usuário:** com as amostras gravadas pelo OpenCV,
-  **o J é reconhecido ao vivo no `/reconhecer/`**.
-- **Front renovado em 2026-10-06** (seção 3): home nova (público principal:
-  pessoas surdas — visual, frases curtas, animações suaves sem piscar, dados
-  reais do sistema), botão "Treinar reconhecimento" no site, situação de cada
-  sinal ("No reconhecimento" / "Precisa treinar"), página do sinal com resumo
-  e tabela, menu marcando a página atual. Visual conferido por prints (Chrome
-  headless) e **aprovado pelo usuário** ("ficou perfeito").
-- **Página Reconhecer renovada** (mesma linguagem da home): estados visuais com
-  cor/símbolo/frase, indicador "Mão detectada", selo do resultado sobre a
-  câmera (removido a pedido do usuário: poluía o vídeo), "Soletrando" (forma palavras; letra parada fica provisória até o
-  próximo sinal e é descartada se um movimento for reconhecido — evita "IJ";
-  pose final de um movimento é ignorada por 1,5 s), dicas em cartões e a grade
-  do alfabeto com dados reais. Conferida por prévias estáticas (template real
-  + quadro simulado + status roteirizado), **não testada com a webcam**.
-- **Gravar alfabeto pelo site** (2026-10-07): `/gestos/alfabeto/` — escolhe a
-  letra (clique ou tecla), Espaço salva 1 amostra no CSV, "Desfazer última",
-  "O LibrAI vê agora", botão Treinar alfabeto (~2,6 s). Usa a câmera e o
-  detector do reconhecimento ao vivo (o `coletar_alfabeto` usa outra config do
-  MediaPipe — pendência 6). A câmera recarrega o modelo do alfabeto sozinha
-  quando o arquivo muda; treinos salvam o modelo de forma atômica.
-- **Login (2026-10-07):** `/entrar/` (e-mail + senha, na vibe do site). Livres:
-  home, Reconhecer, `/video/`, `/api/status/`. Só administradores (`is_staff`,
+- **Testes:** 250 passando (`libras/tests/`, divididos por área).
+- **Objetivo em andamento (2026-10-07): colocar o site no ar** para a equipe
+  de três pessoas (Victor, Yasmin, Giovana) gravar amostras e treinar a IA
+  remotamente. Decisões do usuário: **câmera migrada para o navegador**
+  (recomendação aceita) e hospedagem no **PythonAnywhere (grátis)**.
+  - **Etapas 1 a 3 FEITAS** (commit "feat: câmera no navegador…"): formato
+    de dados v3, servidor sem câmera (o navegador manda só os pontos) e
+    câmera do navegador nas três páginas (Reconhecer, Gravar letras, Gravar
+    movimento). Teste de fumaça com Chrome headless e câmera falsa: MediaPipe
+    carregou do CDN (WebGL), vídeo 960×540, 51 lotes `POST /api/quadros/` com
+    200 em ~15 s, "Sem mão" correto. **Não testado com mão real**: o usuário
+    precisa testar ao vivo.
+  - **Etapa 4 PENDENTE:** configurações de produção (variáveis de ambiente,
+    `DEBUG`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `STATIC_ROOT`, cookies
+    seguros, limite de tentativas de login, validadores de senha) e o guia de
+    publicação no PythonAnywhere (o usuário cria a conta).
+- **Dados após a migração (conferido em 2026-10-07):**
+  - Banco: `#2 J` com 26 amostras e `#3 Z` com 20, **todas versão 2** (câmera
+    do servidor). Ficam guardadas, mas fora dos treinos; a situação dos dois
+    sinais aparece como **"Regravar"**. **J e Z precisam ser regravados pelo
+    site.**
+  - `dados/modelos_treinados/` está **vazia**: os modelos antigos foram
+    movidos para `dados/legado/` (`movimentos_camera_servidor.joblib` = J+Z;
+    `alfabeto_camera_servidor.joblib` = modelo A–E).
+  - `dados/amostras_estaticas/` está **vazia**: as 810 amostras A–E gravadas
+    pelo caminho antigo foram para `dados/legado/alfabeto_camera_servidor.csv`.
+    As novas vão para `dados/amostras_estaticas/alfabeto.csv`. **O alfabeto
+    recomeça do zero.**
+  - O usuário foi orientado a **não gravar** até a migração terminar.
+- **Login (2026-10-07):** `/entrar/` (e-mail + senha). Livres: home,
+  Reconhecer e `POST /api/quadros/`. Só administradores (`is_staff`,
   decorador `acesso.apenas_admin`): toda a área de Gestos. Contas no banco local
-  (senhas só no banco, criptografadas — **nunca escrever senhas em arquivos do
-  projeto**): `victorba.rezende@gmail.com` (master, `is_superuser`, nome Victor),
-  `yasmin.yas@gmail.com` (Yasmin) e `giovana.gii@gmail.com` (Giovana; o usuário
-  digitou "giovana,gii", corrigido para ponto — confirmar com ele). Recomendado
-  ao usuário trocar as senhas (foram enviadas no chat; as de Yasmin/Giovana são
-  fracas). Novas contas: `manage.py criar_admin`.
+  (senhas só no banco, criptografadas; **nunca escrever senhas em arquivos do
+  projeto**):
+  - `victorba.rezende@gmail.com` (master, `is_superuser`, nome Victor);
+  - `yasmin.yas@gmail.com` (Yasmin);
+  - `giovana.gii@gmail.com` (Giovana; o usuário digitou "giovana,gii" e o
+    endereço foi corrigido para ponto, falta confirmar com ele).
+
+  Recomendamos ao usuário trocar as senhas: elas foram enviadas no chat, e as
+  de Yasmin e Giovana são fracas. Novas contas: `manage.py criar_admin`. No
+  servidor de produção, as contas terão de ser criadas de novo, porque o banco
+  local não sobe.
 - **Kanban no Trello (2026-10-07):** quadro **LibrAI** em
-  https://trello.com/b/nTSkTuue/librai (área de trabalho de VqtorZ), colunas
-  Ideias → A fazer → Fazendo → Para validar → Feito, etiquetas Alfabeto,
-  Movimento, Site, IA/Dados, Segurança, Infra; 28 cartões criados a partir das
-  pendências desta memória. Acesso pela API do Trello: credenciais em
-  `C:/Users/victo/.trello-librai.json` (fora do projeto — **nunca imprimir,
-  repetir no chat ou copiar para o projeto**); ids do quadro/listas/etiquetas em
-  `C:/Users/victo/.trello-librai-quadro.json`. O token vale 30 dias (até
-  ~2026-11-06); depois, gerar outro pelo link de autorização com a chave do app
-  "LibrAI Kanban". Ao concluir tarefas, oferecer mover os cartões.
-- **Próximo passo combinado:** o usuário vai **regravar todo o alfabeto** pelo
-  site e depois treinar. Oferecido e ainda não decidido: botão de gravação em
-  rajada (vários quadros espaçados por Espaço).
-  Também testar J vs Z ao vivo (Z já treinado).
+  https://trello.com/b/nTSkTuue/librai (área de trabalho de VqtorZ).
+  - Colunas: Ideias → A fazer → Fazendo → Para validar → Feito.
+  - Etiquetas: Alfabeto, Movimento, Site, IA/Dados, Segurança, Infra.
+  - 28 cartões criados a partir das pendências desta memória.
+  - Acesso pela API do Trello: credenciais em `C:/Users/victo/.trello-librai.json`
+    (fora do projeto; **nunca imprimir, repetir no chat ou copiar para o
+    projeto**); ids do quadro, listas e etiquetas em
+    `C:/Users/victo/.trello-librai-quadro.json`.
+  - O token vale 30 dias (até ~2026-11-06); depois, gerar outro pelo link de
+    autorização com a chave do app "LibrAI Kanban".
+  - Ao concluir tarefas, oferecer mover os cartões.
+- **Próximo passo:** etapa 4 (produção + guia do PythonAnywhere). Depois o
+  usuário testa ao vivo, publica, cria as contas lá e a equipe regrava o
+  alfabeto, o J e o Z.
 
 ---
 
 ## 2. O projeto
 
-Aplicação **Django local** que reconhece Libras pela webcam usando OpenCV e os
-21 marcos (landmarks) da mão do MediaPipe. São dois pipelines independentes:
+Aplicação **Django** que reconhece Libras pela webcam usando os 21 marcos
+(landmarks) da mão do MediaPipe. **Desde 2026-10-07, a câmera é a do
+navegador:** o MediaPipe Tasks Vision (JS, 0.10.21, via CDN jsdelivr; o modelo
+`hand_landmarker.task` fica em `static/modelos/`) roda na página, e só os
+pontos vão para o servidor. Dois pipelines:
 
-- **Estático (alfabeto manual):** RandomForest classifica a letra frame a frame
-  a partir das 63 coordenadas normalizadas + 10 distâncias entre pontas dos
-  dedos. Coleta: `manage.py coletar_alfabeto <letra>` (janela OpenCV, S salva).
-  Treino: `manage.py treinar_alfabeto`.
+- **Estático (alfabeto manual):** um RandomForest classifica a letra a partir
+  das 63 coordenadas normalizadas + 10 distâncias entre as pontas dos dedos.
+  Gravação pelo site (Gestos → Gravar letras, Espaço salva). Treino pelo
+  botão do site ou com `manage.py treinar_alfabeto`.
 - **Movimento (J, Z, gestos):** amostras temporais (sequências de landmarks)
   comparadas por DTW (vizinho mais próximo) com limiar de rejeição.
 
-Ambiente: Windows 11, Python 3.11.9 em `.venv`, Django 5.2, mediapipe 0.10.21
-(fixado: versões novas removeram `mp.solutions`), OpenCV 4.11, scikit-learn
-1.9. Remoto: https://github.com/VqtorZ/LibrAI.git
+Ambiente: Windows 11, Python 3.11.9 em `.venv`, Django 5.2, scikit-learn 1.9.
+O `requirements.txt` não tem mais OpenCV nem mediapipe (o servidor não usa
+câmera). Remoto: https://github.com/VqtorZ/LibrAI.git
 
 Rodar: `.\.venv\Scripts\python.exe manage.py runserver` → http://127.0.0.1:8000/
 (o terminal precisa ficar aberto; "ERR_CONNECTION_REFUSED" = servidor parado).
+O navegador só libera a câmera em `localhost` ou `https`.
 
 ---
 
@@ -118,126 +107,142 @@ O README tem o mapa completo em árvore. Resumo:
 | Caminho | Conteúdo | Git |
 |---|---|---|
 | `dados/banco.sqlite3` | banco do Django (sinais + registro das amostras) | não |
-| `dados/amostras_estaticas/landmarks.csv` | alfabeto: letra + 63 coordenadas por linha | sim |
+| `dados/amostras_estaticas/alfabeto.csv` | alfabeto: letra + 63 coordenadas por linha (formato v3) | sim |
 | `dados/amostras_movimento/<id>-<slug do título>/<amostra>.json` | uma amostra de movimento por arquivo (MEDIA_ROOT); o caminho de cada uma fica salvo no banco (`AmostraMovimento.arquivo_dados`) | não |
-| `dados/modelos_treinados/` | `alfabeto.joblib`, `movimentos.joblib` (salvos com `compress=3`) | sim |
+| `dados/modelos_treinados/` | `alfabeto.joblib` (dict `{formato: 3, treinado_em, modelo}`), `movimentos.joblib` (formato 3) | sim |
+| `dados/legado/` | CSV e modelos do tempo da câmera do servidor (nunca entram nos treinos) | sim |
 | `dados/sinteticos/nao_j_sintetico.json` | dado artificial do teste de rejeição | sim |
+
+**Formato v3 dos pontos** (`static/js/camera-maos.js`):
+- espelhados como numa selfie: `x' = (1 - x) * proporção`, `y' = y`,
+  `z' = z * proporção`, com proporção = largura / altura da imagem;
+- a mão "Left"/"Right" vem trocada, porque o MediaPipe vê a imagem sem
+  espelhar.
+
+Assim, o mesmo gesto dá os mesmos números em webcams 16:9 e 4:3. As versões
+ficam registradas assim:
+- `amostras.FORMATO_VERSAO = 3`, gravado no JSON e em
+  `AmostraMovimento.versao_features`;
+- `classificador.FORMATO_MODELO = 3`;
+- `estatico.classificador.FORMATO_ALFABETO = 3`.
+
+Amostras e modelos de versões antigas ficam fora dos treinos ou são
+recusados.
 
 **Código — `libras/`:**
 
 | Arquivo | Papel |
 |---|---|
-| `caminhos.py` | Fonte única dos caminhos de dados (sem Django). |
-| `captura/camera.py` | Câmera do servidor (singleton `camera`). `abrir_camera()` (960×540, CAP_DSHOW) e `criar_detector_maos()` (modo vídeo, complexity 0, 0.65/0.6) são **a fonte única** de configuração da câmera. Stream MJPEG, letra estática (classificada no máximo a cada 150 ms, `n_jobs=1`), detector de movimento ao vivo, gravação pela página (`iniciar_gravacao`/`parar_gravacao`), status JSON. Imports de `movimento` (que dependem do Django) são feitos sob demanda dentro dos métodos. Nomes internos da classe `Camera` (classify, frames, status, last_label) e as chaves do JSON de status continuam em inglês (contrato com o JS das páginas). |
-| `captura/marcos.py` | Sem Django. `marcos_da_mao(result)` → (63 valores, "Right"/"Left") e `lateralidade()`. |
-| `estatico/features.py` | `extrair_features` (63 coords relativas ao pulso + 10 distâncias) e `features_geometricas`. Usado por coleta, treino e câmera. |
-| `estatico/amostras.py` | CSV do alfabeto: `salvar` (63 coords normalizadas, igual à coleta), `contar`, `desfazer` (só a última linha), `LETRAS_ESTATICAS` (A–Z sem J e Z). Caminho lido na hora da chamada (testes redirecionam `AMOSTRAS_ESTATICAS`). |
-| `estatico/treino.py` | `treinar(dataset, destino)` do RandomForest (mesmos parâmetros de sempre, `random_state=42`) e `montar_features`. |
-| `movimento/amostras.py` | Persistência: `salvar_amostra(sinal, sequencia, origem="opencv")`, `ler_sequencia` (com proteção de caminho), `apagar_amostra`, `pasta_do_sinal` (`<id>-<slug>`). Formato JSON **versão 2** (cada frame tem `mao`); versão 1 continua aceita. |
+| `caminhos.py` | Fonte única dos caminhos de dados (sem Django) e `salvar_modelo_atomico` (`.tmp` + `os.replace`). |
+| `estatico/features.py` | `extrair_features`, `extrair_features_de_valores` (63 coords relativas ao pulso + 10 distâncias) e `features_geometricas`. |
+| `estatico/amostras.py` | CSV do alfabeto: `salvar`, `contar`, `desfazer` (só a última linha), `validar_letra`, `CABECALHO`, `LETRAS_ESTATICAS` (A–Z sem J e Z). Caminho lido na hora da chamada (testes redirecionam `AMOSTRAS_ESTATICAS`). |
+| `estatico/treino.py` | `treinar(dataset, destino)` do RandomForest (`random_state=42`); salva o dict do formato 3. |
+| `estatico/classificador.py` | `ClassificadorAlfabeto` (singleton `alfabeto`): recarrega o modelo quando o arquivo muda (confere no máximo a cada 2 s), recusa formato antigo, `pronto`, `letras` (property), `classificar(marcos)` (limiar 0,70; `SEM_MODELO` / `NAO_IDENTIFICADO`). |
+| `movimento/amostras.py` | Validação do que vem do navegador: `validar_marcos`, `validar_quadros` (tipos, limites, ordem; `{"t","marcos","mao"}` → `{"timestamp_ms","landmarks","mao"}`), `sequencia_de_gravacao` (tempo a partir de 0, máximo 30 s / 1200 quadros). Persistência: `salvar_amostra(..., origem="navegador")`, `ler_sequencia`, `apagar_amostra`, `apagar_sinal`, `pasta_do_sinal`. |
 | `movimento/verificacao.py` | Verificador estrutural dos JSONs: `verificar_conteudo` (sem banco) e `verificar_amostra` (confere com o banco). |
 | `movimento/segmentacao.py` | `Segmentador` (início/fim do movimento por velocidade), `recortar`, `segmentos`, `trecho_principal`. |
 | `movimento/trajetoria.py` | `normalizar_frame`, `processar_frames` (forma + deslocamento do pulso, espelhamento, reamostragem, aparo de repouso). |
-| `movimento/classificador.py` | `distancia_dtw`, `treinar`, `_calibrar`/limiares, `carregar_modelo`, `prever`, `processar_sequencia`, `testar_amostra`, `testar_arquivo`, `ErroTemporal`, `MODELO_PATH`. |
-| `movimento/ao_vivo.py` | `DetectorMovimento`: frames ao vivo → segmentação → previsão quando a mão para; recarrega o modelo quando o arquivo muda; log `libras.movimento.ao_vivo`. |
-| `movimento/gravacao.py` | `GravadorMovimento` (limite 30 s / 1200 frames, origem "opencv") e `localizar_sinal`. Usado pelo comando **e** pela página. |
-| `models.py` | `Sinal` (titulo, tipo ESTATICO/MOVIMENTO, **negativo**, descricao, ativo) e `AmostraMovimento` (metadados + caminho do JSON). Migrações até `0003_sinal_negativo`. |
-| `views.py` / `urls.py` | Views `inicio`, `reconhecer`, `video`, `status`, `gestos`, `gesto_*`; nomes de rota iguais aos das views. |
+| `movimento/classificador.py` | `distancia_dtw`, `treinar` (só amostras v3), `_calibrar`/limiares, `carregar_modelo`, `prever`, `remover_do_modelo`, `situacao_dos_sinais` (códigos `regravar`, `sem_amostras`, `poucas`, `pronto`, `treinar`), `MODELO_PATH`. |
+| `movimento/ao_vivo.py` | `DetectorMovimento`: quadros → segmentação → previsão quando a mão para; recarrega o modelo quando o arquivo muda; log `libras.movimento.ao_vivo`. |
+| `movimento/sessoes.py` | Uma `SessaoAoVivo` por aba (canal UUID aleatório): detector de movimento próprio, rótulo da tela (movimento > "Analisando movimento…" > letra parada do último quadro > "Aguardando mão"), movimento exibido por 2,5 s no relógio do navegador. Máximo 200 sessões; ociosas somem após 600 s. |
+| `models.py` | `Sinal` (titulo, tipo ESTATICO/MOVIMENTO, **negativo**, descricao, ativo) e `AmostraMovimento` (metadados + caminho do JSON + `versao_features`). Migrações até `0003_sinal_negativo`. |
+| `views.py` / `urls.py` | `inicio`, `reconhecer`, `api_quadros` (público, lotes de até 90 quadros), `gestos`, `gesto_*`, `gesto_amostra_gravar` (JSON `{quadros}`), `alfabeto_*` (salvar com JSON `{letra, marcos}`), `entrar`/`sair`. Helper `_json(request)`. |
 | `acesso.py` | Login: `FormularioEntrar` (e-mail em minúsculas, mensagens em PT, recusa conta sem `is_staff`) e o decorador `apenas_admin`. |
-| `contexto.py` | Context processor `versao_estaticos`: os links de CSS levam `?v=<mtime>`, para o navegador não usar cópia velha (o runserver não manda cabeçalhos de cache). |
-| `management/commands/` | `coletar_alfabeto`, `treinar_alfabeto`, `gravar_movimento`, `verificar_movimentos`, `treinar_movimentos`, `testar_movimento`, `gerar_nao_j_sintetico`. |
-| `tests/` | `base.py` (bases e auxiliares) + `test_sinais`, `test_amostras`, `test_classificador`, `test_ao_vivo`, `test_gravacao`, `test_camera`, `test_alfabeto`. |
-| `templates/libras/` | `inicio` (home: dados reais da view, mão animada `_mao_svg`), `reconhecer` (ao vivo), `gestos` (lista com amostras + situação + aviso de treino), `gesto_form` ("Exemplo negativo" só aparece para Movimento), `gesto_detalhe` (resumo + tabela), `gravar`, `_cabecalho` (página atual, "Pular para o conteúdo"), `_botao_treinar` (POST `treinar_movimentos`, mostra "Treinando…"). |
-| `static/css/` | `app.css` (geral; seções 16–17 = componentes e Gestos; 18 = `.etiqueta` e grade `.alfabeto-*`, usadas na home e no reconhecer), `home.css` (só a home) e `reconhecer.css` (só o reconhecer, classes `rc-*`). A página de gravação ainda usa os estilos antigos `.recognizer-layout`/`.recognition-panel`. CSS da home antiga foi removido. Regra global `[hidden] { display: none !important }`. Animações respeitam `prefers-reduced-motion`; `.reveal` só esconde com a classe `.js` no `<html>`. |
-| `config/settings.py` | `LOGGING` mostra o logger `libras` (INFO) no terminal do runserver. |
+| `contexto.py` | Context processor `versao_estaticos`: CSS e JS levam `?v=<mtime>` (inclui `js/camera-maos.js`). |
+| `management/commands/` | `treinar_alfabeto`, `verificar_movimentos`, `treinar_movimentos`, `testar_movimento`, `gerar_nao_j_sintetico`, `criar_admin`. (`coletar_alfabeto` e `gravar_movimento` foram removidos com a câmera do servidor.) |
+| `tests/` | `base.py` + `test_sinais`, `test_amostras`, `test_classificador`, `test_ao_vivo` (detector, sessões, API), `test_gravacao` (gravação pelo navegador), `test_alfabeto`, `test_alfabeto_site`, `test_acesso`, `test_exclusao`, `test_paginas`. |
+| `templates/libras/` | `_camera_navegador.html` (vídeo + canvas dos pontos + aviso de permissão/erro + "Tentar de novo" + nota de privacidade), `reconhecer`, `alfabeto_gravar`, `gravar` (visual `rc-*`, lista "Salvas nesta visita"), `gesto_detalhe` (aviso de amostras antigas), `inicio`, `gestos`, `_cabecalho`, `_botao_treinar`, `_confirmar_exclusao`. |
+| `static/js/camera-maos.js` | Módulo ES: `ligarCameraMaos` (GPU com fallback para CPU, 960×540, desenha os pontos espelhados), `criarEnvioAoVivo` (lotes a cada 250 ms, fila de no máximo 80), `enviarJson`, `iniciarCameraDaPagina`. |
+| `static/css/` | `app.css` (geral; `.situacao--regravar`, `.nota-antigas`), `home.css`, `reconhecer.css` (classes `rc-*`, também usadas nas páginas de gravação). Regra global `[hidden] { display: none !important }`. |
+| `config/settings.py` | `LOGGING` mostra o logger `libras` (INFO). Ainda **sem** configurações de produção (etapa 4). |
 
-**Rotas:** `/` · `/reconhecer/` · `/video/` (MJPEG) · `/api/status/` ·
-`/gestos/` · `/gestos/novo/` · `POST /gestos/treinar/` · `/gestos/alfabeto/` ·
-`POST /gestos/alfabeto/amostras/` · `POST /gestos/alfabeto/desfazer/` ·
-`POST /gestos/alfabeto/treinar/` · `/entrar/` · `POST /sair/` · `/gestos/<id>/excluir/` (GET confirma, POST exclui) · `/gestos/<id>/` · `/gestos/<id>/gravar/` ·
-`POST /gestos/<id>/gravacao/iniciar/` · `POST /gestos/<id>/gravacao/parar/` ·
-`POST /gestos/<id>/amostras/<amostra_id>/apagar/`.
+**Rotas:**
+- públicas: `/`, `/reconhecer/`, `POST /api/quadros/`, `/entrar/`,
+  `POST /sair/`;
+- Gestos:
+  - lista e treino: `/gestos/`, `/gestos/novo/`, `POST /gestos/treinar/`;
+  - alfabeto: `/gestos/alfabeto/`, `POST /gestos/alfabeto/amostras/`,
+    `POST /gestos/alfabeto/desfazer/`, `POST /gestos/alfabeto/treinar/`;
+  - sinal: `/gestos/<id>/`, `/gestos/<id>/gravar/`,
+    `POST /gestos/<id>/amostras/` (salva uma gravação), `/gestos/<id>/excluir/`
+    (GET confirma, POST exclui),
+    `POST /gestos/<id>/amostras/<amostra_id>/apagar/`.
 
-`/api/status/` devolve: `label`, `error`, `model_ready`, `movement_ready`,
-`movement_label`, `hand_detected`, `recording` (`ativa`, `sinal_id`,
-`duracao_ms`, `no_limite`).
+A resposta de `/api/quadros/` traz `label`, `movement_label`,
+`hand_detected`, `model_ready` e `movement_ready`.
 
 ---
 
 ## 4. Pipeline de movimento (como funciona hoje)
 
-1. **Captura** (sempre a câmera do servidor, mesmo caminho do reconhecimento):
-   - página `/gestos/<id>/gravar/`: câmera com os 21 pontos, indicador "Mão
-     detectada", **Espaço** inicia/para e salva (auto-salva aos 30 s);
-   - terminal: `manage.py gravar_movimento <sinal>` (janela OpenCV, Espaço
-     grava/para, Q/ESC sai). Só grava sinais já cadastrados como movimento.
-   - Protocolo de gravação: configuração inicial com a mão **parada** (no J, o
-     I), Espaço, movimento completo, mão parada, Espaço.
+1. **Captura** (câmera do navegador, o mesmo detector do reconhecimento):
+   - página `/gestos/<id>/gravar/`: mostra a câmera com os 21 pontos e o
+     indicador "Mão detectada". **Espaço** inicia e para; os quadros vão de uma
+     vez para `POST /gestos/<id>/amostras/`. Para sozinho aos 30 s ou 1200
+     quadros.
+   - Protocolo de gravação:
+     1. configuração inicial com a mão **parada** (no J, o I);
+     2. Espaço;
+     3. movimento completo;
+     4. mão parada;
+     5. Espaço.
 2. **Segmentação** (`movimento/segmentacao.py`, usada no treino **e** ao vivo):
-   velocidade = norma da variação de [forma normalizada + pulso/tamanho da mão]
-   por segundo, média de 3 frames. Começa com ≥ 6.0 u/s, termina após 350 ms
-   abaixo de 4.0 u/s (ou sem mão, ou aos 4 s). Mínimo 400 ms de movimento;
-   inclui 300 ms de contexto antes. Nas gravações, `trecho_principal` usa o
-   movimento mais longo (descarta a mão entrando/saindo). Calibrado com dados
-   reais: repouso ~1–3,5 u/s, movimento do J ~8–25 u/s.
-3. **Features por passo** (`movimento/trajetoria.py`, 65 valores): 63 da forma da mão
-   (relativa ao pulso e à escala) + 2 do **deslocamento do pulso** desde o
-   início, em tamanhos de mão (pulso→base do dedo médio, mediana). Antes:
-   lacunas interpoladas, mão esquerda espelhada (maioria dos frames "Left"),
-   reamostragem a 66 ms (~15 fps); depois: aparo do repouso das pontas (15% da
-   velocidade de pico).
-4. **Classificação** (`prever`): vizinho mais próximo por DTW (custo
-   euclidiano, normalizado por max(n, m)). Rejeita se a distância passar do
-   limiar da classe **ou** se um exemplo negativo estiver mais perto.
-5. **Limiar** (`_calibrar`): **mediana** das distâncias leave-one-out da classe
-   × 1.5 (mínimo 0.05). Com exemplos negativos: no máximo o ponto médio entre a
-   mediana e o negativo mais próximo; se houver sobreposição, volta à mediana e
-   o treino avisa.
-6. **Ao vivo** (`/reconhecer/`): enquanto a mão se move, a tela mostra
-   "Analisando movimento…" (em vez do I); um movimento aceito aparece por
-   2,5 s. O terminal do runserver registra cada movimento: duração, frames,
-   distância, limiar e ACEITO/REJEITADO/ignorado com o motivo.
-7. **Exemplos negativos:** sinais de movimento marcados como "Exemplo negativo"
-   (ex.: "J incompleto", "I parado") não viram classe; só apertam a rejeição.
+   - velocidade = norma da variação de [forma normalizada + pulso/tamanho da
+     mão] por segundo, média de 3 frames;
+   - o movimento começa com ≥ 6.0 u/s e termina após 350 ms abaixo de 4.0 u/s
+     (ou sem mão, ou aos 4 s);
+   - mínimo de 400 ms de movimento, com 300 ms de contexto antes;
+   - nas gravações, `trecho_principal` usa o movimento mais longo.
+
+   Os limiares foram calibrados com dados da câmera antiga; **revalidar com
+   amostras v3**.
+3. **Features por passo** (`movimento/trajetoria.py`, 65 valores):
+   - 63 da forma da mão (relativa ao pulso e à escala);
+   - 2 do **deslocamento do pulso** desde o início, em tamanhos de mão;
+   - antes: lacunas interpoladas, mão esquerda espelhada e reamostragem a
+     66 ms;
+   - depois: aparo do repouso das pontas.
+4. **Classificação** (`prever`): vizinho mais próximo por DTW. Rejeita se a
+   distância passar do limiar da classe **ou** se um exemplo negativo estiver
+   mais perto.
+5. **Limiar** (`_calibrar`): **mediana** das distâncias leave-one-out × 1.5
+   (mínimo 0.05), ajustado pelos negativos.
+6. **Ao vivo** (`/reconhecer/` → `/api/quadros/` → `sessoes`):
+   - enquanto a mão se move, a tela mostra "Analisando movimento…";
+   - um movimento aceito aparece por 2,5 s;
+   - o log do servidor registra cada movimento.
+7. **Exemplos negativos:** sinais marcados como "Exemplo negativo" não viram
+   classe; só apertam a rejeição.
 
 ---
 
 ## 5. Decisões importantes e por quê (com evidências medidas)
 
-- **Deslocamento do pulso nas features (formato 2):** a normalização antiga
-  subtraía o pulso, descartando o movimento do braço (o pulso se desloca 1,2–1,8
-  tamanhos de mão no J). O Z ficaria idêntico a uma mão parada apontando. Com o
-  canal novo, um "Z simulado" passou a ser rejeitado como J.
+- **Câmera no navegador (decisão do usuário, 2026-10-07):** para pôr o site
+  no ar com a equipe gravando de casa, a câmera do servidor não serve (na
+  nuvem não há câmera, e cada pessoa precisa usar a própria).
+  - **Como ficou:** o MediaPipe roda no navegador e o servidor recebe só os
+    pontos. A imagem nunca sai do aparelho, o que é bom para a privacidade.
+  - **Custo aceito:** os pontos do MediaPipe JS não são idênticos aos do
+    Python antigo, então os dados antigos foram arquivados como legado e tudo
+    será regravado.
+  - **Proteção:** as versões no formato impedem misturar dados antigos e
+    novos.
+- **Hospedagem: PythonAnywhere grátis (decisão do usuário):** HTTPS em
+  `*.pythonanywhere.com`, que a câmera exige, e sem custo.
+- **Deslocamento do pulso nas features:** a normalização antiga descartava o
+  movimento do braço; o Z ficaria idêntico a uma mão parada apontando.
 - **Limiar pela mediana (não pelo máximo):** com 4–5 amostras, um par distante
-  estourava o limiar (até 2,29) e o modelo aceitava mão parada. Avaliação
-  honesta: mediana×1.5 aceitou 5/5 J e rejeitou 100% dos J invertidos, mãos
-  paradas e Z simulados; o J pela metade caiu para 2/5.
-- **Mesma segmentação no treino e ao vivo:** o replay das gravações reais pelo
-  detector ao vivo foi de 3/5 para **5/5** J reconhecidos.
-- **Causa do "J reconhecido como I":** as gravações antigas pelo navegador não
-  mostravam os pontos; ~50% dos frames eram mão fora do quadro, porque a mão
-  entrava, fazia o J e saía sem pausa. O modelo aprendeu "entrada + J + saída".
-  Solução: `gravar_movimento` (janela com pontos, mão parada no início/fim). O
-  usuário confirmou que o J passou a funcionar.
-- **Um único caminho de captura (câmera do servidor):** a captura antiga pelo
-  navegador (JPEG reduzido a 480 px, MediaPipe em modo foto) foi **removida**,
-  porque gerava amostras diferentes do que o reconhecedor vê. Consequência
-  aceita: **só grava quem está no computador do servidor**. Gravação remota
-  exigiria MediaPipe no navegador (JS) + retreino de tudo — decisão adiada pelo
-  usuário.
-- **Resolução única 960×540:** o `coletar_libras.py` abria na resolução padrão
-  da webcam, distorcendo a proporção dos landmarks em relação ao reconhecimento.
-- **FPS do site:** o loop gastava ~100 ms/frame (~10 fps): RandomForest com
-  `n_jobs=-1` = 48 ms por previsão (com `n_jobs=1`: 20 ms), classificação em
-  todo frame e `sleep(0.03)` fixo. Corrigido (estimativa ~20 ms/frame → limite
-  da webcam ~30 fps). **Ainda não validado ao vivo.**
-- **Termo de pontas no DTW (testado e descartado):** comparar as poses de
-  início/fim não separou o J incompleto e inflou a variação entre J reais.
+  estourava o limiar e o modelo aceitava mão parada (mediana×1.5 aceitou 5/5 J
+  e rejeitou 100% dos J invertidos, mãos paradas e Z simulados).
+- **Mesma segmentação no treino e ao vivo:** o replay foi de 3/5 para **5/5**.
+- **Causa do antigo "J reconhecido como I":** gravações com a mão entrando e
+  saindo do quadro sem pontos visíveis. Por isso as páginas de gravação
+  mostram os pontos, e o protocolo pede a mão parada no início e no fim.
+- **Termo de pontas no DTW (testado e descartado).**
 - **Sem bases de dados externas, por ora (decisão do usuário, 2026-10-06):**
-  avaliamos MINDS-Libras, V-Librasil, LIBRAS-UFOP e o alfabeto da Mendeley. O
-  usuário verificou e decidiu não usar nenhuma no momento: o projeto deve usar
-  apenas sinais brasileiros (Libras) e ele encontrou sinais de outras línguas
-  nessas bases. Os dados continuam vindo só das gravações próprias. Não
-  voltar a sugerir essas bases sem que o usuário peça.
+  apenas sinais brasileiros e gravações próprias. Não voltar a sugerir sem que
+  o usuário peça.
 
 ---
 
@@ -245,126 +250,95 @@ O README tem o mapa completo em árvore. Resumo:
 
 ### Antes de 2026-10-06 (já no `main`)
 Projeto inicial (A–D estáticos) → classificador RandomForest do alfabeto →
-cadastro de sinais (`Sinal`) → tipo estático/movimento → coleta temporal pelo
-navegador → Etapa 4.1 (verificador) → 4.2 (DTW experimental) → 4.3 (teste de
-rejeição não-J com arquivo sintético, hoje em `dados/sinteticos/nao_j_sintetico.json`).
+cadastro de sinais → tipo estático/movimento → coleta temporal → verificador →
+DTW experimental → teste de rejeição não-J.
 
-### 2026-10-06 (branch `melhorias-movimento`)
-1. `fce1be8` lateralidade da mão por frame (formato JSON v2)
-2. `ece0d1d` features v2: deslocamento do pulso, espelhamento, reamostragem,
-   aparo de repouso
-3. `99c877b` exemplos negativos (campo `Sinal.negativo`, migração 0003)
-4. `fceaffc` reconhecimento de movimento ao vivo + segmentação compartilhada +
-   limiar pela mediana
-5. `1befff6` contagem regressiva na gravação web (depois substituída)
-6. `b08b71b` README reescrito
-7. `a790372` resolução 960×540 em todos os caminhos
-8. `8c29ce9` comando `gravar_movimento` (OpenCV, com pontos visíveis)
-9. `3bb0c34` diagnóstico no terminal + "Analisando movimento…"
-10. `534a32d` README do `gravar_movimento`
-11. `e35cbd8` página de gravação usa a câmera do servidor; captura pelo
-    navegador removida
-12. `e8ee910` modelo retreinado com 26 amostras de J (limiar 0.766)
-13. `c53f4d8` FPS do site (n_jobs=1, classificação a cada 150 ms, sem sleep fixo)
-14. memória do projeto em `.claude/` (`CLAUDE.md`, `CONTEXTO.md`, `/relembre`)
-15. registro da decisão de não usar bases externas e do plano de
-    auto-aperfeiçoamento (só documentação)
-16. `3db6105` dados reunidos em `dados/` (`libras/caminhos.py`), 26 amostras
-    migradas para `2-j/`, modelos comprimidos (alfabeto 42,9 → 5,7 MB)
-17. `f6e5d51` código em `captura/`, `estatico/`, `movimento/` (temporal.py
-    dividido em segmentacao/trajetoria/classificador); scripts viram comandos
-    (`coletar_alfabeto`, `treinar_alfabeto`, `gerar_nao_j_sintetico`); testes
-    divididos em `libras/tests/` (180). Retreinos pelo código novo deram
-    resultados idênticos aos modelos atuais.
-18. nomes em português (views/rotas/templates `inicio`, `reconhecer`,
-    `video`, `_cabecalho`), README com mapa do projeto, esta memória
-19. `36daa54` CSS: o espaço do header fixo (76 px) passa a ser reservado no
-    `body` de todas as páginas (o título de Gestos ficava sob o header) e
-    `[id] { scroll-margin-top }` para os links do menu da home
-20. memória atualizada com a correção do header
-21. front renovado: home nova (`home.css`, `_mao_svg`), treino pelo site
-    (`treinar_movimentos`, `classificador.situacao_dos_sinais`), páginas de
-    Gestos com contagem/situação/resumo/tabela, menu com página atual, CSS
-    versionado (`contexto.py`), CSS morto removido; 200 testes
-22. memória com o front renovado e o Z gravado
-23. página Reconhecer renovada (`reconhecer.css`, estados, Soletrando),
-    componentes `.etiqueta`/`.alfabeto-*` compartilhados, `views._alfabeto()`;
-    203 testes
-24. (mesmo commit da memória) + reconhecer: sem o selo dentro da câmera
-    (pedido do usuário) e câmera maior — página com 1380 px, coluna da câmera
-    2fr × painel .82fr (+38% a 1440 px), topo compacto e, em telas largas,
-    largura limitada pela altura da tela para o vídeo caber inteiro
-25. modelo J+Z (treinado pelo usuário) e remoção das amostras F/T/I/R
-26. gravar alfabeto pelo site (`/gestos/alfabeto/`, Espaço salva), painel do
-    alfabeto em Gestos, treino do alfabeto pelo site, recarga automática do
-    modelo na câmera, `salvar_modelo_atomico`; 220 testes (o hash do CSV e dos
-    modelos reais é conferido antes/depois da suíte)
-27. todas as amostras do alfabeto apagadas para regravar; modelo atual (19
-    letras) registrado
-28. modelo do alfabeto apagado (recomeçar do zero); teste de modelo apagado
-    com o servidor ligado
-29. excluir sinal inteiro: botão na página do sinal + janela de confirmação
-    (Sim verde / Não vermelho, foco no Não), `amostras.apagar_sinal` (registros,
-    JSONs e pasta) e `classificador.remover_do_modelo` (tira só esse sinal do
-    modelo, sem retreinar os outros; apaga o modelo se não sobrar classe);
-    232 testes
-30. login (`/entrar/`, `acesso.py`, `criar_admin`), Gestos só para admins,
-    Entrar/Olá·Sair no cabeçalho; 3 contas criadas no banco local; 247 testes
+### 2026-10-06 e 2026-10-07 (branch `melhorias-movimento`)
+1–13. Movimento:
+   - lateralidade;
+   - features v2;
+   - exemplos negativos;
+   - reconhecimento ao vivo;
+   - resolução 960×540;
+   - `gravar_movimento`;
+   - diagnóstico no terminal;
+   - gravação pela câmera do servidor;
+   - modelo com 26 J;
+   - FPS do site.
+14–18. Memória `.claude/`, decisão sobre bases externas, reorganização em
+   `dados/` + `captura/estatico/movimento/`, nomes em português.
+19–24. Front:
+   - correção do header;
+   - home nova;
+   - treino pelo site;
+   - Gestos renovado;
+   - Reconhecer renovado (câmera maior, sem o selo).
+25–28. Modelo J+Z; alfabeto apagado para regravar; modelo do alfabeto apagado.
+29. Excluir sinal inteiro com confirmação (232 testes).
+30. Login e área de Gestos só para admins (247 testes).
+31. `4298b1e` Kanban do Trello registrado na memória.
+32. **Câmera no navegador (etapas 1–3 do deploy):**
+   - formato v3;
+   - `api_quadros` + `sessoes.py`;
+   - `estatico/classificador.py`;
+   - `camera-maos.js` + `_camera_navegador.html`;
+   - Reconhecer, Gravar letras e Gravar movimento no navegador;
+   - página de gravação no visual `rc-*`.
+
+   Também foram feitos:
+   - remoção de `captura/`, `movimento/gravacao.py`, `coletar_alfabeto` e
+     `gravar_movimento`;
+   - opencv e mediapipe fora do `requirements.txt`;
+   - dados antigos em `dados/legado/`;
+   - situação "Regravar" e aviso das amostras antigas;
+   - `ClassificadorAlfabeto.letras` virou property (antes ficava vazia até a
+     primeira classificação).
+
+   Resultado: 250 testes e teste de fumaça com câmera falsa.
 
 ---
 
 ## 7. Pendências e próximos passos
 
-1. ~~Gravar o Z pelo site~~ — feito (20 amostras, ~25 fps).
-2. **Treinar com J + Z** (botão do site) e testar a confusão entre eles ao vivo
-   (J não pode virar Z e vice-versa); pedir ao usuário as linhas do terminal do
-   runserver.
-3. **Merge do `melhorias-movimento` no `main`** (ou PR) — quando o usuário
-   aprovar.
-4. **Exemplos negativos:** gravar "J incompleto" / "I parado" (mecanismo pronto,
-   nenhum gravado) — é o que resolve o J pela metade ainda aceito.
-5. **Mais pessoas** gravando cada sinal (hoje os dados são de uma pessoa).
-6. **Alfabeto estático** (resolve-se com a regravação pelo site, que usa o
-   detector do reconhecimento ao vivo): o dataset antigo foi coletado na
-   resolução padrão da webcam (desconhecida); a coleta agora é 960×540. O
-   `coletar_alfabeto` ainda usa `model_complexity` padrão (1) e confiança
-   0.7/0.7, enquanto o reconhecedor usa complexity 0 e 0.65/0.6 — não alinhado
-   de propósito (exigiria recoletar). H, K e X não estão no dataset.
-7. **Melhoria possível:** com duas abas de câmera abertas, cada uma fica com
-   metade do FPS (cada stream roda seu próprio loop). Uma thread única de
-   captura compartilhada resolveria.
-8. **Front — validar com o usuário** (e, idealmente, com pessoas surdas): a home
-   nova, a leitura no celular real e se o português está simples o bastante.
-   Ideia sugerida, não implementada (decisão do usuário, depende de internet
-   e de script externo): widget VLibras (gov.br), que traduz o texto da página
-   para Libras com um avatar.
-9. **Notas de prints:** o script de prints usa Chrome `--headless=new`
-    (largura mínima ~500 px; para celular usar Edge `--headless=old`). Nunca
-    tirar print de `/reconhecer/` ou `/gestos/<id>/gravar/` (abrem a webcam):
-    para ver o reconhecer, renderizar o template pelo Django Client, trocar
-    `src="/video/"` por uma imagem e sobrescrever `window.fetch` com um
-    status roteirizado (foi assim em 2026-10-06).
-11. **Página de gravação** (`gravar.html`) ainda tem o visual antigo — pode
-    ganhar a mesma linguagem do reconhecer se o usuário quiser.
-10. **Plano de auto-aperfeiçoamento** (discutido em 2026-10-06; nada
-   implementado; ordem recomendada — o usuário ainda não escolheu por onde
-   começar):
-   - **Fase 1 — medir:** conjunto de teste fixo (amostras que nunca entram no
-     treino, de preferência de outras pessoas) + comando `avaliar_modelos`
-     (acerto por sinal, falsos positivos, confusões J×Z). Pré-requisito do
-     resto.
-   - **Fase 2 — mais dados manuais:** Z, exemplos negativos, outras pessoas.
-   - **Fase 3 — coleta pelo uso com confirmação humana:** botões
-     "Certo / Errado / Era o sinal X" no `/reconhecer/`; priorizar perguntar
-     nos casos de dúvida (distância perto do limiar).
-   - **Fase 4 — retreino automático com trava:** `retreinar_auto` só promove o
-     modelo novo se não piorar no teste fixo; versões antigas em
-     `dados/modelos_treinados/historico/`.
-   - **Fase 5 — trocar o modelo de movimento** (DTW compara com todas as
-     amostras; com centenas por sinal, migrar para um classificador de
-     sequências).
-   - Evitar auto-treino só com as próprias previsões, sem confirmação humana:
-     o modelo aprenderia com os próprios erros.
+1. **Etapa 4 do deploy:**
+   - `settings` de produção por variáveis de ambiente (`SECRET_KEY`, `DEBUG`,
+     `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`), `STATIC_ROOT` +
+     `collectstatic`, cookies seguros/HSTS;
+   - limite de tentativas de login e validadores de senha;
+   - guia passo a passo do PythonAnywhere: conta, clone, virtualenv, WSGI,
+     estáticos, `migrate`, `criar_admin`.
+
+   Pontos de atenção:
+   - o PythonAnywhere grátis tem CPU limitada e **um processo**, e as sessões
+     ao vivo ficam em memória, o que funciona com um worker;
+   - a gravação de arquivos em `dados/` precisa persistir lá;
+   - verificar se o plano grátis libera o CDN jsdelivr: ele é carregado pelo
+     navegador, não pelo servidor, então não deve ser problema.
+2. **Teste ao vivo pelo usuário** (com mão real) das três páginas novas:
+   Reconhecer, Gravar letras e Gravar movimento. Conferir FPS, pontos
+   desenhados, "Mão detectada" e se a amostra salva.
+3. **Regravar tudo no formato v3:**
+   - alfabeto (pela equipe, várias pessoas);
+   - J e Z (pelo site);
+   - depois treinar;
+   - revalidar os limiares da segmentação com dados v3.
+4. **Merge do `melhorias-movimento` no `main`**, quando o usuário aprovar.
+   Provavelmente antes do deploy, ou publicar direto do branch.
+5. **Exemplos negativos:** gravar "J incompleto" / "I parado".
+6. **Front:** validar com o usuário e com pessoas surdas. Ideia não
+   implementada: widget VLibras.
+7. **Plano de auto-aperfeiçoamento** (discutido em 2026-10-06; nada
+   implementado):
+   1. medir: conjunto de teste fixo + `avaliar_modelos`;
+   2. mais dados manuais;
+   3. coleta pelo uso com confirmação humana;
+   4. retreino automático com trava;
+   5. trocar o DTW por um classificador de sequências quando houver centenas
+      de amostras.
+
+   Nunca auto-treinar só com as próprias previsões.
+8. Trello: atualizar os cartões. Câmera no navegador = feito; deploy =
+   fazendo.
 
 ---
 
@@ -372,57 +346,54 @@ rejeição não-J com arquivo sintético, hoje em `dados/sinteticos/nao_j_sintet
 
 ```powershell
 .\.venv\Scripts\python.exe manage.py runserver
-.\.venv\Scripts\python.exe manage.py gravar_movimento Z      # sinal precisa existir (tipo Movimento)
 .\.venv\Scripts\python.exe manage.py verificar_movimentos     # integridade + fps das amostras
 .\.venv\Scripts\python.exe manage.py treinar_movimentos
-.\.venv\Scripts\python.exe manage.py testar_movimento --amostra <id>
-.\.venv\Scripts\python.exe manage.py testar_movimento --arquivo dados/sinteticos/nao_j_sintetico.json
-.\.venv\Scripts\python.exe manage.py test libras
-.\.venv\Scripts\python.exe manage.py coletar_alfabeto A       # alfabeto estático (S salva, Q sai)
 .\.venv\Scripts\python.exe manage.py treinar_alfabeto
+.\.venv\Scripts\python.exe manage.py testar_movimento --amostra <id>
+.\.venv\Scripts\python.exe manage.py test libras
+.\.venv\Scripts\python.exe manage.py criar_admin email --nome Nome [--master]
 ```
 
-**Conferir dados** (sinais, amostras por origem e modelo de movimentos):
+**Conferir dados** (sinais, amostras por versão do formato, modelos):
 
 ```bash
 .venv/Scripts/python.exe -c "
 import os,django;os.environ['DJANGO_SETTINGS_MODULE']='config.settings';django.setup()
 from libras.models import Sinal
-from libras.movimento.amostras import ler_sequencia
-from libras.movimento import classificador
 for s in Sinal.objects.all().order_by('pk'):
-    ams=list(s.amostras.filter(ativo=True)); orig={}
-    for a in ams:
-        o=ler_sequencia(a).get('origem','navegador(antiga)'); orig[o]=orig.get(o,0)+1
-    print(s.pk, s.titulo, s.tipo, 'negativo' if s.negativo else '', len(ams), orig)
-m=classificador.carregar_modelo()
-print(m['treinado_em'], m['amostras_por_classe'], {c: round(v,3) for c,v in m['limiares'].items()})
-" 2>/dev/null
+    ams=list(s.amostras.filter(ativo=True)); vers={}
+    for a in ams: vers[a.versao_features]=vers.get(a.versao_features,0)+1
+    print(s.pk, s.titulo, s.tipo, 'negativo' if s.negativo else '', len(ams), 'por versao:', vers)
+" 2>/dev/null; ls dados/modelos_treinados dados/amostras_estaticas
 ```
 
 ---
 
 ## 9. Notas para o Claude (ambiente e armadilhas)
 
-- **Heredocs no Bash deste Windows quebram** com crases/`${...}` de JavaScript
-  ("unexpected EOF"): escreva scripts de edição num arquivo (ferramenta Write,
-  no scratchpad) e execute com o Python da `.venv`. Nas edições por script, use
-  `assert texto.count(trecho) == 1` antes de substituir.
-- A saída do terminal mostra acentos trocados quando passa por `grep`
-  (só visual; os arquivos estão em UTF-8).
-- Não abra a webcam pelas ferramentas do Claude: ela costuma estar em uso, e
-  quem faz o gesto é o usuário. Para validar a lógica sem câmera há os testes,
-  o replay das gravações pelo `DetectorMovimento` e frames sintéticos em
-  `Camera._annotate`.
-- `libras/captura/camera.py` cria `camera = Camera()` na importação (carrega o
-  MediaPipe e o modelo do alfabeto). Os imports de `libras.movimento` ficam
-  dentro dos métodos para o módulo carregar leve.
+- **Heredocs no Bash deste Windows quebram** com crases, `${...}` ou aspas
+  dentro de código Python/JS ("unexpected EOF"): escreva scripts de edição num
+  arquivo (ferramenta Write, no scratchpad) e execute com o Python da `.venv`.
+  Nas edições por script, use `assert texto.count(trecho) == 1`.
+- **Teste de fumaça da câmera:** script Node em
+  `scratchpad/fumaca.mjs`, que sobe o Chrome headless com
+  `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream` e
+  controla a página pelo protocolo de depuração (WebSocket nativo do Node 24),
+  em tempo real.
+  - O `--screenshot` com `--virtual-time-budget` **não serve**: congela no
+    pedido da câmera.
+  - Subir o servidor de teste na porta 8765 e, no fim, matar **só o PID
+    dessa porta**, nunca todos os `python.exe`, porque o usuário pode estar
+    com o runserver dele aberto.
+- Não abra a webcam real: quem faz o gesto é o usuário. Valide a lógica com
+  testes e sessões simuladas.
+- Testes: conferir o hash de `dados/` antes e depois da suíte (nenhum teste
+  pode tocar nos dados reais).
 - Cuidado com nomes: o módulo `libras.movimento.trajetoria` colide com
-  variáveis locais chamadas `trajetoria` (já causou erro na reorganização);
-  use `passos` para a variável.
-- `dados/banco.sqlite3` e `dados/amostras_movimento/` estão no `.gitignore`
-  (o banco e as gravações não vão para o GitHub); `dados/modelos_treinados/`,
-  `dados/amostras_estaticas/` e `dados/sinteticos/` são versionados. `backups/`
-  também é ignorada.
-- Privacidade: nenhum vídeo é armazenado, só landmarks. Se pessoas de fora forem
-  gravar, lembrar o usuário de combinar consentimento.
+  variáveis locais chamadas `trajetoria`; use `passos`.
+- `dados/banco.sqlite3` e `dados/amostras_movimento/` estão no `.gitignore`;
+  `dados/modelos_treinados/`, `dados/amostras_estaticas/`, `dados/legado/` e
+  `dados/sinteticos/` são versionados. `backups/` é ignorada.
+- Privacidade: nenhum vídeo é armazenado, nem sai do navegador; só os
+  landmarks. Se pessoas de fora forem gravar, lembrar o usuário de combinar o
+  consentimento.

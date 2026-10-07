@@ -30,13 +30,8 @@
         {% endif %}
 
         <section class="section-wrap rc-palco">
-            <div class="rc-camera">
-                <img src="{% url 'video' %}" alt="Imagem da sua câmera, com os pontos da mão desenhados">
-                <div class="rc-mira" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-                <div class="rc-camera-topo">
-                    <span class="rc-chip"><i class="rc-ao-vivo"></i> AO VIVO</span>
-                    <span class="rc-chip rc-mao" id="indicador-mao" data-estado="nao"><i></i> <span>Sem mão</span></span>
-                </div>
+            <div>
+                {% include "libras/_camera_navegador.html" %}
             </div>
 
             <aside class="rc-painel">
@@ -110,9 +105,11 @@
         </section>
     </main>
 
-    <script>
-        (function () {
-            const URL_STATUS = "{% url 'status' %}";
+    <script type="module">
+        import { iniciarCameraDaPagina, criarEnvioAoVivo, enviarJson } from "{% static 'js/camera-maos.js' %}?v={{ versao_estaticos }}";
+
+        {
+            const URL_QUADROS = "{% url 'api_quadros' %}";
             const URL_SALVAR = "{% url 'alfabeto_amostra_salvar' %}";
             const URL_DESFAZER = "{% url 'alfabeto_amostra_desfazer' %}";
             const CSRF = document.querySelector('meta[name="csrf-token"]').content;
@@ -121,10 +118,13 @@
             const contagem = $('contagem-atual');
             const retorno = $('retorno');
             const vendo = $('vendo-agora');
-            const mao = $('indicador-mao');
             const botoes = [...document.querySelectorAll('.al-letra')];
             let letra = letraAtual.textContent.trim();
             let salvando = false;
+            // Último quadro com mão visto pela câmera (é ele que vira amostra).
+            let ultimaMao = null;
+            // Só vale salvar uma mão vista há pouco (em milissegundos).
+            const MAO_RECENTE_MS = 400;
 
             function botaoDa(l) { return botoes.find((b) => b.dataset.letra === l); }
 
@@ -163,22 +163,15 @@
                 retorno.classList.remove('pulso'); void retorno.offsetWidth; retorno.classList.add('pulso');
             }
 
-            async function enviar(url, corpo) {
-                const resposta = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams(corpo || {}),
-                });
-                const dados = await resposta.json().catch(() => ({}));
-                if (!resposta.ok || !dados.ok) throw new Error(dados.erro || 'Falha de comunicação com o servidor.');
-                return dados;
-            }
-
             async function salvar() {
                 if (salvando) return;
+                if (!ultimaMao || performance.now() - ultimaMao.t > MAO_RECENTE_MS) {
+                    avisar('Posicione a mão na câmera antes de salvar.', false);
+                    return;
+                }
                 salvando = true;
                 try {
-                    const dados = await enviar(URL_SALVAR, { letra });
+                    const dados = await enviarJson(URL_SALVAR, CSRF, { letra, marcos: ultimaMao.marcos });
                     atualizarContagem(dados);
                     avisar(`✓ Amostra de ${dados.letra} salva — agora são ${dados.total_letra}.`, true);
                 } catch (falha) {
@@ -189,7 +182,7 @@
 
             async function desfazer() {
                 try {
-                    const dados = await enviar(URL_DESFAZER);
+                    const dados = await enviarJson(URL_DESFAZER, CSRF, {});
                     atualizarContagem(dados);
                     avisar(`Última amostra de ${dados.letra} desfeita — ${dados.total_letra} agora.`, true);
                 } catch (falha) {
@@ -205,6 +198,8 @@
                 if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
                 if (evento.code === 'Space') {
                     evento.preventDefault();
+                    // Um botão com foco também reagiria ao Espaço (duas ações de uma vez).
+                    if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur();
                     if (!evento.repeat) salvar();   // segurar Espaço não salva em rajada
                     return;
                 }
@@ -212,19 +207,23 @@
                 if (/^[A-Z]$/.test(tecla) && botaoDa(tecla)) escolher(tecla);
             });
 
-            async function acompanhar() {
-                try {
-                    const d = await (await fetch(URL_STATUS)).json();
-                    mao.dataset.estado = d.hand_detected ? 'sim' : 'nao';
-                    mao.querySelector('span').textContent = d.hand_detected ? 'Mão detectada' : 'Sem mão';
+            // "O LibrAI vê agora": o mesmo reconhecimento ao vivo do Reconhecer.
+            const envio = criarEnvioAoVivo({
+                url: URL_QUADROS,
+                csrf: CSRF,
+                aoResposta: (d) => {
                     vendo.textContent = /^[A-Z]$/.test(d.label || '') ? d.label
                         : d.hand_detected ? 'não reconheceu' : '—';
-                } catch (falha) { }
-            }
+                },
+            });
+            iniciarCameraDaPagina({
+                aoQuadro: (quadro) => {
+                    if (quadro.marcos) ultimaMao = quadro;
+                    envio.adicionar(quadro);
+                },
+            });
             escolher(letra);
-            acompanhar();
-            setInterval(acompanhar, 400);
-        })();
+        }
     </script>
 </body>
 

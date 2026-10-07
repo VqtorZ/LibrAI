@@ -17,8 +17,7 @@ urlpatterns = [
         name="entrar",
     ),
     path("sair/", auth_views.LogoutView.as_view(), name="sair"),
-    path("video/", views.video, name="video"),
-    path("api/status/", views.status, name="status"),
+    path("api/quadros/", views.api_quadros, name="api_quadros"),
     path("gestos/", views.gestos, name="gestos"),
     path("gestos/novo/", views.gesto_novo, name="gesto_novo"),
     path("gestos/treinar/", views.treinar_movimentos, name="treinar_movimentos"),
@@ -38,14 +37,9 @@ urlpatterns = [
     path("gestos/<int:sinal_id>/gravar/", views.gesto_gravar, name="gesto_gravar"),
     path("gestos/<int:sinal_id>/excluir/", views.gesto_excluir, name="gesto_excluir"),
     path(
-        "gestos/<int:sinal_id>/gravacao/iniciar/",
-        views.gesto_gravacao_iniciar,
-        name="gesto_gravacao_iniciar",
-    ),
-    path(
-        "gestos/<int:sinal_id>/gravacao/parar/",
-        views.gesto_gravacao_parar,
-        name="gesto_gravacao_parar",
+        "gestos/<int:sinal_id>/amostras/",
+        views.gesto_amostra_gravar,
+        name="gesto_amostra_gravar",
     ),
     path(
         "gestos/<int:sinal_id>/amostras/<int:amostra_id>/apagar/",

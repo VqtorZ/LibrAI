@@ -1,8 +1,9 @@
-"""Gravação do alfabeto pelo site: amostras, câmera, páginas e treino.
+"""Gravação do alfabeto pelo site: amostras, classificador, páginas e treino.
 
 Nenhum teste toca no CSV real: o arquivo de amostras é redirecionado
 para uma pasta temporária (``libras.estatico.amostras.AMOSTRAS_ESTATICAS``).
 """
+import json
 import os
 import shutil
 import tempfile
@@ -15,14 +16,37 @@ from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from libras.caminhos import salvar_modelo_atomico
-from libras.captura import camera as modulo_camera
-from libras.captura.camera import GravacaoIndisponivel
 from libras.estatico import amostras
+from libras.estatico.classificador import (
+    FORMATO_ALFABETO,
+    NAO_IDENTIFICADO,
+    SEM_MODELO,
+    ClassificadorAlfabeto,
+)
 from libras.estatico.features import extrair_features, extrair_features_de_valores
 
 from .base import entrar_como_admin
 
 MAO = [0.5 + 0.01 * (i % 7) for i in range(63)]
+
+
+class ModeloFalso:
+    """RandomForest de mentira: probabilidades fixas (precisa ser picklável)."""
+
+    def __init__(self, classes, probabilidades):
+        self.classes_ = classes
+        self.probabilidades = probabilidades
+        self.n_jobs = -1
+
+    def predict_proba(self, features):
+        import numpy as np
+
+        return np.array([self.probabilidades] * len(features))
+
+
+def modelo_salvo(classes=("A", "B"), probabilidades=(0.9, 0.1), formato=FORMATO_ALFABETO):
+    return {"formato": formato, "treinado_em": "2026-10-07T00:00:00+00:00",
+            "modelo": ModeloFalso(list(classes), list(probabilidades))}
 
 
 class PastaTemporaria:
@@ -81,60 +105,77 @@ class AmostrasDoAlfabetoTests(PastaTemporaria, SimpleTestCase):
         self.assertEqual(extrair_features_de_valores(MAO), extrair_features(pontos))
 
 
-class CameraDoAlfabetoTests(SimpleTestCase):
-    def camera(self):
-        camera = modulo_camera.Camera.__new__(modulo_camera.Camera)
-        camera._lock = modulo_camera.threading.Lock()
-        camera._ultimos_marcos = None
-        return camera
+class ClassificadorAlfabetoTests(SimpleTestCase):
+    def setUp(self):
+        self.pasta = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.pasta, ignore_errors=True)
+        self.arquivo = self.pasta / "alfabeto.joblib"
 
-    def test_marcos_recentes(self):
-        camera = self.camera()
-        with self.assertRaises(GravacaoIndisponivel):
-            camera.marcos_recentes()
-        camera._ultimos_marcos = (time.monotonic() - 5, MAO)
-        with self.assertRaises(GravacaoIndisponivel):
-            camera.marcos_recentes()  # mão vista há muito tempo
-        camera._ultimos_marcos = (time.monotonic(), MAO)
-        self.assertEqual(camera.marcos_recentes(), MAO)
+    def classificador(self):
+        return ClassificadorAlfabeto(self.arquivo)
+
+    def test_sem_modelo(self):
+        classificador = self.classificador()
+        self.assertFalse(classificador.pronto)
+        self.assertEqual(classificador.classificar(MAO), SEM_MODELO)
+        self.assertIsNone(classificador.erro)
+
+    def test_reconhece_e_respeita_o_limiar(self):
+        salvar_modelo_atomico(modelo_salvo(probabilidades=(0.9, 0.1)), self.arquivo)
+        classificador = self.classificador()
+        self.assertTrue(classificador.pronto)
+        self.assertEqual(classificador.letras, ["A", "B"])
+        self.assertEqual(classificador.modelo.n_jobs, 1)
+        self.assertEqual(classificador.classificar(MAO), "A")
+        salvar_modelo_atomico(modelo_salvo(probabilidades=(0.6, 0.4)), self.arquivo)
+        self.assertEqual(self.classificador().classificar(MAO), NAO_IDENTIFICADO)
+
+    def test_modelo_do_formato_antigo_e_ignorado(self):
+        # Antes o modelo era salvo puro (sem dicionário) e com pontos da câmera do servidor.
+        salvar_modelo_atomico(ModeloFalso(["A"], [1.0]), self.arquivo)
+        classificador = self.classificador()
+        self.assertFalse(classificador.pronto)
+        self.assertIn("versão antiga", classificador.erro)
+        salvar_modelo_atomico(modelo_salvo(formato=2), self.arquivo)
+        self.assertFalse(self.classificador().pronto)
 
     def test_recarrega_modelo_retreinado(self):
-        pasta = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, pasta, ignore_errors=True)
-        arquivo = pasta / "alfabeto.joblib"
-        with patch("libras.captura.camera.MODEL_PATH", arquivo):
-            camera = self.camera()
-            camera._modelo_mtime = None
-            camera._ultima_conferencia = 0.0
-            camera._ultima_classificacao = 5.0
-            camera._carregar_modelo()
-            self.assertIsNone(camera.model)
-            salvar_modelo_atomico({"versao": 1}, arquivo)
-            camera._conferir_modelo(100.0)
-            self.assertEqual(camera.model, {"versao": 1})
-            salvar_modelo_atomico({"versao": 2}, arquivo)
-            futuro = time.time() + 10
-            os.utime(arquivo, (futuro, futuro))
-            camera._conferir_modelo(100.5)  # dentro do intervalo: não confere
-            self.assertEqual(camera.model, {"versao": 1})
-            camera._conferir_modelo(103.0)
-            self.assertEqual(camera.model, {"versao": 2})
+        salvar_modelo_atomico(modelo_salvo(classes=("A", "B")), self.arquivo)
+        classificador = self.classificador()
+        self.assertEqual(classificador.letras, ["A", "B"])
+        salvar_modelo_atomico(modelo_salvo(classes=("C", "D")), self.arquivo)
+        futuro = time.time() + 10
+        os.utime(self.arquivo, (futuro, futuro))
+        classificador.conferir()  # dentro do intervalo: não confere
+        self.assertEqual(classificador.letras, ["A", "B"])
+        classificador._conferido_em -= 3
+        self.assertEqual(classificador.classificar(MAO), "C")
 
     def test_modelo_apagado_deixa_de_reconhecer_sem_reiniciar(self):
-        pasta = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, pasta, ignore_errors=True)
-        arquivo = pasta / "alfabeto.joblib"
-        salvar_modelo_atomico({"versao": 1}, arquivo)
-        with patch("libras.captura.camera.MODEL_PATH", arquivo):
-            camera = self.camera()
-            camera._ultima_conferencia = 0.0
-            camera._ultima_classificacao = 5.0
-            camera._carregar_modelo()
-            self.assertEqual(camera.model, {"versao": 1})
-            arquivo.unlink()  # "recomeçar do zero"
-            camera._conferir_modelo(100.0)
-            self.assertIsNone(camera.model)
-            self.assertEqual(camera.classify([]), "Modelo não treinado")
+        salvar_modelo_atomico(modelo_salvo(), self.arquivo)
+        classificador = self.classificador()
+        self.assertTrue(classificador.pronto)
+        self.arquivo.unlink()  # "recomeçar do zero"
+        classificador._conferido_em -= 3
+        self.assertFalse(classificador.pronto)
+        self.assertEqual(classificador.classificar(MAO), SEM_MODELO)
+
+    def test_treino_real_e_aceito(self):
+        from libras.estatico.treino import treinar
+
+        csv = self.pasta / "alfabeto.csv"
+        for indice, letra in enumerate("AB"):
+            for passo in range(10):
+                amostras.salvar(letra, [0.3 + 0.2 * indice + 0.001 * passo + 0.001 * (i % 5) for i in range(63)], csv)
+        treinar(csv, self.arquivo)
+        classificador = self.classificador()
+        self.assertEqual(classificador.letras, ["A", "B"])
+        self.assertIn(classificador.classificar([0.3 + 0.001 * (i % 5) for i in range(63)]), ("A", NAO_IDENTIFICADO))
+
+    def test_carrega_o_arquivo_padrao_na_hora(self):
+        salvar_modelo_atomico(modelo_salvo(), self.arquivo)
+        with patch("libras.caminhos.MODELO_ALFABETO", self.arquivo):
+            self.assertTrue(ClassificadorAlfabeto().pronto)
 
     def test_salvar_modelo_atomico_nao_deixa_temporario(self):
         pasta = Path(tempfile.mkdtemp())
@@ -151,10 +192,12 @@ class PaginasDoAlfabetoTests(PastaTemporaria, TestCase):
         self.criar_pasta()
         amostras.salvar("A", MAO)
 
-    def com_mao(self):
-        ajuste = patch.object(modulo_camera.camera, "marcos_recentes", return_value=MAO)
-        ajuste.start()
-        self.addCleanup(ajuste.stop)
+    def salvar(self, letra, marcos=MAO):
+        return self.client.post(
+            reverse("alfabeto_amostra_salvar"),
+            json.dumps({"letra": letra, "marcos": marcos}),
+            content_type="application/json",
+        )
 
     def test_pagina_lista_letras_sem_j_e_z(self):
         response = self.client.get(reverse("alfabeto_gravar") + "?letra=b")
@@ -166,22 +209,23 @@ class PaginasDoAlfabetoTests(PastaTemporaria, TestCase):
         self.assertContains(response, 'aria-current="page">Gestos', html=False)
 
     def test_salvar_e_desfazer_pelo_site(self):
-        self.com_mao()
-        resposta = self.client.post(reverse("alfabeto_amostra_salvar"), {"letra": "A"})
+        resposta = self.salvar("A")
         self.assertEqual(resposta.json(), {"ok": True, "letra": "A", "total_letra": 2, "total": 2})
         resposta = self.client.post(reverse("alfabeto_amostra_desfazer"))
         self.assertEqual(resposta.json()["total_letra"], 1)
         # Só a última pode ser desfeita, e uma vez só.
         self.assertEqual(self.client.post(reverse("alfabeto_amostra_desfazer")).status_code, 409)
 
-    def test_salvar_sem_mao(self):
-        resposta = self.client.post(reverse("alfabeto_amostra_salvar"), {"letra": "A"})
-        self.assertEqual(resposta.status_code, 409)
+    def test_salvar_sem_mao_ou_com_pontos_invalidos(self):
+        for marcos in (None, [0.5] * 10, ["x"] * 63, [50.0] * 63):
+            with self.subTest(marcos=str(marcos)[:20]):
+                self.assertEqual(self.salvar("A", marcos).status_code, 400)
+        resposta = self.client.post(reverse("alfabeto_amostra_salvar"), "nada", content_type="application/json")
+        self.assertEqual(resposta.status_code, 400)
         self.assertEqual(amostras.contar(), {"A": 1})
 
     def test_salvar_letra_de_movimento(self):
-        self.com_mao()
-        resposta = self.client.post(reverse("alfabeto_amostra_salvar"), {"letra": "J"})
+        resposta = self.salvar("J")
         self.assertEqual(resposta.status_code, 400)
 
     def test_treinar_pelo_site(self):
@@ -199,6 +243,12 @@ class PaginasDoAlfabetoTests(PastaTemporaria, TestCase):
         with patch("libras.views.treinar_modelo_alfabeto", side_effect=ErroTreino("Colete pelo menos duas letras")):
             resposta = self.client.post(reverse("treinar_alfabeto"), follow=True)
         self.assertContains(resposta, "Não foi possível treinar o alfabeto")
+
+    def test_pagina_usa_a_camera_do_navegador(self):
+        resposta = self.client.get(reverse("alfabeto_gravar"))
+        self.assertContains(resposta, 'id="video"')
+        self.assertContains(resposta, "js/camera-maos.js")
+        self.assertContains(resposta, reverse("api_quadros"))
 
     def test_gestos_mostra_painel_do_alfabeto(self):
         resposta = self.client.get(reverse("gestos"))

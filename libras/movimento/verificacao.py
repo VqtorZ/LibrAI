@@ -11,8 +11,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from ..captura.marcos import MAOS_VALIDAS
 from .amostras import (
+    MAOS_VALIDAS,
     FRAMES_MIN_VALIDOS,
     LANDMARKS_POR_MAO,
     VALORES_POR_LANDMARK,

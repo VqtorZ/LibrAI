@@ -1,24 +1,55 @@
-"""Views do LibrAI."""
+"""Views do LibrAI.
+
+A câmera é a do navegador de quem usa o site: lá o MediaPipe acha os 21
+pontos da mão e só esses números chegam aqui (``/api/quadros/`` ao vivo,
+e as rotas de gravação).
+"""
+import json
+import re
 from datetime import datetime
 from string import ascii_uppercase
 
 from django.contrib import messages
 from django.db.models import Avg, Count, Q
-from django.http import JsonResponse, StreamingHttpResponse
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from .acesso import apenas_admin
-from .captura.camera import GravacaoIndisponivel, camera
 from .estatico import amostras as amostras_alfabeto
+from .estatico.classificador import alfabeto as classificador_alfabeto
 from .estatico.treino import ErroTreino
 from .estatico.treino import treinar as treinar_modelo_alfabeto
 from .forms import SinalForm
 from .models import AmostraMovimento, Sinal
-from .movimento import classificador
-from .movimento.amostras import AmostraInvalida, apagar_amostra, apagar_sinal
+from .movimento import classificador, sessoes
+from .movimento.amostras import (
+    FORMATO_VERSAO,
+    AmostraInvalida,
+    apagar_amostra,
+    apagar_sinal,
+    salvar_amostra,
+    sequencia_de_gravacao,
+    validar_marcos,
+    validar_quadros,
+)
+
+# Quadros por envio ao vivo (~8 por lote a cada 250 ms; folga para atrasos).
+QUADROS_POR_LOTE = 90
+CANAL_VALIDO = re.compile(r"^[A-Za-z0-9-]{8,64}$")
+
+
+def _json(request):
+    """Corpo JSON da requisição (dicionário) ou AmostraInvalida."""
+    try:
+        dados = json.loads(request.body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise AmostraInvalida("Dados inválidos.")
+    if not isinstance(dados, dict):
+        raise AmostraInvalida("Dados inválidos.")
+    return dados
 
 
 def _modelo_de_movimentos():
@@ -36,7 +67,7 @@ def _alfabeto():
     (``estatico``, ``movimento`` ou ``pendente``) e as classes do modelo
     de movimentos.
     """
-    estaticas = {str(c) for c in getattr(camera.model, "classes_", [])}
+    estaticas = set(classificador_alfabeto.letras) if classificador_alfabeto.pronto else set()
     modelo = _modelo_de_movimentos()
     movimento = set(modelo["classes"]) if modelo else set()
     alfabeto = [
@@ -72,7 +103,7 @@ def inicio(request):
         "letras_demo": [item["letra"] for item in alfabeto if item["tipo"] != "pendente"],
         "total_movimento": len(movimento),
         "total_amostras": AmostraMovimento.objects.filter(
-            ativo=True, sinal__ativo=True
+            ativo=True, sinal__ativo=True, versao_features=FORMATO_VERSAO
         ).count(),
         "total_sinais": Sinal.objects.filter(ativo=True).count(),
     }
@@ -89,14 +120,23 @@ def reconhecer(request):
     )
 
 
-def video(request):
-    return StreamingHttpResponse(
-        camera.frames(), content_type="multipart/x-mixed-replace; boundary=frame"
-    )
+@require_POST
+def api_quadros(request):
+    """Reconhecimento ao vivo: recebe um lote de quadros e devolve o estado.
 
-
-def status(request):
-    return JsonResponse(camera.status())
+    Público (o Reconhecer não exige conta). Cada aba manda um "canal"
+    aleatório, que separa o detector de movimento de cada pessoa.
+    """
+    try:
+        dados = _json(request)
+        canal = dados.get("canal")
+        if not isinstance(canal, str) or not CANAL_VALIDO.match(canal):
+            raise AmostraInvalida("Canal inválido.")
+        quadros = validar_quadros(dados.get("quadros"), maximo=QUADROS_POR_LOTE)
+    except AmostraInvalida as exc:
+        return JsonResponse({"erro": str(exc)}, status=400)
+    estado = sessoes.sessao(canal).processar(quadros, classificador_alfabeto)
+    return JsonResponse(estado)
 
 
 @apenas_admin
@@ -104,7 +144,10 @@ def gestos(request):
     """Lista os sinais ativos, com amostras e situação no reconhecimento."""
     sinais = list(
         Sinal.objects.filter(ativo=True).annotate(
-            total_amostras=Count("amostras", filter=Q(amostras__ativo=True))
+            total_amostras=Count(
+                "amostras",
+                filter=Q(amostras__ativo=True, amostras__versao_features=FORMATO_VERSAO),
+            )
         )
     )
     de_movimento = [s for s in sinais if s.tipo == Sinal.Tipo.MOVIMENTO]
@@ -143,8 +186,14 @@ def gesto_novo(request):
 def gesto_detalhe(request, sinal_id):
     """Página do sinal: dados cadastrais e amostras de movimento gravadas."""
     sinal = get_object_or_404(Sinal, pk=sinal_id)
-    amostras = AmostraMovimento.objects.filter(sinal=sinal, ativo=True)
-    contexto = {"sinal": sinal, "amostras": amostras}
+    todas = AmostraMovimento.objects.filter(sinal=sinal, ativo=True)
+    amostras = todas.filter(versao_features=FORMATO_VERSAO)
+    contexto = {
+        "sinal": sinal,
+        "amostras": amostras,
+        "antigas": todas.exclude(versao_features=FORMATO_VERSAO),
+        "total_todas": todas.count(),
+    }
     if sinal.tipo == Sinal.Tipo.MOVIMENTO:
         medias = amostras.aggregate(duracao=Avg("duracao_ms"), fps=Avg("fps"))
         modelo = _modelo_de_movimentos()
@@ -204,10 +253,9 @@ def treinar_movimentos(request):
 
 @apenas_admin
 def gesto_gravar(request, sinal_id):
-    """Estúdio de gravação: câmera ao vivo com os marcos da mão.
+    """Estúdio de gravação: a câmera do navegador, com os pontos da mão.
 
-    Mesmo sistema do comando gravar_movimento — a câmera é a do
-    reconhecimento (``libras.captura.camera``), então as amostras saem como o
+    Mesmo caminho do reconhecimento ao vivo, então as amostras saem como o
     reconhecedor as verá.
     """
     sinal = get_object_or_404(
@@ -224,25 +272,12 @@ def _sinal_de_movimento(sinal_id):
 
 @apenas_admin
 @require_POST
-def gesto_gravacao_iniciar(request, sinal_id):
-    """Começa a gravar uma amostra do sinal (o id vem só da rota)."""
+def gesto_amostra_gravar(request, sinal_id):
+    """Salva uma amostra gravada no navegador (o id do sinal vem só da rota)."""
     sinal = _sinal_de_movimento(sinal_id)
     try:
-        camera.iniciar_gravacao(sinal)
-    except GravacaoIndisponivel as exc:
-        return JsonResponse({"erro": str(exc)}, status=409)
-    return JsonResponse({"ok": True})
-
-
-@apenas_admin
-@require_POST
-def gesto_gravacao_parar(request, sinal_id):
-    """Encerra a gravação e salva a amostra."""
-    sinal = _sinal_de_movimento(sinal_id)
-    try:
-        amostra = camera.parar_gravacao(sinal)
-    except GravacaoIndisponivel as exc:
-        return JsonResponse({"erro": str(exc)}, status=409)
+        sequencia = sequencia_de_gravacao(_json(request).get("quadros"))
+        amostra = salvar_amostra(sinal, sequencia)
     except AmostraInvalida as exc:
         return JsonResponse({"erro": f"Amostra descartada: {exc}"}, status=400)
     return JsonResponse(
@@ -287,8 +322,8 @@ def _resposta_contagem(letra):
 def alfabeto_gravar(request):
     """Estúdio do alfabeto: escolha a letra, faça o sinal, Espaço salva.
 
-    Mesmo sistema do comando coletar_alfabeto, mas no site e com a
-    câmera (e o detector de mão) do reconhecimento ao vivo.
+    A câmera e o detector de mão são os do navegador — o mesmo caminho do
+    reconhecimento ao vivo.
     """
     contagem = amostras_alfabeto.contar()
     tipos = {item["letra"]: item["tipo"] for item in _alfabeto()[0]}
@@ -317,14 +352,14 @@ def alfabeto_gravar(request):
 @apenas_admin
 @require_POST
 def alfabeto_amostra_salvar(request):
-    """Salva uma amostra da letra com a mão que a câmera está vendo agora."""
+    """Salva uma amostra da letra com os pontos da mão vistos no navegador."""
     try:
-        letra = amostras_alfabeto.validar_letra(request.POST.get("letra"))
-        linha = amostras_alfabeto.salvar(letra, camera.marcos_recentes())
-    except amostras_alfabeto.AmostraEstaticaInvalida as exc:
+        dados = _json(request)
+        letra = amostras_alfabeto.validar_letra(dados.get("letra"))
+        marcos = validar_marcos(dados.get("marcos"))
+        linha = amostras_alfabeto.salvar(letra, marcos)
+    except (amostras_alfabeto.AmostraEstaticaInvalida, AmostraInvalida) as exc:
         return JsonResponse({"erro": str(exc)}, status=400)
-    except GravacaoIndisponivel as exc:
-        return JsonResponse({"erro": str(exc)}, status=409)
     request.session["ultima_amostra_alfabeto"] = linha
     return JsonResponse(_resposta_contagem(letra))
 
@@ -344,7 +379,7 @@ def alfabeto_amostra_desfazer(request):
 def treinar_alfabeto(request):
     """Treina o alfabeto pelo site (mesmo treino do comando treinar_alfabeto).
 
-    Leva poucos segundos; a câmera recarrega o modelo sozinha.
+    Leva poucos segundos; o reconhecimento recarrega o modelo sozinho.
     """
     voltar = _voltar(request)
     try:

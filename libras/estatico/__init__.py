@@ -1,7 +1,10 @@
 """Alfabeto estático: letras reconhecidas frame a frame (RandomForest).
 
+* ``amostras`` — o CSV das amostras gravadas pelo site;
 * ``features`` — como a mão vira números (63 coordenadas + distâncias);
-* ``treino`` — treina o classificador a partir das amostras coletadas.
+* ``treino`` — treina o classificador a partir das amostras;
+* ``classificador`` — o modelo em uso no reconhecimento ao vivo.
 
-Coleta e treino pelos comandos ``coletar_alfabeto`` e ``treinar_alfabeto``.
+Gravação pelo site (Gestos → Gravar letras); treino pelo site ou pelo
+comando ``treinar_alfabeto``.
 """

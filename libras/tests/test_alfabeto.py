@@ -14,7 +14,8 @@ from django.test import SimpleTestCase
 
 from libras.estatico.features import extrair_features, features_geometricas
 from libras.estatico.treino import ErroTreino, treinar
-from libras.management.commands.coletar_alfabeto import CABECALHO, validar_letra
+from libras.estatico.amostras import CABECALHO, AmostraEstaticaInvalida, validar_letra
+from libras.estatico.classificador import FORMATO_ALFABETO
 from libras.movimento.verificacao import verificar_conteudo
 
 
@@ -58,13 +59,15 @@ class TreinoAlfabetoTests(SimpleTestCase):
         destino = self.pasta / "modelos" / "alfabeto.joblib"
         relatorio = treinar(self.escrever_dataset(), destino)
         self.assertIn("precision", relatorio)
-        modelo = joblib.load(destino)
-        self.assertEqual(sorted(modelo.classes_), ["A", "B"])
+        salvo = joblib.load(destino)
+        self.assertEqual(salvo["formato"], FORMATO_ALFABETO)
+        self.assertIn("treinado_em", salvo)
+        self.assertEqual(sorted(salvo["modelo"].classes_), ["A", "B"])
 
     def test_dataset_ausente(self):
         with self.assertRaises(ErroTreino) as contexto:
             treinar(self.pasta / "nao_existe.csv", self.pasta / "m.joblib")
-        self.assertIn("coletar_alfabeto", str(contexto.exception))
+        self.assertIn("Grave as letras pelo site", str(contexto.exception))
 
     def test_uma_letra_so_nao_treina(self):
         with self.assertRaises(ErroTreino):
@@ -83,7 +86,7 @@ class ComandosAlfabetoTests(SimpleTestCase):
     def test_valida_letra(self):
         self.assertEqual(validar_letra(" a "), "A")
         for invalida in ("", "AB", "1", None):
-            with self.assertRaises(CommandError):
+            with self.assertRaises(AmostraEstaticaInvalida):
                 validar_letra(invalida)
 
     def test_gera_nao_j_sintetico_valido(self):

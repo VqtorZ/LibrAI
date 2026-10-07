@@ -1,7 +1,7 @@
 """Como uma mão vira números para o classificador do alfabeto.
 
-Usado na coleta (``coletar_alfabeto``), no treino (``estatico.treino``)
-e no reconhecimento ao vivo (``captura.camera``) — os três precisam
+Usado na gravação pelo site (``estatico.amostras``), no treino (``estatico.treino``)
+e no reconhecimento ao vivo (``estatico.classificador``) — os três precisam
 gerar exatamente as mesmas features.
 """
 from __future__ import annotations

@@ -95,6 +95,12 @@
             <a class="primary-button" href="{% url 'gesto_gravar' sinal.pk %}">Gravar nova amostra <span aria-hidden="true">→</span></a>
         </div>
         {% endif %}
+        {% if antigas %}
+        <p class="nota-antigas"><strong>{{ antigas|length }} amostra{{ antigas|length|pluralize }}
+                antiga{{ antigas|length|pluralize }}</strong> (gravada{{ antigas|length|pluralize }} com a câmera do
+            servidor) {{ antigas|length|pluralize:"fica,ficam" }} guardada{{ antigas|length|pluralize }}, mas fora do
+            treino: os pontos daquela época eram medidos de outro jeito. Grave o sinal de novo pelo site.</p>
+        {% endif %}
         {% else %}
         <div class="empty-state">
             <p class="empty-title">Sinal estático</p>
@@ -105,7 +111,7 @@
     </main>
 
     <dialog class="excluir-janela" id="janela-excluir" aria-labelledby="titulo-excluir">
-        {% include "libras/_confirmar_exclusao.html" with total_amostras=amostras|length dentro_da_janela=True %}
+        {% include "libras/_confirmar_exclusao.html" with total_amostras=total_todas dentro_da_janela=True %}
     </dialog>
     <script>
         // "Excluir sinal" abre a confirmação na própria página; sem suporte

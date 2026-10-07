@@ -8,6 +8,7 @@ from django.urls import reverse
 from libras.forms import SinalForm
 from libras.models import AmostraMovimento, Sinal
 from libras.movimento.amostras import (
+    FORMATO_VERSAO,
     salvar_amostra,
 )
 
@@ -133,13 +134,16 @@ class RotasExistentesTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'id="label"')
 
-    def test_status(self):
-        response = self.client.get(reverse("status"))
+    def test_api_quadros(self):
+        response = self.client.post(
+            reverse("api_quadros"),
+            {"canal": "teste-sinais-1", "quadros": [{"t": 0, "marcos": None}]},
+            content_type="application/json",
+        )
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertIn("label", payload)
-        self.assertIn("error", payload)
-        self.assertIn("model_ready", payload)
+        self.assertNotIn("error", payload)
         # Verdadeiro só quando há um modelo do alfabeto treinado.
         self.assertIsInstance(payload["model_ready"], bool)
 
@@ -193,7 +197,7 @@ class GestoDetalheEGravarTests(TemporalBase):
     def test_detalhe_lista_amostras(self):
         amostra = AmostraMovimento.objects.create(
             sinal=self.sinal, quantidade_frames=42, duracao_ms=2800,
-            arquivo_dados="movimentos/1/1.json", fps=15.0,
+            arquivo_dados="movimentos/1/1.json", fps=15.0, versao_features=FORMATO_VERSAO,
         )
         response = self.client.get(reverse("gesto_detalhe", args=[self.sinal.pk]))
         # Resumo no topo e uma linha por amostra na tabela.
@@ -202,6 +206,23 @@ class GestoDetalheEGravarTests(TemporalBase):
         self.assertContains(response, f'<th scope="row">#{amostra.pk}</th>', html=False)
         self.assertContains(response, "<td>42</td>", html=False)
 
+    def test_amostras_antigas_ficam_de_fora_e_pedem_regravar(self):
+        for _ in range(2):
+            AmostraMovimento.objects.create(
+                sinal=self.sinal, quantidade_frames=30, duracao_ms=1000,
+                arquivo_dados="antigo.json", fps=30.0, versao_features=2,
+            )
+        response = self.client.get(reverse("gesto_detalhe", args=[self.sinal.pk]))
+        self.assertEqual(len(response.context["amostras"]), 0)
+        self.assertEqual(response.context["situacao"]["codigo"], "regravar")
+        self.assertContains(response, "situacao--regravar")
+        self.assertContains(response, "2 amostras")
+        self.assertContains(response, "fora do")
+        # A exclusão do sinal avisa que as antigas também vão embora.
+        self.assertContains(response, "todas as 2")
+        lista = self.client.get(reverse("gestos"))
+        self.assertContains(lista, "Regravar")
+
     def test_detalhe_de_sinal_inexistente_retorna_404(self):
         response = self.client.get(reverse("gesto_detalhe", args=[9999]))
         self.assertEqual(response.status_code, 404)
@@ -209,9 +230,9 @@ class GestoDetalheEGravarTests(TemporalBase):
     def test_gravar_abre_para_sinal_de_movimento(self):
         response = self.client.get(reverse("gesto_gravar", args=[self.sinal.pk]))
         self.assertEqual(response.status_code, 200)
-        # Mesma câmera do reconhecimento, com gravação pelo Espaço.
-        self.assertContains(response, reverse("video"))
-        self.assertContains(response, reverse("gesto_gravacao_iniciar", args=[self.sinal.pk]))
+        # Câmera do navegador, com gravação pelo Espaço.
+        self.assertContains(response, 'id="video"')
+        self.assertContains(response, reverse("gesto_amostra_gravar", args=[self.sinal.pk]))
         self.assertContains(response, "Espaço")
         self.assertContains(response, self.sinal.titulo)
 

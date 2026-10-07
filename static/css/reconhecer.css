@@ -721,3 +721,108 @@
 .rc .messages {
     margin: 18px 0 0;
 }
+
+/* --------------------------------------------------------------------------
+   Câmera do navegador: vídeo espelhado + pontos da mão por cima
+   -------------------------------------------------------------------------- */
+.rc-camera video,
+.rc-camera canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Espelhado como numa selfie (os pontos já são desenhados espelhados). */
+.rc-camera video {
+    transform: scaleX(-1);
+}
+
+.rc-aviso {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 12px;
+    padding: 24px;
+    background: rgba(22, 35, 63, .82);
+    color: #fff;
+    text-align: center;
+}
+
+.rc-aviso p {
+    max-width: 34ch;
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.5;
+}
+
+.rc-aviso-icone {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, .3);
+    border-top-color: var(--color-secondary);
+    animation: girar 1s linear infinite;
+}
+
+.rc-aviso[data-estado="erro"] .rc-aviso-icone {
+    border-color: var(--color-error);
+    animation: none;
+}
+
+.rc-privacidade {
+    margin: 10px 0 0;
+    color: var(--color-text-muted);
+    font-size: 13px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rc-aviso-icone {
+        animation: none;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Gravar movimento
+   -------------------------------------------------------------------------- */
+.rc-chip.gravando {
+    background: rgba(192, 57, 43, .88);
+}
+
+.rc-chip.gravando i {
+    background: #fff;
+    animation: none;
+}
+
+.rc-resultado[data-estado="gravando"] .rc-tile {
+    background: linear-gradient(160deg, #E9894A, #B8501A);
+    color: #fff;
+}
+
+.rc-resultado[data-estado="gravando"] .rc-tile-letra,
+.rc-resultado[data-estado="analisando"] .rc-tile-letra {
+    font-size: 40px;
+}
+
+.gv-salvas {
+    display: grid;
+    gap: 6px;
+    max-height: 210px;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    list-style: none;
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+.gv-salvas li {
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: var(--color-surface-alt);
+    animation: rc-troca .35s cubic-bezier(.2, .8, .2, 1);
+}

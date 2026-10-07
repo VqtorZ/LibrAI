@@ -29,8 +29,15 @@ class AcessoTests(TestCase):
 
     # ------------------------------------------------------------ visitante
     def test_paginas_publicas_abrem_sem_login(self):
-        for nome in ("inicio", "reconhecer", "status", "entrar"):
+        for nome in ("inicio", "reconhecer", "entrar"):
             self.assertEqual(self.client.get(reverse(nome)).status_code, 200, nome)
+        # O reconhecimento ao vivo também é público.
+        resposta = self.client.post(
+            reverse("api_quadros"),
+            {"canal": "visitante-123", "quadros": [{"t": 0, "marcos": None}]},
+            content_type="application/json",
+        )
+        self.assertEqual(resposta.status_code, 200)
 
     def test_area_de_gestos_pede_login(self):
         for url in (
@@ -50,7 +57,8 @@ class AcessoTests(TestCase):
             reverse("treinar_movimentos"),
             reverse("treinar_alfabeto"),
             reverse("alfabeto_amostra_salvar"),
-            reverse("gesto_gravacao_iniciar", args=[self.sinal.pk]),
+            reverse("alfabeto_amostra_desfazer"),
+            reverse("gesto_amostra_gravar", args=[self.sinal.pk]),
         ):
             self.assertEqual(self.client.post(url).status_code, 302, url)
         self.assertTrue(Sinal.objects.filter(pk=self.sinal.pk).exists())

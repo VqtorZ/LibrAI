@@ -32,7 +32,7 @@ import numpy as np
 
 from ..caminhos import MODELO_MOVIMENTOS, salvar_modelo_atomico
 from ..models import AmostraMovimento, Sinal
-from .amostras import ler_sequencia
+from .amostras import FORMATO_VERSAO, ler_sequencia
 from .segmentacao import trecho_principal
 from .trajetoria import processar_frames
 from .verificacao import verificar_amostra, verificar_conteudo
@@ -40,7 +40,8 @@ from .verificacao import verificar_amostra, verificar_conteudo
 MODELO_PATH = MODELO_MOVIMENTOS
 # Formato 2: features com deslocamento do pulso, espelhamento,
 # reamostragem e aparo de repouso (ver ``processar_frames``).
-FORMATO_MODELO = 2
+# Formato 3: treinado só com amostras do navegador (amostras.FORMATO_VERSAO 3).
+FORMATO_MODELO = 3
 # Fator de segurança sobre a distância leave-one-out TÍPICA (mediana)
 # da classe. Com as gravações reais de J, mediana × 1.5 aceitou todos
 # os J em avaliação honesta e rejeitou J invertido, mão parada e Z
@@ -109,12 +110,14 @@ def distancia_dtw(a, b):
 def preparar_amostras():
     """Amostras ativas de sinais de movimento, validadas e processadas.
 
+    Só entram amostras do formato atual: as antigas (câmera do servidor)
+    foram medidas de outro jeito e confundiriam o modelo.
     Retorna ``[(amostra, trajetoria_ou_None, resultado_verificacao)]``.
     """
     pares = []
     sinais = Sinal.objects.filter(tipo=Sinal.Tipo.MOVIMENTO, ativo=True).order_by("pk")
     for sinal in sinais:
-        for amostra in sinal.amostras.filter(ativo=True):
+        for amostra in sinal.amostras.filter(ativo=True, versao_features=FORMATO_VERSAO):
             trajetoria, resultado = carregar_sequencia(amostra)
             pares.append((amostra, trajetoria, resultado))
     return pares
@@ -363,9 +366,12 @@ def situacao_dos_sinais(sinais, caminho=None):
     situacoes = {}
     for sinal in sinais:
         ativas = set(
-            sinal.amostras.filter(ativo=True).values_list("pk", flat=True)
+            sinal.amostras.filter(ativo=True, versao_features=FORMATO_VERSAO)
+            .values_list("pk", flat=True)
         )
-        if not ativas:
+        if not ativas and sinal.amostras.filter(ativo=True).exists():
+            codigo = "regravar"
+        elif not ativas:
             codigo = "sem_amostras"
         elif len(ativas) < 2 and not sinal.negativo:
             codigo = "poucas"
@@ -378,6 +384,10 @@ def situacao_dos_sinais(sinais, caminho=None):
 
 
 SITUACOES = {
+    "regravar": {
+        "rotulo": "Regravar",
+        "descricao": "As amostras são do formato antigo (câmera do servidor): grave de novo pelo site.",
+    },
     "sem_amostras": {
         "rotulo": "Sem amostras",
         "descricao": "Grave amostras para este sinal entrar no reconhecimento.",

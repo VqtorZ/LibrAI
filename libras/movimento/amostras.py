@@ -1,14 +1,19 @@
-"""Persistência das amostras temporais de sinais por movimento.
+"""Amostras temporais de sinais por movimento: validação e persistência.
 
-As amostras são gravadas pela câmera do OpenCV (``libras.movimento.gravacao``,
-usado pela página do sinal e pelo comando gravar_movimento) e
-persistidas como sequências de landmarks em arquivos JSON em
+As amostras são gravadas no navegador (a câmera de quem está usando o
+site, com o MediaPipe rodando ali) e chegam como quadros com os 21
+pontos da mão. Cada amostra vira um JSON em
 ``dados/amostras_movimento/<id>-<sinal>/<amostra>.json`` (MEDIA_ROOT);
-o banco guarda os metadados e o caminho de cada arquivo.
+o banco guarda os metadados e o caminho do arquivo.
+
+Formato dos pontos (versão 3): x e z multiplicados pela proporção da
+imagem (largura / altura) e já espelhados como numa selfie — o mesmo
+gesto dá os mesmos números em qualquer webcam.
 """
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 from django.conf import settings
@@ -16,17 +21,83 @@ from django.utils.text import slugify
 
 from ..models import AmostraMovimento, Sinal
 
-# Versão 2: cada frame também registra a mão detectada ("mao").
-FORMATO_VERSAO = 2
-VERSOES_SUPORTADAS = (1, 2)
+# Versão 3: pontos do navegador (MediaPipe Tasks) corrigidos pela proporção.
+# As versões 1 e 2 (câmera do servidor) continuam legíveis, mas ficam fora
+# dos treinos: os pontos daquela época foram medidos de outro jeito.
+FORMATO_VERSAO = 3
+VERSOES_SUPORTADAS = (1, 2, 3)
 DURACAO_MAX_MS = 30_000
+FRAMES_MAX = 1200
 FRAMES_MIN_VALIDOS = 10
 LANDMARKS_POR_MAO = 21
 VALORES_POR_LANDMARK = 3
+VALORES_POR_FRAME = LANDMARKS_POR_MAO * VALORES_POR_LANDMARK
+MAOS_VALIDAS = ("Right", "Left")
+# Coordenadas normalizadas ficam perto de 0..2; muito além disso é lixo.
+LIMITE_COORDENADA = 10.0
 
 
 class AmostraInvalida(Exception):
     """Amostra temporal rejeitada pela validação."""
+
+
+def _numero(valor):
+    return (
+        not isinstance(valor, bool)
+        and isinstance(valor, (int, float))
+        and math.isfinite(valor)
+    )
+
+
+def validar_marcos(marcos):
+    """63 valores numéricos da mão (ou None); levanta AmostraInvalida."""
+    if marcos is None:
+        return None
+    if (
+        not isinstance(marcos, list)
+        or len(marcos) != VALORES_POR_FRAME
+        or not all(_numero(v) and abs(v) <= LIMITE_COORDENADA for v in marcos)
+    ):
+        raise AmostraInvalida("Pontos da mão inválidos.")
+    return [float(v) for v in marcos]
+
+
+def validar_quadros(dados, maximo=FRAMES_MAX):
+    """Quadros enviados pelo navegador → lista no formato das amostras.
+
+    Cada quadro: ``{"t": ms, "marcos": [63] ou null, "mao": ...}``. Nada
+    vindo do navegador é confiado sem checagem: tipos, limites e ordem.
+    """
+    if not isinstance(dados, list) or not dados:
+        raise AmostraInvalida("Nenhum quadro recebido.")
+    if len(dados) > maximo:
+        raise AmostraInvalida(f"Máximo de {maximo} quadros por envio.")
+    quadros = []
+    anterior = None
+    for quadro in dados:
+        if not isinstance(quadro, dict) or not _numero(quadro.get("t")) or quadro["t"] < 0:
+            raise AmostraInvalida("Quadro inválido.")
+        t = int(quadro["t"])
+        if anterior is not None and t < anterior:
+            raise AmostraInvalida("Quadros fora de ordem.")
+        anterior = t
+        mao = quadro.get("mao")
+        if mao is not None and mao not in MAOS_VALIDAS:
+            raise AmostraInvalida("Mão inválida.")
+        marcos = validar_marcos(quadro.get("marcos"))
+        quadros.append({"timestamp_ms": t, "landmarks": marcos, "mao": mao if marcos else None})
+    return quadros
+
+
+def sequencia_de_gravacao(dados):
+    """Quadros de uma gravação → sequência com tempo a partir de zero."""
+    quadros = validar_quadros(dados)
+    inicio = quadros[0]["timestamp_ms"]
+    if quadros[-1]["timestamp_ms"] - inicio > DURACAO_MAX_MS:
+        raise AmostraInvalida("A gravação passou de 30 segundos.")
+    for quadro in quadros:
+        quadro["timestamp_ms"] -= inicio
+    return quadros
 
 
 def pasta_do_sinal(sinal):
@@ -48,14 +119,13 @@ def _caminho_absoluto(amostra):
     return Path(settings.MEDIA_ROOT) / caminho_relativo(amostra)
 
 
-def salvar_amostra(sinal, sequencia, origem="opencv"):
+def salvar_amostra(sinal, sequencia, origem="navegador"):
     """Valida a sequência, grava o arquivo JSON e registra a amostra.
 
     O arquivo é nomeado com o id gerado pelo banco; em caso de falha de
     escrita o registro é revertido para não deixar metadados órfãos.
-    ``origem`` registra o caminho da captura: "opencv" (câmera do
-    reconhecimento) ou "navegador" (amostras antigas, da captura que
-    passava pelo navegador e foi substituída).
+    ``origem`` registra o caminho da captura ("navegador" nas amostras
+    atuais; "opencv" nas antigas, da câmera do servidor).
     """
     validos = sum(1 for frame in sequencia if frame["landmarks"] is not None)
     if validos < FRAMES_MIN_VALIDOS:

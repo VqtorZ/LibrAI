@@ -1468,6 +1468,11 @@ button.secondary-button:disabled {
     color: #8A5414;
 }
 
+.situacao--regravar {
+    background: var(--color-secondary-soft);
+    color: #8A4A1C;
+}
+
 .situacao--poucas,
 .situacao--sem_amostras {
     background: var(--color-surface-alt);
@@ -1475,6 +1480,21 @@ button.secondary-button:disabled {
 }
 
 /* Página do sinal */
+.nota-antigas {
+    margin: 18px 0 0;
+    padding: 14px 18px;
+    border-radius: var(--radius-md);
+    border: 1px dashed rgba(232, 131, 71, .45);
+    background: var(--color-secondary-soft);
+    color: var(--color-text-secondary);
+    font-size: 14px;
+    line-height: 1.55;
+}
+
+.nota-antigas strong {
+    color: var(--color-text);
+}
+
 .voltar {
     margin: 0 0 22px;
 }

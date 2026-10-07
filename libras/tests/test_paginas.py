@@ -158,7 +158,7 @@ class MenuEEstilosTests(TemporalMLBase):
 
 
 class ReconhecerTests(TemporalMLBase):
-    """Página de reconhecimento ao vivo (sem abrir a webcam: /video/ não é pedido)."""
+    """Página de reconhecimento ao vivo (a câmera é a do navegador)."""
 
     def test_mostra_o_que_reconhece_e_o_soletrando(self):
         self.treinar_padrao(self.sinal)

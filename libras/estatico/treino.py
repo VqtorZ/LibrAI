@@ -1,11 +1,13 @@
 """Treino do classificador do alfabeto estático (RandomForest).
 
-Lê as amostras coletadas (``dados/amostras_estaticas/landmarks.csv``),
+Lê as amostras coletadas (``dados/amostras_estaticas/alfabeto.csv``),
 acrescenta as features geométricas e salva o modelo em
 ``dados/modelos_treinados/alfabeto.joblib``. Usado pelo comando
 ``treinar_alfabeto``.
 """
 from __future__ import annotations
+
+from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd
@@ -14,6 +16,7 @@ from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
 
 from ..caminhos import AMOSTRAS_ESTATICAS, MODELO_ALFABETO, salvar_modelo_atomico
+from .classificador import FORMATO_ALFABETO
 from .features import features_geometricas
 
 COLUNAS_BASE = 63
@@ -36,7 +39,7 @@ def treinar(dataset=None, destino=None):
     dataset = dataset if dataset is not None else AMOSTRAS_ESTATICAS
     destino = destino if destino is not None else MODELO_ALFABETO
     if not dataset.exists():
-        raise ErroTreino("Dataset ausente. Colete amostras com: python manage.py coletar_alfabeto <letra>")
+        raise ErroTreino("Nenhuma amostra do alfabeto ainda. Grave as letras pelo site (Gestos → Gravar letras).")
     dados = pd.read_csv(dataset)
     if "label" not in dados or dados["label"].nunique() < 2:
         raise ErroTreino("Colete pelo menos duas letras antes de treinar.")
@@ -52,5 +55,12 @@ def treinar(dataset=None, destino=None):
     )
     modelo.fit(X_treino, y_treino)
     relatorio = classification_report(y_teste, modelo.predict(X_teste), zero_division=0)
-    salvar_modelo_atomico(modelo, destino)
+    salvar_modelo_atomico(
+        {
+            "formato": FORMATO_ALFABETO,
+            "treinado_em": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "modelo": modelo,
+        },
+        destino,
+    )
     return relatorio

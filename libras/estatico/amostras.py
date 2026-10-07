@@ -1,9 +1,8 @@
-"""Amostras do alfabeto estático (``dados/amostras_estaticas/landmarks.csv``).
+"""Amostras do alfabeto estático (``dados/amostras_estaticas/alfabeto.csv``).
 
 Uma linha por amostra: a letra e as 63 coordenadas normalizadas da mão
-(as features geométricas são recalculadas no treino). Usado pela página
-de gravação do alfabeto no site; o comando ``coletar_alfabeto`` escreve
-no mesmo formato.
+(as features geométricas são recalculadas no treino). As amostras são
+gravadas pelo site, com os pontos vindos da câmera do navegador.
 """
 from __future__ import annotations
 

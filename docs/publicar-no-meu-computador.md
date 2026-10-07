@@ -6,7 +6,9 @@ de conta nem de mexer no roteador.
 
 ## Ligar
 
-1. Dê **dois cliques em `publicar.cmd`** (na pasta do projeto).
+1. Dê **dois cliques no atalho "LibrAI - colocar no ar"** na Área de Trabalho
+   (ou em `publicar.cmd`, na pasta do projeto). Se o site já estiver no ar, a
+   janela avisa e mostra o link atual, sem abrir um segundo.
 2. Em uns 10 segundos aparece:
 
    ```

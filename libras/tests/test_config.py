@@ -154,6 +154,18 @@ class PublicarTests(SimpleTestCase):
         self.assertEqual(link_na_linha(linha), "https://ab-cd-12.trycloudflare.com")
         self.assertIsNone(link_na_linha("INF Requesting new quick Tunnel on trycloudflare.com..."))
 
+    def test_detecta_porta_ocupada(self):
+        import socket
+
+        from libras.management.commands.publicar import porta_ocupada
+
+        with socket.socket() as servidor:
+            servidor.bind(("127.0.0.1", 0))
+            servidor.listen()
+            porta = servidor.getsockname()[1]
+            self.assertTrue(porta_ocupada(porta))
+        self.assertFalse(porta_ocupada(porta))
+
     def test_recusa_fora_do_modo_producao(self):
         from django.core.management import call_command
         from django.core.management.base import CommandError

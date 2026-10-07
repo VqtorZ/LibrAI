@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import re
 import shutil
+import socket
 import subprocess
 import threading
 import time
@@ -48,6 +49,13 @@ def achar_cloudflared():
     return None
 
 
+def porta_ocupada(porta):
+    """Já existe algo escutando nesta porta (por exemplo, o site já no ar)?"""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conexao:
+        conexao.settimeout(1)
+        return conexao.connect_ex(("127.0.0.1", porta)) == 0
+
+
 def link_na_linha(linha):
     """Link público do túnel, se a linha do cloudflared o contiver."""
     achado = PADRAO_LINK.search(linha)
@@ -67,8 +75,15 @@ class Command(BaseCommand):
             raise CommandError(
                 "Rode pelo publicar.cmd (ele liga o modo produção com o .env.publico)."
             )
-        self.preparar()
         porta = opcoes["porta"]
+        if porta_ocupada(porta):
+            link = ARQUIVO_LINK.read_text(encoding="utf-8").strip() if ARQUIVO_LINK.exists() else None
+            raise CommandError(
+                "O site já está no ar (há outra janela do publicar aberta)."
+                + (f" Link atual: {link}" if link else "")
+                + " Para religar, feche a outra janela primeiro."
+            )
+        self.preparar()
         self.subir_servidor(porta)
         if opcoes["sem_tunel"]:
             self.stdout.write(f"Servidor local em http://127.0.0.1:{porta}/ (Ctrl+C para sair).")

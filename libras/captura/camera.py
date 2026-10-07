@@ -1,4 +1,9 @@
-"""Captura OpenCV e classificação de letras estáticas de Libras."""
+"""Câmera do servidor: transmissão, letra estática, movimento e gravação.
+
+A mesma câmera serve o reconhecimento ao vivo (``/reconhecer/``) e a
+gravação de amostras de movimento pela página do sinal, para que as
+amostras saiam exatamente como o reconhecedor as verá.
+"""
 from __future__ import annotations
 
 import threading
@@ -7,7 +12,8 @@ import time
 import cv2
 import mediapipe as mp
 
-from .caminhos import MODELO_ALFABETO
+from ..caminhos import MODELO_ALFABETO
+from ..estatico.features import extrair_features
 from .marcos import marcos_da_mao
 
 try:
@@ -42,42 +48,6 @@ ROTULO_GRAVANDO = "Gravando amostra"
 
 class GravacaoIndisponivel(Exception):
     """Pedido de gravação que a câmera não pode atender agora."""
-
-# Pontas dos dedos: polegar, indicador, médio, anelar, mindinho.
-FINGERTIPS = [4, 8, 12, 16, 20]
-
-
-def geometric_features(coords):
-    """Relevantes p/ distinguir letras parecidas (ex.: U vs V).
-
-    Recebe os 63 valores normalizados (21 marcos x, y, z relativos ao pulso)
-    e retorna distâncias entre as pontas dos dedos, que isolam a abertura
-    entre os dedos (diferencial U vs V). Scale-invariante.
-    """
-    points = [coords[i * 3:(i + 1) * 3] for i in range(21)]
-
-    def dist(a, b):
-        return sum((p - q) ** 2 for p, q in zip(a, b)) ** 0.5
-
-    tips = [points[i] for i in FINGERTIPS]
-    features = []
-    for i in range(len(tips)):
-        for j in range(i + 1, len(tips)):
-            features.append(dist(tips[i], tips[j]))
-    return features
-
-
-def extract_features(landmarks):
-    """Normaliza os 21 marcos em 63 coordenadas relativas ao pulso e
-    acrescenta features geométricas para melhor separação U vs V."""
-    wrist = landmarks[0]
-    values = []
-    for point in landmarks:
-        values.extend((point.x - wrist.x, point.y - wrist.y, point.z - wrist.z))
-    scale = max((abs(value) for value in values), default=1.0) or 1.0
-    normalized = [value / scale for value in values]
-    return normalized + geometric_features(normalized)
-
 
 def abrir_camera():
     """Abre a webcam na resolução padrão do projeto."""
@@ -151,7 +121,7 @@ class Camera:
     def classify(self, landmarks):
         if self.model is None:
             return "Modelo não treinado"
-        features = [extract_features(landmarks)]
+        features = [extrair_features(landmarks)]
         try:
             probabilities = self.model.predict_proba(features)[0]
             index = probabilities.argmax()
@@ -164,7 +134,7 @@ class Camera:
 
     def _detector_movimento(self):
         if self._movimento is None:
-            from .ao_vivo import DetectorMovimento
+            from ..movimento.ao_vivo import DetectorMovimento
 
             self._movimento = DetectorMovimento()
         return self._movimento
@@ -238,7 +208,7 @@ class Camera:
     # --- gravação de amostras --------------------------------------------
     def iniciar_gravacao(self, sinal):
         """Começa a gravar uma amostra do sinal com a câmera ao vivo."""
-        from .gravacao import GravadorMovimento
+        from ..movimento.gravacao import GravadorMovimento
 
         with self._lock:
             if self._gravador is not None:

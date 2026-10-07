@@ -1,8 +1,8 @@
 """Leitura dos marcos da mão a partir do resultado do MediaPipe.
 
 Módulo sem dependência do Django: é usado pelo reconhecimento ao vivo
-(``libras.vision``), pela coleta temporal do site
-(``libras.movimentos``) e pela gravação de movimentos pelo terminal,
+(``libras.captura.camera``), pela gravação de amostras de movimento
+(``libras.movimento``) e pelo comando gravar_movimento,
 para que todos extraiam os mesmos valores do mesmo jeito.
 """
 MAOS_VALIDAS = ("Right", "Left")

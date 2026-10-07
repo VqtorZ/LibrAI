@@ -2,14 +2,14 @@
 
 Lógica do comando ``gravar_movimento``, separada da janela para poder
 ser testada sem webcam. A captura usa a mesma câmera, resolução e
-detector de mãos do reconhecimento ao vivo (``libras.vision``), então
+detector de mãos do reconhecimento ao vivo (``libras.captura.camera``), então
 as amostras saem exatamente como o reconhecedor as verá — o mesmo
 princípio que faz a coleta do alfabeto estático funcionar.
 """
 from __future__ import annotations
 
-from .movimentos import DURACAO_MAX_MS, AmostraInvalida, salvar_amostra
-from .models import Sinal
+from ..models import Sinal
+from .amostras import DURACAO_MAX_MS, AmostraInvalida, salvar_amostra
 
 ORIGEM = "opencv"
 # A câmera do OpenCV roda a ~30 fps: 30 s cabem com folga.

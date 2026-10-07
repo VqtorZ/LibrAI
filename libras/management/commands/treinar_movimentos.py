@@ -2,7 +2,7 @@
 from django.core.management.base import BaseCommand, CommandError
 
 from .. import saida_segura
-from ... import temporal
+from ...movimento import classificador
 
 
 class Command(BaseCommand):
@@ -12,8 +12,8 @@ class Command(BaseCommand):
         saida_segura()
         self.stdout.write("=== TREINAMENTO DE MOVIMENTOS ===")
         try:
-            treino = temporal.treinar()
-        except temporal.ErroTemporal as exc:
+            treino = classificador.treinar()
+        except classificador.ErroTemporal as exc:
             raise CommandError(str(exc))
         modelo = treino.modelo
 
@@ -64,7 +64,7 @@ class Command(BaseCommand):
                     f"(vizinho mais próximo: #{entrada['vizinho']})"
                 )
             distancias = sorted(e["distancia"] for e in modelo["loo"][classe])
-            mediana = temporal._tipica(
+            mediana = classificador._tipica(
                 [(None, None, d) for d in distancias]
             )
             self.stdout.write(
@@ -90,7 +90,7 @@ class Command(BaseCommand):
                 ))
 
         self.stdout.write("")
-        self.stdout.write(f"Modelo salvo em {temporal.MODELO_PATH}.")
+        self.stdout.write(f"Modelo salvo em {classificador.MODELO_PATH}.")
         self.stdout.write(self.style.SUCCESS("Modelo treinado com sucesso."))
 
         if len(modelo["classes"]) == 1 and not modelo["negativos"]:

@@ -1,7 +1,7 @@
 """Verificador estrutural das amostras temporais (Etapa 4.1).
 
 Diagnóstico da coleta: confere se os arquivos JSON escritos por
-``libras.movimentos`` estão íntegros, completos e coerentes com os
+``libras.movimento.amostras`` estão íntegros, completos e coerentes com os
 metadados do banco. Apenas lê e reporta — não treina, não classifica
 e não reconhece sinais; o status final declara somente se os dados
 estão estruturalmente prontos para uma futura etapa de treinamento.
@@ -11,8 +11,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from .marcos import MAOS_VALIDAS
-from .movimentos import (
+from ..captura.marcos import MAOS_VALIDAS
+from .amostras import (
     FRAMES_MIN_VALIDOS,
     LANDMARKS_POR_MAO,
     VALORES_POR_LANDMARK,
@@ -87,7 +87,7 @@ def _numero(valor) -> bool:
 
 
 def _fps_de(duracao_ms: int, total_frames: int) -> float:
-    """Mesma fórmula de libras.movimentos.salvar_amostra."""
+    """Mesma fórmula de amostras.salvar_amostra."""
     if duracao_ms <= 0:
         return 0.0
     return round((total_frames - 1) / (duracao_ms / 1000), 1)
@@ -237,7 +237,7 @@ def verificar_conteudo(conteudo, sinal_id_esperado=None) -> ResultadoVerificacao
 def verificar_amostra(amostra) -> ResultadoVerificacao:
     """Verifica a estrutura de uma AmostraMovimento e do seu arquivo JSON.
 
-    A leitura reaproveita ``ler_sequencia`` de ``libras.movimentos`` —
+    A leitura reaproveita ``ler_sequencia`` de ``amostras`` —
     nada da persistência é duplicado aqui. Frames com ``landmarks:
     null`` são permitidos pelo formato e não invalidam a amostra.
     """

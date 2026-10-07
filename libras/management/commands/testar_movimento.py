@@ -9,7 +9,7 @@ classe do modelo.
 from django.core.management.base import BaseCommand, CommandError
 
 from .. import saida_segura
-from ... import temporal
+from ...movimento import classificador
 from ...models import AmostraMovimento, Sinal
 
 
@@ -34,15 +34,15 @@ class Command(BaseCommand):
             raise CommandError("Use --amostra ou --arquivo, não ambos.")
         if options["arquivo"]:
             try:
-                resultado = temporal.testar_arquivo(options["arquivo"])
-            except temporal.ErroTemporal as exc:
+                resultado = classificador.testar_arquivo(options["arquivo"])
+            except classificador.ErroTemporal as exc:
                 raise CommandError(str(exc))
             self._relatar_arquivo(resultado)
             return
         if options["amostra"] is not None:
             try:
-                resultado = temporal.testar_amostra(options["amostra"])
-            except temporal.ErroTemporal as exc:
+                resultado = classificador.testar_amostra(options["amostra"])
+            except classificador.ErroTemporal as exc:
                 raise CommandError(str(exc))
             self._relatar_amostra(resultado)
             return

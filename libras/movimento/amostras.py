@@ -1,6 +1,6 @@
 """Persistência das amostras temporais de sinais por movimento.
 
-As amostras são gravadas pela câmera do OpenCV (``libras.gravacao``,
+As amostras são gravadas pela câmera do OpenCV (``libras.movimento.gravacao``,
 usado pela página do sinal e pelo comando gravar_movimento) e
 persistidas como sequências de landmarks em arquivos JSON em
 ``dados/amostras_movimento/<id>-<sinal>/<amostra>.json`` (MEDIA_ROOT);
@@ -14,7 +14,7 @@ from pathlib import Path
 from django.conf import settings
 from django.utils.text import slugify
 
-from .models import AmostraMovimento, Sinal
+from ..models import AmostraMovimento, Sinal
 
 # Versão 2: cada frame também registra a mão detectada ("mao").
 FORMATO_VERSAO = 2

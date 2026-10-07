@@ -10,7 +10,7 @@ from django.core.management.base import BaseCommand
 
 from .. import saida_segura
 from ...models import Sinal
-from ...verificacao import (
+from ...movimento.verificacao import (
     LANDMARKS_POR_MAO,
     VALORES_POR_FRAME,
     resumir,

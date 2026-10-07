@@ -1,6 +1,6 @@
 """Grava amostras de um sinal de movimento pela câmera do OpenCV.
 
-Mesmo estilo de ``scripts/coletar_libras.py``: uma janela mostra a
+Mesmo estilo do comando ``coletar_alfabeto``: uma janela mostra a
 câmera com os 21 marcos da mão desenhados, e o teclado controla a
 gravação. A captura usa a mesma câmera, resolução e detector do
 reconhecimento ao vivo, então as amostras saem como o reconhecedor
@@ -15,10 +15,10 @@ import mediapipe as mp
 from django.core.management.base import BaseCommand, CommandError
 
 from .. import saida_segura
-from ...gravacao import GravadorMovimento, localizar_sinal
-from ...marcos import marcos_da_mao
-from ...movimentos import AmostraInvalida
-from ...vision import abrir_camera, criar_detector_maos
+from ...captura.camera import abrir_camera, criar_detector_maos
+from ...captura.marcos import marcos_da_mao
+from ...movimento.amostras import AmostraInvalida
+from ...movimento.gravacao import GravadorMovimento, localizar_sinal
 
 TECLA_ESPACO = 32
 TECLAS_SAIR = (ord("q"), ord("Q"), 27)  # Q ou ESC

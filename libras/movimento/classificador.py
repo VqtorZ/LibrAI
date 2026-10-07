@@ -1,11 +1,12 @@
-"""Pipeline temporal experimental (Etapa 4.2).
+"""Classificador de movimentos: DTW, treino, limiar e previsão.
 
 Primeiro protótipo de reconhecimento de movimentos a partir das
-amostras gravadas pela coleta temporal (``libras.movimentos``):
+amostras gravadas (``libras.movimento.amostras``):
 
 1. validação estrutural reaproveitada da Etapa 4.1
-   (``libras.verificacao.verificar_amostra``);
-2. conversão dos frames em uma trajetória (``processar_frames``):
+   (``verificacao.verificar_amostra``);
+2. recorte do movimento (``segmentacao``) e conversão em trajetória
+   (``trajetoria.processar_frames``):
    forma da mão relativa ao pulso + deslocamento do pulso em tamanhos
    de mão, com espelhamento da mão esquerda, reamostragem a passo
    fixo e aparo do repouso nas pontas;
@@ -16,14 +17,12 @@ Com uma única classe e poucas amostras, isso demonstra que o pipeline
 processa e reproduz o padrão gravado — não que diferencia sinais.
 Os comandos de treinamento e teste declaram essa limitação.
 
-Totalmente separado do pipeline estático: nada aqui altera o
-RandomForest, ``libras/vision.py`` ou a página ``/reconhecer/``.
+Totalmente separado do pipeline estático (``libras.estatico``).
 """
 from __future__ import annotations
 
 import json
 import math
-from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,9 +30,11 @@ from pathlib import Path
 import joblib
 import numpy as np
 
-from .caminhos import COMPRESSAO_MODELOS, MODELO_MOVIMENTOS
-from .models import AmostraMovimento, Sinal
-from .movimentos import LANDMARKS_POR_MAO, VALORES_POR_LANDMARK, ler_sequencia
+from ..caminhos import COMPRESSAO_MODELOS, MODELO_MOVIMENTOS
+from ..models import AmostraMovimento, Sinal
+from .amostras import ler_sequencia
+from .segmentacao import trecho_principal
+from .trajetoria import processar_frames
 from .verificacao import verificar_amostra, verificar_conteudo
 
 MODELO_PATH = MODELO_MOVIMENTOS
@@ -49,28 +50,6 @@ FORMATO_MODELO = 2
 MARGEM_LIMIAR = 1.5
 # Piso do limiar: evita aceitar tudo quando amostras são idênticas.
 LIMIAR_MINIMO = 0.05
-VALORES_POR_FRAME = LANDMARKS_POR_MAO * VALORES_POR_LANDMARK
-# Forma (63) + deslocamento do pulso (x, y).
-VALORES_POR_PASSO = VALORES_POR_FRAME + 2
-# Passo da reamostragem (~15 fps, o mesmo da página de gravação).
-INTERVALO_REAMOSTRAGEM_MS = 66
-# Peso do deslocamento do pulso (em tamanhos de mão) frente à forma.
-PESO_TRAJETORIA = 1.0
-# Fração da velocidade máxima abaixo da qual as pontas são repouso.
-FRACAO_REPOUSO = 0.15
-# Menor trajetória aceita pelo aparo de repouso.
-FRAMES_MIN_TRAJETORIA = 8
-
-# Segmentação de movimentos (``Segmentador``), calibrada com as
-# gravações reais de J: mão em repouso fica em ~1–3,5 unidades/s
-# (tremor natural) e o movimento do sinal em ~8–25 (unidades = forma
-# normalizada + pulso em tamanhos de mão, por segundo).
-VELOCIDADE_INICIO = 6.0      # média de 3 frames que inicia um movimento
-VELOCIDADE_REPOUSO = 4.0     # abaixo disto a mão está parada
-PAUSA_MS = 350               # tempo parado (ou sem mão) que encerra
-PRE_MOVIMENTO_MS = 300       # contexto anterior incluído no trecho
-DURACAO_MIN_MOVIMENTO_MS = 400
-DURACAO_MAX_MOVIMENTO_MS = 4000
 
 
 class ErroTemporal(Exception):
@@ -85,250 +64,6 @@ class TreinoResultado:
     trajetorias: list = field(default_factory=list)  # (pk, brutos, processados)
     invalidas: list = field(default_factory=list)    # (amostra, ResultadoVerificacao)
     excluidas: list = field(default_factory=list)    # (título da classe, amostras)
-
-
-def normalizar_frame(landmarks):
-    """63 valores crus → relativos ao pulso (landmark 0) e à escala.
-
-    Mesma invariância de translação/escala adotada pelo pipeline
-    estático, reimplementada aqui para que os dois pipelines sigam
-    independentes — este módulo não importa nada do estático.
-    """
-    pontos = np.asarray(landmarks, dtype=float).reshape(LANDMARKS_POR_MAO, 3)
-    pontos = pontos - pontos[0]
-    escala = float(np.abs(pontos).max()) or 1.0
-    return (pontos / escala).reshape(-1).tolist()
-
-
-def _preencher_lacunas(frames):
-    """Frames → (timestamps, landmarks crus, mãos) sem lacunas.
-
-    Os frames vazios das pontas são truncados (a mão ainda não entrou /
-    já saiu do quadro) e os do meio são interpolados linearmente por
-    timestamp entre os vizinhos válidos — o padrão temporal é
-    preservado sem descartar frames do meio do movimento.
-    """
-    validos = [i for i, f in enumerate(frames) if f["landmarks"] is not None]
-    if not validos:
-        return [], [], []
-    tempos, crus, maos = [], [], []
-    for indice in range(validos[0], validos[-1] + 1):
-        frame = frames[indice]
-        tempos.append(frame["timestamp_ms"])
-        maos.append(frame.get("mao"))
-        if frame["landmarks"] is not None:
-            crus.append(list(frame["landmarks"]))
-            continue
-        anterior = max(v for v in validos if v < indice)
-        proximo = min(v for v in validos if v > indice)
-        fa, fb = frames[anterior], frames[proximo]
-        ta, tb = fa["timestamp_ms"], fb["timestamp_ms"]
-        peso = (frame["timestamp_ms"] - ta) / (tb - ta) if tb > ta else 0.0
-        crus.append(
-            [a + (b - a) * peso for a, b in zip(fa["landmarks"], fb["landmarks"])]
-        )
-    return tempos, crus, maos
-
-
-def _reamostrar(tempos, vetores):
-    """Interpola a sequência numa grade fixa de ``INTERVALO_REAMOSTRAGEM_MS``.
-
-    Gravações (≈15 fps) e câmera ao vivo (≈30 fps) passam a ter o mesmo
-    passo temporal, o que mantém as distâncias DTW comparáveis.
-    """
-    tempos = np.asarray(tempos, dtype=float)
-    vetores = np.asarray(vetores, dtype=float)
-    if len(tempos) < 2 or tempos[-1] <= tempos[0]:
-        return vetores
-    # Timestamps repetidos quebrariam a interpolação: mantém o primeiro.
-    unicos = np.concatenate(([True], np.diff(tempos) > 0))
-    tempos, vetores = tempos[unicos], vetores[unicos]
-    grade = np.arange(tempos[0], tempos[-1] + 1e-9, INTERVALO_REAMOSTRAGEM_MS)
-    return np.stack(
-        [np.interp(grade, tempos, vetores[:, k]) for k in range(vetores.shape[1])],
-        axis=1,
-    )
-
-
-def _aparar_repouso(vetores):
-    """Remove a mão parada no início e no fim da sequência.
-
-    A velocidade de cada passo é comparada à maior velocidade do
-    gesto; trechos das pontas abaixo de ``FRACAO_REPOUSO`` dela são
-    considerados espera, não sinal. Se sobrar pouco, nada é cortado.
-    """
-    if len(vetores) < FRAMES_MIN_TRAJETORIA:
-        return vetores
-    velocidade = np.linalg.norm(np.diff(vetores, axis=0), axis=1)
-    suave = np.convolve(velocidade, np.ones(3) / 3, mode="same")
-    pico = float(suave.max())
-    if pico <= 0:
-        return vetores
-    ativos = np.flatnonzero(suave >= pico * FRACAO_REPOUSO)
-    # velocidade[i] liga os frames i e i+1; a suavização já dá a folga.
-    inicio = int(ativos[0])
-    fim = int(ativos[-1]) + 1
-    if fim - inicio + 1 < FRAMES_MIN_TRAJETORIA:
-        return vetores
-    return vetores[inicio:fim + 1]
-
-
-def _espelhar(crus):
-    """Espelha landmarks crus no eixo x (coordenadas de imagem 0..1)."""
-    pontos = np.asarray(crus, dtype=float).reshape(len(crus), LANDMARKS_POR_MAO, 3)
-    pontos[:, :, 0] = 1.0 - pontos[:, :, 0]
-    return pontos.reshape(len(crus), -1)
-
-
-def _mao_esquerda(maos):
-    """Maioria dos frames rotulados como "Left" → sinal feito com a esquerda."""
-    rotuladas = [m for m in maos if m is not None]
-    return bool(rotuladas) and rotuladas.count("Left") > len(rotuladas) / 2
-
-
-def _vetor_de_movimento(landmarks):
-    """Forma normalizada + pulso em tamanhos de mão de um único frame."""
-    pontos = np.asarray(landmarks, dtype=float).reshape(LANDMARKS_POR_MAO, 3)
-    tamanho = float(np.linalg.norm(pontos[9, :2] - pontos[0, :2])) or 1.0
-    return np.concatenate([normalizar_frame(landmarks), pontos[0, :2] / tamanho])
-
-
-class Segmentador:
-    """Detecta, frame a frame, onde um movimento começa e termina.
-
-    O movimento começa quando a velocidade média (3 frames) passa de
-    ``VELOCIDADE_INICIO`` e termina após ``PAUSA_MS`` com a mão parada
-    ou fora do quadro (ou ao atingir ``DURACAO_MAX_MOVIMENTO_MS``).
-    É usado ao vivo (``libras.ao_vivo``) e, no treino, para recortar
-    as gravações — os dois lados comparam trechos equivalentes.
-    """
-
-    def __init__(self):
-        self._anterior = None  # (timestamp_ms, vetor) do último frame com mão
-        self._velocidades = deque(maxlen=3)
-        self._inicio = None
-        self._ultimo_movimento = None
-        # Duração do último movimento descartado por ser curto (diagnóstico).
-        self.descartado_ms = None
-
-    @property
-    def em_movimento(self):
-        return self._inicio is not None
-
-    def observar(self, timestamp_ms, landmarks):
-        """Devolve ``(inicio_ms, fim_ms)`` quando um movimento termina."""
-        self.descartado_ms = None
-        if landmarks is None:
-            self._anterior = None
-            self._velocidades.clear()
-        else:
-            vetor = _vetor_de_movimento(landmarks)
-            if self._anterior is not None:
-                t_anterior, v_anterior = self._anterior
-                dt = (timestamp_ms - t_anterior) / 1000
-                if dt > 0:
-                    self._velocidades.append(
-                        float(np.linalg.norm(vetor - v_anterior)) / dt
-                    )
-            self._anterior = (timestamp_ms, vetor)
-        velocidade = (
-            sum(self._velocidades) / len(self._velocidades)
-            if self._velocidades else 0.0
-        )
-        if self._inicio is None:
-            if velocidade >= VELOCIDADE_INICIO:
-                self._inicio = self._ultimo_movimento = timestamp_ms
-            return None
-        if landmarks is not None and velocidade >= VELOCIDADE_REPOUSO:
-            self._ultimo_movimento = timestamp_ms
-        parado = timestamp_ms - self._ultimo_movimento >= PAUSA_MS
-        longo = timestamp_ms - self._inicio >= DURACAO_MAX_MOVIMENTO_MS
-        if parado or longo:
-            return self._fechar()
-        return None
-
-    def encerrar(self):
-        """Fecha o movimento em aberto (fim de uma gravação)."""
-        return self._fechar() if self._inicio is not None else None
-
-    def _fechar(self):
-        inicio, fim = self._inicio, self._ultimo_movimento
-        self._inicio = self._ultimo_movimento = None
-        # A duração mínima vale para o movimento em si, sem o contexto.
-        if fim - inicio < DURACAO_MIN_MOVIMENTO_MS:
-            self.descartado_ms = fim - inicio
-            return None
-        return inicio, fim
-
-
-def recortar(frames, inicio, fim):
-    """Frames do movimento ``(inicio, fim)`` mais o contexto anterior."""
-    return [
-        f for f in frames
-        if inicio - PRE_MOVIMENTO_MS <= f["timestamp_ms"] <= fim
-    ]
-
-
-def segmentos(frames):
-    """Todos os movimentos ``(inicio_ms, fim_ms)`` de uma gravação."""
-    segmentador = Segmentador()
-    encontrados = []
-    for frame in frames:
-        segmento = segmentador.observar(frame["timestamp_ms"], frame["landmarks"])
-        if segmento:
-            encontrados.append(segmento)
-    final = segmentador.encerrar()
-    if final:
-        encontrados.append(final)
-    return encontrados
-
-
-def trecho_principal(frames):
-    """Recorta o movimento mais longo da gravação.
-
-    Descarta o que não é o sinal: a mão entrando no quadro logo após
-    "Iniciar gravação" e saindo para clicar em "Parar" — movimentos
-    curtos que, ao vivo, o reconhecedor nunca veria junto do sinal.
-    Sem nenhum movimento detectado, a gravação inteira é usada.
-    """
-    encontrados = segmentos(frames)
-    if not encontrados:
-        return frames
-    inicio, fim = max(encontrados, key=lambda s: s[1] - s[0])
-    return recortar(frames, inicio, fim)
-
-
-def processar_frames(frames):
-    """Frames crus (``timestamp_ms``/``landmarks``/``mao``) → trajetória.
-
-    Cada passo da trajetória tem ``VALORES_POR_PASSO`` valores:
-
-    * 63 da **forma** da mão (``normalizar_frame``: relativos ao pulso
-      e à escala) — captura giros e mudanças de configuração;
-    * 2 do **deslocamento do pulso** (x, y) desde o início do gesto,
-      medido em tamanhos de mão — captura sinais em que o braço
-      desenha o movimento (como o Z), que a forma sozinha não vê.
-
-    Antes disso, sinais feitos com a mão esquerda são espelhados e a
-    sequência é reamostrada a passo fixo; ao final, o repouso das
-    pontas é aparado.
-    """
-    tempos, crus, maos = _preencher_lacunas(frames)
-    if not crus:
-        return []
-    crus = np.asarray(crus, dtype=float)
-    if _mao_esquerda(maos):
-        crus = _espelhar(crus)
-    pontos = crus.reshape(len(crus), LANDMARKS_POR_MAO, 3)
-    # Tamanho da mão: pulso (0) → base do dedo médio (9), mediana no tempo.
-    tamanho = float(np.median(
-        np.linalg.norm(pontos[:, 9, :2] - pontos[:, 0, :2], axis=1)
-    )) or 1.0
-    forma = np.array([normalizar_frame(f) for f in crus])
-    pulso = pontos[:, 0, :2] / tamanho * PESO_TRAJETORIA
-    passos = _aparar_repouso(_reamostrar(tempos, np.hstack([forma, pulso])))
-    passos[:, -2:] -= passos[0, -2:]
-    return passos.tolist()
 
 
 def processar_sequencia(conteudo):

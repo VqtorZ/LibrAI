@@ -6,8 +6,8 @@ from django.views.decorators.http import require_POST
 
 from .forms import SinalForm
 from .models import AmostraMovimento, Sinal
-from .movimentos import AmostraInvalida, apagar_amostra
-from .vision import GravacaoIndisponivel, camera
+from .captura.camera import GravacaoIndisponivel, camera
+from .movimento.amostras import AmostraInvalida, apagar_amostra
 
 
 def home(request):
@@ -59,7 +59,7 @@ def gesto_gravar(request, sinal_id):
     """Estúdio de gravação: câmera ao vivo com os marcos da mão.
 
     Mesmo sistema do comando gravar_movimento — a câmera é a do
-    reconhecimento (``libras.vision``), então as amostras saem como o
+    reconhecimento (``libras.captura.camera``), então as amostras saem como o
     reconhecedor as verá.
     """
     sinal = get_object_or_404(

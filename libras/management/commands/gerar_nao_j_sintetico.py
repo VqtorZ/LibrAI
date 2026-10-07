@@ -9,6 +9,7 @@ relativa da mão em todos os frames, com o punho parado.
 O arquivo sai no mesmo formato versionado das amostras reais
 (etapa 4.1), pronto para:
 
+    python manage.py gerar_nao_j_sintetico
     python manage.py testar_movimento --arquivo dados/sinteticos/nao_j_sintetico.json
 
 O conteúdo carrega a marcação explícita "origem": "sintetico".
@@ -17,7 +18,12 @@ import json
 import math
 from pathlib import Path
 
-SAIDA = Path(__file__).resolve().parent.parent / "dados" / "sinteticos" / "nao_j_sintetico.json"
+from django.core.management.base import BaseCommand
+
+from .. import saida_segura
+from ...caminhos import SINTETICOS
+
+SAIDA = SINTETICOS / "nao_j_sintetico.json"
 FRAMES = 36
 INTERVALO_MS = 66
 LANDMARKS = 21
@@ -46,9 +52,10 @@ def frame(indice):
     return [valor for ponto in pontos for valor in ponto]
 
 
-def main():
+def conteudo():
+    """JSON no formato versionado das amostras, marcado como sintético."""
     duracao_ms = (FRAMES - 1) * INTERVALO_MS
-    conteudo = {
+    return {
         "version": 1,
         "sinal_id": None,
         "quantidade_frames": FRAMES,
@@ -63,11 +70,20 @@ def main():
             for i in range(FRAMES)
         ],
     }
-    SAIDA.parent.mkdir(parents=True, exist_ok=True)
-    SAIDA.write_text(json.dumps(conteudo, indent=1), encoding="utf-8")
-    print(f"Arquivo sintético não-J criado em {SAIDA}")
-    print(f"Frames: {FRAMES} · duração: {duracao_ms} ms · origem: sintetico")
 
 
-if __name__ == "__main__":
-    main()
+class Command(BaseCommand):
+    help = "Gera o JSON sintético de movimento não-J para o teste de rejeição."
+
+    def add_arguments(self, parser):
+        parser.add_argument("--saida", default=str(SAIDA), help="Arquivo de saída.")
+
+    def handle(self, *args, **options):
+        saida_segura()
+        saida = Path(options["saida"])
+        saida.parent.mkdir(parents=True, exist_ok=True)
+        saida.write_text(json.dumps(conteudo(), indent=1), encoding="utf-8")
+        self.stdout.write(f"Arquivo sintético não-J criado em {saida}")
+        self.stdout.write(
+            f"Frames: {FRAMES} · duração: {(FRAMES - 1) * INTERVALO_MS} ms · origem: sintetico"
+        )

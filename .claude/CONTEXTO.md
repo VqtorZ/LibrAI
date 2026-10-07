@@ -455,6 +455,11 @@ for s in Sinal.objects.all().order_by('pk'):
   - Subir o servidor de teste na porta 8765 e, no fim, matar **só o PID
     dessa porta**, nunca todos os `python.exe`, porque o usuário pode estar
     com o runserver dele aberto.
+- **Ligar o site para o usuário:** `explorer.exe "<caminho>\publicar.cmd"`
+  abre a janela como um duplo clique, independente da ferramenta. Com
+  `Start-Process` ou `start` a janela morre junto com o comando. O link sai
+  em `dados/link_publico.txt`. Trello atualizado em 2026-10-07 (script em
+  `scratchpad/trello_atualizar.py`, que não imprime credenciais).
 - Não abra a webcam real: quem faz o gesto é o usuário. Valide a lógica com
   testes e sessões simuladas.
 - Testes: conferir o hash de `dados/` antes e depois da suíte (nenhum teste

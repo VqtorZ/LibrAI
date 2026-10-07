@@ -25,8 +25,13 @@ def _modelo_de_movimentos():
         return None
 
 
-def inicio(request):
-    """Home: apresenta o projeto com o que o LibrAI reconhece de verdade hoje."""
+def _alfabeto():
+    """A–Z com o que o LibrAI já reconhece, a partir dos modelos reais.
+
+    Devolve ``(alfabeto, movimento)``: a lista de ``{"letra", "tipo"}``
+    (``estatico``, ``movimento`` ou ``pendente``) e as classes do modelo
+    de movimentos.
+    """
     estaticas = {str(c) for c in getattr(camera.model, "classes_", [])}
     modelo = _modelo_de_movimentos()
     movimento = set(modelo["classes"]) if modelo else set()
@@ -38,9 +43,19 @@ def inicio(request):
         }
         for letra in ascii_uppercase
     ]
+    return alfabeto, movimento
+
+
+def _total_reconhecidas(alfabeto):
+    return sum(1 for item in alfabeto if item["tipo"] != "pendente")
+
+
+def inicio(request):
+    """Home: apresenta o projeto com o que o LibrAI reconhece de verdade hoje."""
+    alfabeto, movimento = _alfabeto()
     contexto = {
         "alfabeto": alfabeto,
-        "total_letras": sum(1 for item in alfabeto if item["tipo"] != "pendente"),
+        "total_letras": _total_reconhecidas(alfabeto),
         # Letras que a demonstração da home mostra como "reconhecidas".
         "letras_demo": [item["letra"] for item in alfabeto if item["tipo"] != "pendente"],
         "total_movimento": len(movimento),
@@ -53,7 +68,13 @@ def inicio(request):
 
 
 def reconhecer(request):
-    return render(request, "libras/reconhecer.html")
+    """Reconhecimento ao vivo, com a grade do que o LibrAI já reconhece."""
+    alfabeto, _ = _alfabeto()
+    return render(
+        request,
+        "libras/reconhecer.html",
+        {"alfabeto": alfabeto, "total_letras": _total_reconhecidas(alfabeto)},
+    )
 
 
 def video(request):

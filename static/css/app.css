@@ -271,16 +271,6 @@ h3 {
 }
 
 /* Estado ativo: o CTA é a página atual no reconhecedor */
-body.recognizer .header-cta {
-    background: var(--color-primary-hover);
-    color: #fff;
-    box-shadow: 0 0 0 4px var(--color-primary-soft);
-}
-
-body.recognizer .header-cta span {
-    color: var(--color-secondary-soft);
-}
-
 /* Botão hamburger (só visível no mobile) */
 .menu-toggle {
     display: none;
@@ -1315,6 +1305,10 @@ button.secondary-button:disabled {
     color: #fff;
 }
 
+.header-cta.is-active span {
+    color: var(--color-secondary);
+}
+
 .messages li.warning {
     background: rgba(232, 160, 76, .12);
     border: 1px solid rgba(232, 160, 76, .45);
@@ -1668,5 +1662,161 @@ button.secondary-button:disabled {
 
     .sinal-resumo {
         grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* ==========================================================================
+   18. COMPONENTES VISUAIS COMPARTILHADOS (home e reconhecimento)
+   Etiqueta em pílula com ponto pulsante e a grade do alfabeto, em que
+   cada letra mostra se o LibrAI já a reconhece (dados reais da view).
+   ========================================================================== */
+
+.etiqueta {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    padding: 8px 15px;
+    border-radius: var(--radius-full);
+    background: var(--color-primary-soft);
+    color: var(--color-link);
+    font: 600 12px var(--font-mono);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.etiqueta-ponto {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-secondary-hover);
+    animation: pulso-ponto 2.4s ease-out infinite;
+}
+
+@keyframes pulso-ponto {
+    0% {
+        box-shadow: 0 0 0 0 rgba(232, 131, 71, .55);
+    }
+
+    100% {
+        box-shadow: 0 0 0 10px rgba(232, 131, 71, 0);
+    }
+}
+.alfabeto-legenda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 26px;
+    margin: 0 0 22px;
+    padding: 0;
+    list-style: none;
+    color: var(--color-text-secondary);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.alfabeto-cor {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    margin-right: 6px;
+    border-radius: 5px;
+    vertical-align: -3px;
+}
+
+.alfabeto-cor.estatico {
+    background: var(--color-primary-hover);
+}
+
+.alfabeto-cor.movimento {
+    background: var(--color-secondary-hover);
+}
+
+.alfabeto-cor.pendente {
+    border: 2px dashed #B7C3D6;
+}
+
+.alfabeto-grade {
+    display: grid;
+    grid-template-columns: repeat(13, 1fr);
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.alfabeto-letra {
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 3px;
+    aspect-ratio: 1 / 1.15;
+    border-radius: 16px;
+    transition: transform .25s;
+}
+
+.alfabeto-letra:hover {
+    transform: translateY(-4px) scale(1.05);
+}
+
+.alfabeto-letra.estatico {
+    background: linear-gradient(160deg, #8DB3EC, #4F7ED3);
+    color: #fff;
+    box-shadow: 0 8px 20px rgba(79, 126, 211, .25);
+}
+
+.alfabeto-letra.movimento {
+    background: linear-gradient(160deg, #FDB98A, #D9712F);
+    color: #fff;
+    box-shadow: 0 8px 20px rgba(217, 113, 47, .28);
+}
+
+.alfabeto-letra.pendente {
+    border: 2px dashed #C6D0DF;
+    color: var(--color-text-muted);
+}
+
+.alfabeto-glifo {
+    font-size: clamp(1.3rem, 2.4vw, 1.95rem);
+    font-weight: 800;
+    line-height: 1;
+}
+
+.alfabeto-estado {
+    font: 600 8.5px var(--font-mono);
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    opacity: .92;
+}
+
+.js .alfabeto-grade:not(.is-visible) .alfabeto-letra {
+    opacity: 0;
+}
+
+.js .alfabeto-grade.is-visible .alfabeto-letra {
+    animation: estala .55s cubic-bezier(.3, 1.5, .5, 1) backwards;
+    animation-delay: calc(var(--i) * 35ms);
+}
+
+@keyframes estala {
+    from {
+        opacity: 0;
+        transform: scale(.55);
+    }
+}
+.etiqueta.claro {
+    background: rgba(255, 255, 255, .16);
+    color: #fff;
+}
+
+@media (max-width:1024px) {
+.alfabeto-grade {
+        grid-template-columns: repeat(9, 1fr);
+    }
+}
+
+@media (max-width:640px) {
+.alfabeto-grade {
+        grid-template-columns: repeat(6, 1fr);
+        gap: 8px;
     }
 }

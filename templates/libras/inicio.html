@@ -21,7 +21,7 @@
         <section class="h-hero">
             <div class="section-wrap h-hero-grid">
                 <div class="h-hero-texto">
-                    <p class="h-kicker entra" style="--d:0"><span class="h-ponto"></span>Libras + inteligência artificial</p>
+                    <p class="etiqueta entra" style="--d:0"><span class="etiqueta-ponto"></span>Libras + inteligência artificial</p>
                     <h1 class="h-titulo">
                         <span class="entra" style="--d:1">Sua mão fala.</span>
                         <em class="entra" style="--d:2">O LibrAI entende.</em>
@@ -173,16 +173,16 @@
                 <p class="h-texto">Cada letra acende quando o LibrAI já aprendeu a reconhecê-la. As que ainda faltam
                     dependem de mais gravações.</p>
             </div>
-            <ul class="h-legenda reveal" aria-label="Legenda">
-                <li><span class="h-amostra-cor estatico"></span> Letra parada</li>
-                <li><span class="h-amostra-cor movimento"></span> Letra com movimento</li>
-                <li><span class="h-amostra-cor pendente"></span> Ainda aprendendo</li>
+            <ul class="alfabeto-legenda reveal" aria-label="Legenda">
+                <li><span class="alfabeto-cor estatico"></span> Letra parada</li>
+                <li><span class="alfabeto-cor movimento"></span> Letra com movimento</li>
+                <li><span class="alfabeto-cor pendente"></span> Ainda aprendendo</li>
             </ul>
-            <ul class="h-alfabeto reveal">
+            <ul class="alfabeto-grade reveal">
                 {% for item in alfabeto %}
-                <li class="h-letra {{ item.tipo }}" style="--i:{{ forloop.counter0 }}">
-                    <span class="h-letra-glifo">{{ item.letra }}</span>
-                    <span class="h-letra-estado">{% if item.tipo == "estatico" %}reconhece{% elif item.tipo == "movimento" %}movimento{% else %}em breve{% endif %}</span>
+                <li class="alfabeto-letra {{ item.tipo }}" style="--i:{{ forloop.counter0 }}">
+                    <span class="alfabeto-glifo">{{ item.letra }}</span>
+                    <span class="alfabeto-estado">{% if item.tipo == "estatico" %}reconhece{% elif item.tipo == "movimento" %}movimento{% else %}em breve{% endif %}</span>
                 </li>
                 {% endfor %}
             </ul>
@@ -193,7 +193,7 @@
         <!-- ========================== PARTICIPE ============================ -->
         <section class="h-cta" id="comunidade">
             <div class="section-wrap h-cta-dentro reveal">
-                <p class="h-kicker claro"><span class="h-ponto"></span>Participe</p>
+                <p class="etiqueta claro"><span class="etiqueta-ponto"></span>Participe</p>
                 <h2>Ensine o LibrAI a reconhecer mais sinais.</h2>
                 <p>Cada gravação ensina a inteligência a reconhecer mais mãos e mais jeitos de sinalizar.</p>
                 <div class="h-acoes">

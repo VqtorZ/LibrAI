@@ -155,3 +155,27 @@ class MenuEEstilosTests(TemporalMLBase):
         versao = response.context["versao_estaticos"]
         self.assertGreater(versao, 0)
         self.assertContains(response, f"css/app.css?v={versao}")
+
+
+class ReconhecerTests(TemporalMLBase):
+    """Página de reconhecimento ao vivo (sem abrir a webcam: /video/ não é pedido)."""
+
+    def test_mostra_o_que_reconhece_e_o_soletrando(self):
+        self.treinar_padrao(self.sinal)
+        response = self.client.get(reverse("reconhecer"))
+        alfabeto = {item["letra"]: item["tipo"] for item in response.context["alfabeto"]}
+        self.assertEqual(alfabeto["J"], "movimento")
+        self.assertContains(response, f"{response.context['total_letras']} de 26 letras")
+        for elemento in ('id="label"', 'id="indicador-mao"', 'id="palavra"', 'id="selo-camera"'):
+            self.assertContains(response, elemento)
+        self.assertContains(response, "css/reconhecer.css?v=")
+
+    def test_menu_destaca_reconhecer(self):
+        response = self.client.get(reverse("reconhecer"))
+        self.assertContains(response, 'class="header-cta is-active"')
+        self.assertContains(response, 'aria-current="page">Reconhecer', html=False)
+
+    def test_gravacao_nao_destaca_reconhecer(self):
+        response = self.client.get(reverse("gesto_gravar", args=[self.sinal.pk]))
+        self.assertNotContains(response, 'class="header-cta is-active"')
+

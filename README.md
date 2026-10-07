@@ -62,6 +62,21 @@ Abra `http://127.0.0.1:8000/` e selecione **Iniciar reconhecimento**. A câmera
 Privacidade do Windows e feche aplicativos que já a estejam usando. Só uma
 página (ou comando) por vez consegue usar a câmera.
 
+## Acesso
+
+A home e o **Reconhecer** são livres para todos. A área de **Gestos** (cadastrar,
+gravar, apagar, excluir e treinar) é só para administradores: entre em
+**Entrar** (`/entrar/`) com o e-mail e a senha. Contas são criadas pelo
+terminal, com a senha digitada na hora (nunca fica em arquivo):
+
+```powershell
+python manage.py criar_admin pessoa@exemplo.com --nome Pessoa
+python manage.py criar_admin voce@exemplo.com --nome Você --master
+```
+
+A conta **master** também gerencia os usuários (trocar senha, desativar) no
+painel do Django em `/admin/`.
+
 ## Comandos
 
 | Comando | O que faz |
@@ -74,6 +89,7 @@ página (ou comando) por vez consegue usar a câmera.
 | `python manage.py testar_movimento --amostra 7` | Testa uma gravação (sem ela no modelo) |
 | `python manage.py testar_movimento --arquivo dados/sinteticos/nao_j_sintetico.json` | Testa a rejeição de um movimento que não é J |
 | `python manage.py gerar_nao_j_sintetico` | Recria o arquivo sintético não-J |
+| `python manage.py criar_admin email --nome Nome [--master]` | Cria ou atualiza uma conta de administrador |
 | `python manage.py test libras` | Roda os testes |
 
 ## Alfabeto estático

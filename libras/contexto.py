@@ -1,7 +1,7 @@
 """Variáveis disponíveis em todos os templates."""
 from django.conf import settings
 
-ESTILOS = ("css/app.css", "css/home.css", "css/reconhecer.css")
+ESTILOS = ("css/app.css", "css/home.css", "css/reconhecer.css", "css/entrar.css")
 
 
 def versao_estaticos(request):

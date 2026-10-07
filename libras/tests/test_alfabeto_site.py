@@ -20,6 +20,8 @@ from libras.captura.camera import GravacaoIndisponivel
 from libras.estatico import amostras
 from libras.estatico.features import extrair_features, extrair_features_de_valores
 
+from .base import entrar_como_admin
+
 MAO = [0.5 + 0.01 * (i % 7) for i in range(63)]
 
 
@@ -145,6 +147,7 @@ class CameraDoAlfabetoTests(SimpleTestCase):
 
 class PaginasDoAlfabetoTests(PastaTemporaria, TestCase):
     def setUp(self):
+        entrar_como_admin(self)
         self.criar_pasta()
         amostras.salvar("A", MAO)
 

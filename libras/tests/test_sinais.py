@@ -11,7 +11,7 @@ from libras.movimento.amostras import (
     salvar_amostra,
 )
 
-from .base import TemporalBase
+from .base import entrar_como_admin, TemporalBase
 
 
 class SinalModelTests(TestCase):
@@ -58,6 +58,9 @@ class SinalFormTests(TestCase):
 
 
 class GestosViewsTests(TestCase):
+    def setUp(self):
+        entrar_como_admin(self)
+
     def test_lista_apenas_sinais_ativos(self):
         Sinal.objects.create(titulo="Obrigado")
         Sinal.objects.create(titulo="Desativado", ativo=False)
@@ -143,6 +146,9 @@ class RotasExistentesTests(TestCase):
 
 class SinalTipoTests(TestCase):
     """O sinal agora nasce com um tipo: estático (default) ou movimento."""
+
+    def setUp(self):
+        entrar_como_admin(self)
 
     def test_tipo_padrao_e_estatico(self):
         sinal = Sinal.objects.create(titulo="A")

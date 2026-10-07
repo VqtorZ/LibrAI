@@ -54,6 +54,11 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 MEDIA_ROOT = AMOSTRAS_MOVIMENTO
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Login (ver libras/acesso.py): a área de Gestos é só para administradores.
+LOGIN_URL = "entrar"
+LOGIN_REDIRECT_URL = "gestos"
+LOGOUT_REDIRECT_URL = "inicio"
+
 # Diagnóstico do reconhecimento de movimentos no terminal do runserver.
 LOGGING = {
     "version": 1,

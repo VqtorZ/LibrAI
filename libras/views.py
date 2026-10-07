@@ -10,6 +10,7 @@ from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
+from .acesso import apenas_admin
 from .captura.camera import GravacaoIndisponivel, camera
 from .estatico import amostras as amostras_alfabeto
 from .estatico.treino import ErroTreino
@@ -98,6 +99,7 @@ def status(request):
     return JsonResponse(camera.status())
 
 
+@apenas_admin
 def gestos(request):
     """Lista os sinais ativos, com amostras e situação no reconhecimento."""
     sinais = list(
@@ -126,6 +128,7 @@ def gestos(request):
     )
 
 
+@apenas_admin
 def gesto_novo(request):
     """Cadastra um novo sinal (título, tipo e descrição)."""
     form = SinalForm(request.POST or None)
@@ -136,6 +139,7 @@ def gesto_novo(request):
     return render(request, "libras/gesto_form.html", {"form": form})
 
 
+@apenas_admin
 def gesto_detalhe(request, sinal_id):
     """Página do sinal: dados cadastrais e amostras de movimento gravadas."""
     sinal = get_object_or_404(Sinal, pk=sinal_id)
@@ -155,6 +159,7 @@ def gesto_detalhe(request, sinal_id):
     return render(request, "libras/gesto_detalhe.html", contexto)
 
 
+@apenas_admin
 @require_POST
 def treinar_movimentos(request):
     """Treina o modelo de movimentos pelo site (mesmo treino do comando).
@@ -197,6 +202,7 @@ def treinar_movimentos(request):
     return redirect(voltar)
 
 
+@apenas_admin
 def gesto_gravar(request, sinal_id):
     """Estúdio de gravação: câmera ao vivo com os marcos da mão.
 
@@ -216,6 +222,7 @@ def _sinal_de_movimento(sinal_id):
     )
 
 
+@apenas_admin
 @require_POST
 def gesto_gravacao_iniciar(request, sinal_id):
     """Começa a gravar uma amostra do sinal (o id vem só da rota)."""
@@ -227,6 +234,7 @@ def gesto_gravacao_iniciar(request, sinal_id):
     return JsonResponse({"ok": True})
 
 
+@apenas_admin
 @require_POST
 def gesto_gravacao_parar(request, sinal_id):
     """Encerra a gravação e salva a amostra."""
@@ -247,6 +255,7 @@ def gesto_gravacao_parar(request, sinal_id):
     )
 
 
+@apenas_admin
 @require_POST
 def gesto_amostra_apagar(request, sinal_id, amostra_id):
     """Apaga uma amostra temporal do sinal (registro e arquivo JSON).
@@ -274,6 +283,7 @@ def _resposta_contagem(letra):
     }
 
 
+@apenas_admin
 def alfabeto_gravar(request):
     """Estúdio do alfabeto: escolha a letra, faça o sinal, Espaço salva.
 
@@ -304,6 +314,7 @@ def alfabeto_gravar(request):
     )
 
 
+@apenas_admin
 @require_POST
 def alfabeto_amostra_salvar(request):
     """Salva uma amostra da letra com a mão que a câmera está vendo agora."""
@@ -318,6 +329,7 @@ def alfabeto_amostra_salvar(request):
     return JsonResponse(_resposta_contagem(letra))
 
 
+@apenas_admin
 @require_POST
 def alfabeto_amostra_desfazer(request):
     """Remove a última amostra salva por este navegador (se ainda for a última)."""
@@ -327,6 +339,7 @@ def alfabeto_amostra_desfazer(request):
     return JsonResponse(_resposta_contagem(linha.split(",", 1)[0]))
 
 
+@apenas_admin
 @require_POST
 def treinar_alfabeto(request):
     """Treina o alfabeto pelo site (mesmo treino do comando treinar_alfabeto).
@@ -351,6 +364,7 @@ def treinar_alfabeto(request):
 # --------------------------------------------------------------------------
 # Excluir um sinal inteiro
 # --------------------------------------------------------------------------
+@apenas_admin
 def gesto_excluir(request, sinal_id):
     """Exclui o sinal: cadastro, amostras e o que o modelo aprendeu dele.
 

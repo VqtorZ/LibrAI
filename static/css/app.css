@@ -2021,3 +2021,71 @@ kbd {
     }
 }
 
+/* ==========================================================================
+   20. CONTA (cabeçalho: Entrar / Olá, nome · Sair)
+   ========================================================================== */
+.conta-entrar,
+.conta-sair button {
+    padding: 8px 14px;
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: 800 13px var(--font-body);
+    text-decoration: none;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+}
+
+.conta-entrar:hover,
+.conta-entrar.is-active,
+.conta-sair button:hover {
+    border-color: var(--color-primary);
+    background: var(--color-primary-soft);
+}
+
+.conta-sair {
+    margin: 0;
+}
+
+.conta-ola {
+    max-width: 16ch;
+    overflow: hidden;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.mobile-sair {
+    margin: 0;
+}
+
+/* "Sair" no menu do celular com a mesma cara dos links do menu. */
+.mobile-sair button {
+    width: 100%;
+    padding: 13px 10px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-text-secondary);
+    font: 700 15px var(--font-body);
+    text-align: left;
+    cursor: pointer;
+}
+
+.mobile-sair button:hover {
+    background: var(--color-primary-soft);
+    color: var(--color-text);
+}
+
+@media (max-width:860px) {
+
+    .conta-entrar,
+    .conta-sair,
+    .conta-ola {
+        display: none;
+    }
+}
+

@@ -8,10 +8,10 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
 ## 1. Estado atual (onde paramos)
 
 - **Branch de trabalho:** `melhorias-movimento` (enviado ao GitHub,
-  `origin/melhorias-movimento`). Tem **31 commits que ainda não estão no
+  `origin/melhorias-movimento`). Tem **32 commits que ainda não estão no
   `main`** (o `main` está em `e61c9d3`). O merge (ou PR) espera a aprovação do
   usuário: https://github.com/VqtorZ/LibrAI/pull/new/melhorias-movimento
-- **Testes:** 232 passando (`libras/tests/`, divididos por área).
+- **Testes:** 247 passando (`libras/tests/`, divididos por área).
 - **Estrutura reorganizada em 2026-10-06** (seção 3): dados em `dados/`, código
   em `libras/captura/`, `libras/estatico/`, `libras/movimento/`; `scripts/` não
   existe mais (tudo via `manage.py`). Backup local de antes da reorganização
@@ -61,6 +61,15 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
   detector do reconhecimento ao vivo (o `coletar_alfabeto` usa outra config do
   MediaPipe — pendência 6). A câmera recarrega o modelo do alfabeto sozinha
   quando o arquivo muda; treinos salvam o modelo de forma atômica.
+- **Login (2026-10-07):** `/entrar/` (e-mail + senha, na vibe do site). Livres:
+  home, Reconhecer, `/video/`, `/api/status/`. Só administradores (`is_staff`,
+  decorador `acesso.apenas_admin`): toda a área de Gestos. Contas no banco local
+  (senhas só no banco, criptografadas — **nunca escrever senhas em arquivos do
+  projeto**): `victorba.rezende@gmail.com` (master, `is_superuser`, nome Victor),
+  `yasmin.yas@gmail.com` (Yasmin) e `giovana.gii@gmail.com` (Giovana; o usuário
+  digitou "giovana,gii", corrigido para ponto — confirmar com ele). Recomendado
+  ao usuário trocar as senhas (foram enviadas no chat; as de Yasmin/Giovana são
+  fracas). Novas contas: `manage.py criar_admin`.
 - **Próximo passo combinado:** o usuário vai **regravar todo o alfabeto** pelo
   site e depois treinar. Oferecido e ainda não decidido: botão de gravação em
   rajada (vários quadros espaçados por Espaço).
@@ -123,6 +132,7 @@ O README tem o mapa completo em árvore. Resumo:
 | `movimento/gravacao.py` | `GravadorMovimento` (limite 30 s / 1200 frames, origem "opencv") e `localizar_sinal`. Usado pelo comando **e** pela página. |
 | `models.py` | `Sinal` (titulo, tipo ESTATICO/MOVIMENTO, **negativo**, descricao, ativo) e `AmostraMovimento` (metadados + caminho do JSON). Migrações até `0003_sinal_negativo`. |
 | `views.py` / `urls.py` | Views `inicio`, `reconhecer`, `video`, `status`, `gestos`, `gesto_*`; nomes de rota iguais aos das views. |
+| `acesso.py` | Login: `FormularioEntrar` (e-mail em minúsculas, mensagens em PT, recusa conta sem `is_staff`) e o decorador `apenas_admin`. |
 | `contexto.py` | Context processor `versao_estaticos`: os links de CSS levam `?v=<mtime>`, para o navegador não usar cópia velha (o runserver não manda cabeçalhos de cache). |
 | `management/commands/` | `coletar_alfabeto`, `treinar_alfabeto`, `gravar_movimento`, `verificar_movimentos`, `treinar_movimentos`, `testar_movimento`, `gerar_nao_j_sintetico`. |
 | `tests/` | `base.py` (bases e auxiliares) + `test_sinais`, `test_amostras`, `test_classificador`, `test_ao_vivo`, `test_gravacao`, `test_camera`, `test_alfabeto`. |
@@ -133,7 +143,7 @@ O README tem o mapa completo em árvore. Resumo:
 **Rotas:** `/` · `/reconhecer/` · `/video/` (MJPEG) · `/api/status/` ·
 `/gestos/` · `/gestos/novo/` · `POST /gestos/treinar/` · `/gestos/alfabeto/` ·
 `POST /gestos/alfabeto/amostras/` · `POST /gestos/alfabeto/desfazer/` ·
-`POST /gestos/alfabeto/treinar/` · `/gestos/<id>/excluir/` (GET confirma, POST exclui) · `/gestos/<id>/` · `/gestos/<id>/gravar/` ·
+`POST /gestos/alfabeto/treinar/` · `/entrar/` · `POST /sair/` · `/gestos/<id>/excluir/` (GET confirma, POST exclui) · `/gestos/<id>/` · `/gestos/<id>/gravar/` ·
 `POST /gestos/<id>/gravacao/iniciar/` · `POST /gestos/<id>/gravacao/parar/` ·
 `POST /gestos/<id>/amostras/<amostra_id>/apagar/`.
 
@@ -288,6 +298,8 @@ rejeição não-J com arquivo sintético, hoje em `dados/sinteticos/nao_j_sintet
     JSONs e pasta) e `classificador.remover_do_modelo` (tira só esse sinal do
     modelo, sem retreinar os outros; apaga o modelo se não sobrar classe);
     232 testes
+30. login (`/entrar/`, `acesso.py`, `criar_admin`), Gestos só para admins,
+    Entrar/Olá·Sair no cabeçalho; 3 contas criadas no banco local; 247 testes
 
 ---
 

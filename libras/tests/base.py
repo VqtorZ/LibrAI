@@ -7,6 +7,7 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
+from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 
@@ -16,6 +17,17 @@ from libras.movimento.amostras import (
     salvar_amostra,
 )
 from libras.movimento.ao_vivo import DetectorMovimento
+
+
+def entrar_como_admin(teste):
+    """Faz o cliente de teste entrar como administrador (área de Gestos)."""
+    # Sem senha: force_login não precisa dela, e criptografar uma senha
+    # (lento de propósito) em cada teste deixava a suíte 10x mais lenta.
+    usuario, _ = User.objects.get_or_create(
+        username="admin@teste.com", defaults={"email": "admin@teste.com", "is_staff": True}
+    )
+    teste.client.force_login(usuario)
+    return usuario
 
 
 class TemporalBase(TestCase):
@@ -28,6 +40,7 @@ class TemporalBase(TestCase):
         )
 
     def setUp(self):
+        entrar_como_admin(self)
         self.media_tmp = tempfile.mkdtemp()
         ajuste = override_settings(MEDIA_ROOT=self.media_tmp)
         ajuste.enable()

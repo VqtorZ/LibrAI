@@ -8,10 +8,10 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
 ## 1. Estado atual (onde paramos)
 
 - **Branch de trabalho:** `melhorias-movimento` (enviado ao GitHub,
-  `origin/melhorias-movimento`). Tem **29 commits que ainda não estão no
+  `origin/melhorias-movimento`). Tem **30 commits que ainda não estão no
   `main`** (o `main` está em `e61c9d3`). O merge (ou PR) espera a aprovação do
   usuário: https://github.com/VqtorZ/LibrAI/pull/new/melhorias-movimento
-- **Testes:** 220 passando (`libras/tests/`, divididos por área).
+- **Testes:** 221 passando (`libras/tests/`, divididos por área).
 - **Estrutura reorganizada em 2026-10-06** (seção 3): dados em `dados/`, código
   em `libras/captura/`, `libras/estatico/`, `libras/movimento/`; `scripts/` não
   existe mais (tudo via `manage.py`). Backup local de antes da reorganização
@@ -34,10 +34,12 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
   tem só o cabeçalho. Backups: `backups/antes-apagar-FTIR-2026-10-07/` e
   `backups/antes-apagar-alfabeto-2026-10-07/` (fora do Git; o histórico do Git
   também guarda o CSV antigo). O usuário vai **regravar todas as letras pelo
-  site** (Gestos → Gravar letras). O modelo `alfabeto.joblib` (comprimido) é o
-  último treinado pelo usuário: reconhece 19 letras (ABCDEGILMNOPQRSUVWY) e segue
-  em uso até o próximo treino. Treinar com poucas letras gravadas faz as outras
-  deixarem de ser reconhecidas — gravar todas antes de treinar.
+  site** (Gestos → Gravar letras). Depois, a pedido do usuário ("resetar do
+  zero"), **o modelo `alfabeto.joblib` também foi apagado** (cópia em
+  `backups/antes-apagar-alfabeto-2026-10-07/alfabeto.joblib`; também no
+  histórico do Git): sem ele, o ao vivo mostra "Alfabeto não treinado" e a home
+  conta só J e Z. O próximo modelo nasce do zero no primeiro "Treinar alfabeto".
+  Ao apagar, já havia 43 amostras novas de A gravadas pelo site (preservadas).
 - **Resultado confirmado pelo usuário:** com as amostras gravadas pelo OpenCV,
   **o J é reconhecido ao vivo no `/reconhecer/`**.
 - **Front renovado em 2026-10-06** (seção 3): home nova (público principal:
@@ -279,6 +281,8 @@ rejeição não-J com arquivo sintético, hoje em `dados/sinteticos/nao_j_sintet
     modelos reais é conferido antes/depois da suíte)
 27. todas as amostras do alfabeto apagadas para regravar; modelo atual (19
     letras) registrado
+28. modelo do alfabeto apagado (recomeçar do zero); teste de modelo apagado
+    com o servidor ligado
 
 ---
 

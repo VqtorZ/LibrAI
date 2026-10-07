@@ -118,6 +118,22 @@ class CameraDoAlfabetoTests(SimpleTestCase):
             camera._conferir_modelo(103.0)
             self.assertEqual(camera.model, {"versao": 2})
 
+    def test_modelo_apagado_deixa_de_reconhecer_sem_reiniciar(self):
+        pasta = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, pasta, ignore_errors=True)
+        arquivo = pasta / "alfabeto.joblib"
+        salvar_modelo_atomico({"versao": 1}, arquivo)
+        with patch("libras.captura.camera.MODEL_PATH", arquivo):
+            camera = self.camera()
+            camera._ultima_conferencia = 0.0
+            camera._ultima_classificacao = 5.0
+            camera._carregar_modelo()
+            self.assertEqual(camera.model, {"versao": 1})
+            arquivo.unlink()  # "recomeçar do zero"
+            camera._conferir_modelo(100.0)
+            self.assertIsNone(camera.model)
+            self.assertEqual(camera.classify([]), "Modelo não treinado")
+
     def test_salvar_modelo_atomico_nao_deixa_temporario(self):
         pasta = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, pasta, ignore_errors=True)

@@ -8,8 +8,8 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
 ## 1. Estado atual (onde paramos)
 
 - **Branch de trabalho:** `melhorias-movimento` (enviado ao GitHub,
-  `origin/melhorias-movimento`). Tem **14 commits que ainda não estão no
-  `main`** (13 de código + o registro desta memória); o `main` está em
+  `origin/melhorias-movimento`). Tem **15 commits que ainda não estão no
+  `main`** (13 de código + 2 de memória/documentação); o `main` está em
   `e61c9d3`. O merge (ou PR) espera a aprovação do
   usuário: https://github.com/VqtorZ/LibrAI/pull/new/melhorias-movimento
 - **Testes:** 172 passando.
@@ -152,6 +152,12 @@ Rodar: `.\.venv\Scripts\python.exe manage.py runserver` → http://127.0.0.1:800
   da webcam ~30 fps). **Ainda não validado ao vivo.**
 - **Termo de pontas no DTW (testado e descartado):** comparar as poses de
   início/fim não separou o J incompleto e inflou a variação entre J reais.
+- **Sem bases de dados externas, por ora (decisão do usuário, 2026-10-06):**
+  avaliamos MINDS-Libras, V-Librasil, LIBRAS-UFOP e o alfabeto da Mendeley. O
+  usuário verificou e decidiu não usar nenhuma no momento: o projeto deve usar
+  apenas sinais brasileiros (Libras) e ele encontrou sinais de outras línguas
+  nessas bases. Os dados continuam vindo só das gravações próprias. Não
+  voltar a sugerir essas bases sem que o usuário peça.
 
 ---
 
@@ -181,6 +187,8 @@ rejeição não-J com arquivo sintético `dataset/nao_j_sintetico.json`).
 12. `e8ee910` modelo retreinado com 26 amostras de J (limiar 0.766)
 13. `c53f4d8` FPS do site (n_jobs=1, classificação a cada 150 ms, sem sleep fixo)
 14. memória do projeto em `.claude/` (`CLAUDE.md`, `CONTEXTO.md`, `/relembre`)
+15. registro da decisão de não usar bases externas e do plano de
+    auto-aperfeiçoamento (só documentação)
 
 ---
 
@@ -204,6 +212,25 @@ rejeição não-J com arquivo sintético `dataset/nao_j_sintetico.json`).
 7. **Melhoria possível:** com duas abas de câmera abertas, cada uma fica com
    metade do FPS (cada stream roda seu próprio loop). Uma thread única de
    captura compartilhada resolveria.
+8. **Plano de auto-aperfeiçoamento** (discutido em 2026-10-06; nada
+   implementado; ordem recomendada — o usuário ainda não escolheu por onde
+   começar):
+   - **Fase 1 — medir:** conjunto de teste fixo (amostras que nunca entram no
+     treino, de preferência de outras pessoas) + comando `avaliar_modelos`
+     (acerto por sinal, falsos positivos, confusões J×Z). Pré-requisito do
+     resto.
+   - **Fase 2 — mais dados manuais:** Z, exemplos negativos, outras pessoas.
+   - **Fase 3 — coleta pelo uso com confirmação humana:** botões
+     "Certo / Errado / Era o sinal X" no `/reconhecer/`; priorizar perguntar
+     nos casos de dúvida (distância perto do limiar).
+   - **Fase 4 — retreino automático com trava:** `retreinar_auto` só promove o
+     modelo novo se não piorar no teste fixo; versões antigas em
+     `models/historico/`.
+   - **Fase 5 — trocar o modelo de movimento** (DTW compara com todas as
+     amostras; com centenas por sinal, migrar para um classificador de
+     sequências).
+   - Evitar auto-treino só com as próprias previsões, sem confirmação humana:
+     o modelo aprenderia com os próprios erros.
 
 ---
 

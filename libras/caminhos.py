@@ -5,10 +5,10 @@ Tudo que é dado mora em ``dados/``:
 * ``banco.sqlite3`` — banco do Django (sinais e o registro das amostras);
   fora do Git;
 * ``amostras_estaticas/alfabeto.csv`` — amostras do alfabeto estático,
-  uma linha por amostra (letra + 63 coordenadas);
+  uma linha por amostra (letra + 63 coordenadas); fora do Git;
 * ``amostras_movimento/<id>-<sinal>/<amostra>.json`` — pontos da mão de
   cada amostra de movimento, frame a frame; fora do Git;
-* ``modelos_treinados/`` — modelos gerados pelos treinos;
+* ``modelos_treinados/`` — modelos gerados pelos treinos; fora do Git;
 * ``sinteticos/`` — dados artificiais de teste (nunca entram no treino);
 * ``legado/`` — dados e modelos do tempo da câmera do servidor, guardados
   mas fora de uso (os pontos eram medidos de outro jeito).

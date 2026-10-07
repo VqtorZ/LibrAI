@@ -4,12 +4,13 @@
     python manage.py criar_admin voce@exemplo.com --nome Você --master
 
 A senha é pedida no terminal (não aparece na tela) e nunca é passada
-pela linha de comando. --master dá acesso total, inclusive ao
-gerenciamento de usuários em /admin/.
+pela linha de comando; precisa ter 10+ caracteres e não pode ser óbvia.
+--master dá acesso total, inclusive ao gerenciamento de usuários em /admin/.
 """
 import getpass
 
 from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
 from django.core.management.base import BaseCommand, CommandError
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
@@ -35,10 +36,15 @@ class Command(BaseCommand):
         senha = getpass.getpass("Senha: ")
         if not senha or senha != getpass.getpass("Repita a senha: "):
             raise CommandError("As senhas não conferem (ou estão vazias).")
-        usuario, criado = User.objects.get_or_create(username=email, defaults={"email": email})
+        usuario = User.objects.filter(username=email).first() or User(username=email)
+        criado = usuario.pk is None
         usuario.email = email
         if options["nome"]:
             usuario.first_name = options["nome"]
+        try:
+            validate_password(senha, usuario)
+        except ValidationError as exc:
+            raise CommandError("Senha fraca: " + " ".join(exc.messages))
         usuario.is_active = True
         usuario.is_staff = True
         usuario.is_superuser = options["master"]

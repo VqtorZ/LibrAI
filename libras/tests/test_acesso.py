@@ -3,6 +3,7 @@ from io import StringIO
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
@@ -23,6 +24,9 @@ class AcessoTests(TestCase):
             "ana@exemplo.com", "ana@exemplo.com", "senha-forte-1", first_name="Ana", is_staff=True
         )
         cls.comum = User.objects.create_user("leo@exemplo.com", "leo@exemplo.com", "senha-forte-2")
+
+    def setUp(self):
+        cache.clear()  # contadores de tentativas de login
 
     def entrar(self, email, senha, **extra):
         return self.client.post(reverse("entrar"), {"username": email, "password": senha, **extra})
@@ -105,6 +109,44 @@ class AcessoTests(TestCase):
         self.client.force_login(self.admin)
         self.assertRedirects(self.client.get(reverse("entrar")), reverse("gestos"))
 
+    def test_bloqueia_depois_de_5_erros_no_mesmo_email(self):
+        for _ in range(5):
+            self.assertContains(self.entrar("ana@exemplo.com", "errada"), "E-mail ou senha incorretos")
+        # Bloqueado: nem a senha certa entra (e não dá pista se estaria certa).
+        response = self.entrar("ANA@exemplo.com", "senha-forte-1")
+        self.assertContains(response, "Muitas tentativas erradas")
+        self.assertEqual(self.client.get(reverse("gestos")).status_code, 302)
+        # Outra conta continua entrando normalmente.
+        User.objects.create_user("bia@exemplo.com", "bia@exemplo.com", "senha-forte-3", is_staff=True)
+        self.assertRedirects(self.entrar("bia@exemplo.com", "senha-forte-3"), reverse("gestos"))
+
+    def test_acertar_zera_os_erros(self):
+        for _ in range(4):
+            self.entrar("ana@exemplo.com", "errada")
+        self.assertRedirects(self.entrar("ana@exemplo.com", "senha-forte-1"), reverse("gestos"))
+        self.client.post(reverse("sair"))
+        for _ in range(4):
+            self.assertContains(self.entrar("ana@exemplo.com", "errada"), "E-mail ou senha incorretos")
+
+    @override_settings(LOGIN_TENTATIVAS_POR_IP=3, LOGIN_IP_DO_CABECALHO="HTTP_X_REAL_IP")
+    def test_bloqueia_por_ip_usando_o_cabecalho_do_servidor(self):
+        for indice in range(3):
+            self.client.post(
+                reverse("entrar"), {"username": f"tentativa{indice}@exemplo.com", "password": "errada"},
+                HTTP_X_REAL_IP="203.0.113.7",
+            )
+        bloqueado = self.client.post(
+            reverse("entrar"), {"username": "ana@exemplo.com", "password": "senha-forte-1"},
+            HTTP_X_REAL_IP="203.0.113.7",
+        )
+        self.assertContains(bloqueado, "Muitas tentativas erradas")
+        # Outro IP (outra pessoa) não é afetado.
+        liberado = self.client.post(
+            reverse("entrar"), {"username": "ana@exemplo.com", "password": "senha-forte-1"},
+            HTTP_X_REAL_IP="198.51.100.2",
+        )
+        self.assertRedirects(liberado, reverse("gestos"))
+
     def test_tela_de_login(self):
         response = self.client.get(reverse("entrar"))
         self.assertContains(response, "Área dos administradores")
@@ -115,7 +157,7 @@ class AcessoTests(TestCase):
 
 @RAPIDO
 class CriarAdminTests(TestCase):
-    def criar(self, *args, senhas=("segredo-123", "segredo-123")):
+    def criar(self, *args, senhas=("libras-segredo-123", "libras-segredo-123")):
         with patch("libras.management.commands.criar_admin.getpass.getpass", side_effect=list(senhas)):
             call_command("criar_admin", *args, stdout=StringIO())
 
@@ -125,19 +167,27 @@ class CriarAdminTests(TestCase):
         self.assertTrue(usuario.is_staff)
         self.assertFalse(usuario.is_superuser)
         self.assertEqual(usuario.first_name, "Bia")
-        self.assertTrue(usuario.check_password("segredo-123"))
+        self.assertTrue(usuario.check_password("libras-segredo-123"))
 
     def test_cria_master_e_atualiza_conta_existente(self):
         self.criar("bia@exemplo.com")
-        self.criar("bia@exemplo.com", "--master", senhas=("nova-456", "nova-456"))
+        self.criar("bia@exemplo.com", "--master", senhas=("outra-senha-456", "outra-senha-456"))
         usuario = User.objects.get(username="bia@exemplo.com")
         self.assertTrue(usuario.is_superuser)
-        self.assertTrue(usuario.check_password("nova-456"))
+        self.assertTrue(usuario.check_password("outra-senha-456"))
         self.assertEqual(User.objects.count(), 1)
 
     def test_senhas_diferentes(self):
         with self.assertRaises(CommandError):
             self.criar("bia@exemplo.com", senhas=("um", "dois"))
+        self.assertFalse(User.objects.exists())
+
+    def test_senha_fraca_e_recusada(self):
+        for fraca in ("curta-1", "1234567890123", "password123"):
+            with self.subTest(fraca=fraca):
+                with self.assertRaises(CommandError) as contexto:
+                    self.criar("bia@exemplo.com", senhas=(fraca, fraca))
+                self.assertIn("Senha fraca", str(contexto.exception))
         self.assertFalse(User.objects.exists())
 
     def test_email_invalido(self):

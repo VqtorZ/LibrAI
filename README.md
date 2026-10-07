@@ -45,9 +45,18 @@ OpenCV-Libras/
 └── static/                  CSS, imagens, js/camera-maos.js e o modelo do MediaPipe (modelos/)
 ```
 
-O banco e as gravações de movimento (`dados/banco.sqlite3` e
-`dados/amostras_movimento/`) **não vão para o GitHub**: para ter uma cópia de
-segurança, copie os dois juntos.
+O banco, as amostras e os modelos treinados **não vão para o GitHub**: com o
+site no ar, eles nascem no servidor. Cópia de segurança de tudo num .zip:
+`python manage.py backup_dados`.
+
+## Publicar (site no ar)
+
+O passo a passo para o PythonAnywhere (grátis) está em
+[`docs/publicar-pythonanywhere.md`](docs/publicar-pythonanywhere.md). No
+servidor, um arquivo `.env` (fora do Git) liga o modo produção
+(`LIBRAI_PRODUCAO=1`, `LIBRAI_SECRET_KEY`, `LIBRAI_HOSTS`); localmente nada
+muda. Com o site no ar, o login bloqueia por 15 minutos depois de 5 senhas
+erradas, e senhas novas precisam de 10+ caracteres.
 
 ## Executar no Windows (PowerShell)
 
@@ -99,6 +108,7 @@ painel do Django em `/admin/`.
 | `python manage.py testar_movimento --arquivo dados/sinteticos/nao_j_sintetico.json` | Testa a rejeição de um movimento que não é J |
 | `python manage.py gerar_nao_j_sintetico` | Recria o arquivo sintético não-J |
 | `python manage.py criar_admin email --nome Nome [--master]` | Cria ou atualiza uma conta de administrador |
+| `python manage.py backup_dados` | Gera `backups/librai-<data>.zip` com banco, amostras e modelos |
 | `python manage.py test libras` | Roda os testes |
 
 ## Alfabeto estático

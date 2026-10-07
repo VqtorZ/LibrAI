@@ -11,7 +11,7 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
   `origin/melhorias-movimento`). Tem 34+ commits que ainda não estão no `main`
   (o `main` está em `e61c9d3`). O merge (ou PR) espera a aprovação do
   usuário: https://github.com/VqtorZ/LibrAI/pull/new/melhorias-movimento
-- **Testes:** 250 passando (`libras/tests/`, divididos por área).
+- **Testes:** 262 passando (`libras/tests/`, divididos por área).
 - **Objetivo em andamento (2026-10-07): colocar o site no ar** para a equipe
   de três pessoas (Victor, Yasmin, Giovana) gravar amostras e treinar a IA
   remotamente. Decisões do usuário: **câmera migrada para o navegador**
@@ -23,10 +23,17 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
     carregou do CDN (WebGL), vídeo 960×540, 51 lotes `POST /api/quadros/` com
     200 em ~15 s, "Sem mão" correto. **Não testado com mão real**: o usuário
     precisa testar ao vivo.
-  - **Etapa 4 PENDENTE:** configurações de produção (variáveis de ambiente,
-    `DEBUG`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `STATIC_ROOT`, cookies
-    seguros, limite de tentativas de login, validadores de senha) e o guia de
-    publicação no PythonAnywhere (o usuário cria a conta).
+  - **Etapa 4 FEITA** (código): modo produção por `.env` (`config/ambiente.py`;
+    `LIBRAI_PRODUCAO`, `LIBRAI_SECRET_KEY`, `LIBRAI_HOSTS`; sem `.env` = modo
+    local de sempre), cookies seguros/HSTS, `STATIC_ROOT=staticfiles/`,
+    `check --deploy` limpo, login bloqueado 15 min após 5 erros no e-mail ou
+    20 no IP (`X-Real-IP` em produção), senhas novas com 10+ caracteres
+    (`criar_admin` valida), comando `backup_dados` (.zip) e o guia
+    **`docs/publicar-pythonanywhere.md`**. Plano grátis conferido em
+    2026-10-07: 512 MiB de disco, 1 site/1 processo, **expira a cada 1 mês**
+    (renovar na aba Web).
+  - **Falta (com o usuário):** criar a conta no PythonAnywhere e seguir o guia;
+    testar ao vivo.
 - **Dados após a migração (conferido em 2026-10-07):**
   - Banco: `#2 J` com 26 amostras e `#3 Z` com 20, **todas versão 2** (câmera
     do servidor). Ficam guardadas, mas fora dos treinos; a situação dos dois
@@ -66,9 +73,12 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
   - O token vale 30 dias (até ~2026-11-06); depois, gerar outro pelo link de
     autorização com a chave do app "LibrAI Kanban".
   - Ao concluir tarefas, oferecer mover os cartões.
-- **Próximo passo:** etapa 4 (produção + guia do PythonAnywhere). Depois o
-  usuário testa ao vivo, publica, cria as contas lá e a equipe regrava o
-  alfabeto, o J e o Z.
+- **Próximo passo:** o usuário testa ao vivo localmente, cria a conta no
+  PythonAnywhere e segue o guia (posso acompanhar passo a passo); cria as
+  contas lá com senhas novas; a equipe regrava o alfabeto, o J e o Z.
+- **Mudança no Git (2026-10-07):** `dados/amostras_estaticas/` e
+  `dados/modelos_treinados/` passaram para o `.gitignore` (os dados nascem no
+  servidor; versioná-los faria o `git pull` de lá brigar com eles).
 
 ---
 
@@ -295,18 +305,15 @@ DTW experimental → teste de rejeição não-J.
      primeira classificação).
 
    Resultado: 250 testes e teste de fumaça com câmera falsa.
+33. Produção: `.env`, segurança, limite de login, validação de senha,
+   `backup_dados`, guia do PythonAnywhere; dados fora do Git; 262 testes.
 
 ---
 
 ## 7. Pendências e próximos passos
 
-1. **Etapa 4 do deploy:**
-   - `settings` de produção por variáveis de ambiente (`SECRET_KEY`, `DEBUG`,
-     `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`), `STATIC_ROOT` +
-     `collectstatic`, cookies seguros/HSTS;
-   - limite de tentativas de login e validadores de senha;
-   - guia passo a passo do PythonAnywhere: conta, clone, virtualenv, WSGI,
-     estáticos, `migrate`, `criar_admin`.
+1. **Publicar** seguindo `docs/publicar-pythonanywhere.md` (o usuário cria a
+   conta). Ideia futura: página "trocar minha senha" para cada admin.
 
    Pontos de atenção:
    - o PythonAnywhere grátis tem CPU limitada e **um processo**, e as sessões
@@ -391,9 +398,9 @@ for s in Sinal.objects.all().order_by('pk'):
   pode tocar nos dados reais).
 - Cuidado com nomes: o módulo `libras.movimento.trajetoria` colide com
   variáveis locais chamadas `trajetoria`; use `passos`.
-- `dados/banco.sqlite3` e `dados/amostras_movimento/` estão no `.gitignore`;
-  `dados/modelos_treinados/`, `dados/amostras_estaticas/`, `dados/legado/` e
-  `dados/sinteticos/` são versionados. `backups/` é ignorada.
+- No `.gitignore`: banco, `amostras_movimento/`, `amostras_estaticas/`,
+  `modelos_treinados/`, `staticfiles/`, `.env`. Versionados: `dados/legado/` e
+  `dados/sinteticos/`. O `.env` local não deve existir (ligaria a produção). `backups/` é ignorada.
 - Privacidade: nenhum vídeo é armazenado, nem sai do navegador; só os
   landmarks. Se pessoas de fora forem gravar, lembrar o usuário de combinar o
   consentimento.

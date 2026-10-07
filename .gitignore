@@ -12,13 +12,20 @@ dist/
 # --- Django ---
 local_settings.py
 
-# --- Dados locais (ver libras/caminhos.py) ---
-# O banco e as gravações de movimento ficam só nesta máquina; os modelos
-# treinados e as amostras estáticas são versionados.
+# --- Dados (ver libras/caminhos.py) ---
+# Com o site no ar, os dados nascem no servidor (gravações da equipe e
+# treinos pelo site): nada disso vai para o Git, senão um "git pull" no
+# servidor brigaria com eles. Cópia de segurança: manage.py backup_dados.
+# Continuam versionados: dados/legado/ e dados/sinteticos/.
 dados/banco.sqlite3
 dados/banco.sqlite3-journal
 dados/amostras_movimento/
+dados/amostras_estaticas/
+dados/modelos_treinados/
 backups/
+
+# --- Django: destino do collectstatic no servidor ---
+staticfiles/
 
 # --- Variaveis de ambiente / segredos ---
 .env

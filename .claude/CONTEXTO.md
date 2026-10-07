@@ -8,7 +8,7 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
 ## 1. Estado atual (onde paramos)
 
 - **Branch de trabalho:** `melhorias-movimento` (enviado ao GitHub,
-  `origin/melhorias-movimento`). Tem **18 commits que ainda não estão no
+  `origin/melhorias-movimento`). Tem **20 commits que ainda não estão no
   `main`** (o `main` está em `e61c9d3`). O merge (ou PR) espera a aprovação do
   usuário: https://github.com/VqtorZ/LibrAI/pull/new/melhorias-movimento
 - **Testes:** 180 passando (`libras/tests/`, divididos por área).
@@ -226,6 +226,9 @@ rejeição não-J com arquivo sintético, hoje em `dados/sinteticos/nao_j_sintet
     resultados idênticos aos modelos atuais.
 18. nomes em português (views/rotas/templates `inicio`, `reconhecer`,
     `video`, `_cabecalho`), README com mapa do projeto, esta memória
+19. `36daa54` CSS: o espaço do header fixo (76 px) passa a ser reservado no
+    `body` de todas as páginas (o título de Gestos ficava sob o header) e
+    `[id] { scroll-margin-top }` para os links do menu da home
 
 ---
 

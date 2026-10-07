@@ -73,9 +73,33 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
   - O token vale 30 dias (até ~2026-11-06); depois, gerar outro pelo link de
     autorização com a chave do app "LibrAI Kanban".
   - Ao concluir tarefas, oferecer mover os cartões.
-- **Próximo passo:** o usuário testa ao vivo localmente, cria a conta no
-  PythonAnywhere e segue o guia (posso acompanhar passo a passo); cria as
-  contas lá com senhas novas; a equipe regrava o alfabeto, o J e o Z.
+- **HOSPEDAGEM DECIDIDA (2026-10-07): a máquina do próprio usuário** (ele
+  preferiu ao PythonAnywhere, cujo guia continua em `docs/` como
+  alternativa). `publicar.cmd` → `manage.py publicar` com
+  `LIBRAI_ENV=.env.publico`:
+  - waitress em 127.0.0.1:8080, com `trusted_proxy` 127.0.0.1 e
+    `x-forwarded-proto`;
+  - túnel rápido da Cloudflare (`cloudflared`, instalado via winget em
+    `C:\Program Files (x86)\cloudflared\`);
+  - o link `*.trycloudflare.com` **muda a cada vez que liga** e fica salvo em
+    `dados/link_publico.txt`.
+
+  O `.env.publico` (fora do Git, criado em 2026-10-07 com a chave secreta)
+  contém `LIBRAI_HOSTS=.trycloudflare.com,...` e
+  `LIBRAI_IP_CABECALHO=HTTP_CF_CONNECTING_IP`. WhiteNoise serve os
+  estáticos. O `/admin/login/` redireciona para `/entrar/`, que tem o limite
+  de tentativas.
+
+  Testado pela internet: páginas, HSTS, login com CSRF, `CF-Connecting-IP`
+  chegando e câmera falsa com 75 POSTs 200. Guia de uso:
+  `docs/publicar-no-meu-computador.md`.
+- **Próximo passo:**
+  1. o usuário troca as senhas das 3 contas (`criar_admin`; as antigas
+     passaram pelo chat);
+  2. liga o `publicar.cmd` e manda o link para Yasmin e Giovana;
+  3. a equipe regrava o alfabeto, o J e o Z.
+- **Ideia oferecida:** página "trocar minha senha" para cada admin. Link
+  fixo (domínio próprio, ngrok ou Tailscale) só se fizer falta.
 - **Mudança no Git (2026-10-07):** `dados/amostras_estaticas/` e
   `dados/modelos_treinados/` passaram para o `.gitignore` (os dados nascem no
   servidor; versioná-los faria o `git pull` de lá brigar com eles).
@@ -336,6 +360,10 @@ DTW experimental → teste de rejeição não-J.
    **Resultado medido pelo usuário (2026-10-07):** CPU (worker), câmera
    **30 fps**, detector 26 fps, 21,9 ms por detecção — "está ótimo agora".
    Na máquina dele, a CPU foi mais rápida que a GPU (60,6 ms → 21,9 ms).
+36. Hospedagem no PC do usuário: `publicar.cmd` + comando `publicar`
+   (waitress + cloudflared), `LIBRAI_ENV`, WhiteNoise, origens CSRF com
+   curinga, cabeçalho de IP configurável, login do `/admin/` pelo `/entrar/`;
+   266 testes.
 
 ---
 

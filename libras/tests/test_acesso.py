@@ -193,3 +193,10 @@ class CriarAdminTests(TestCase):
     def test_email_invalido(self):
         with self.assertRaises(CommandError):
             self.criar("giovana,gii@gmail.com")
+
+
+class LoginDoAdminTests(TestCase):
+    def test_login_do_admin_passa_pela_tela_do_site(self):
+        # A tela do site tem o limite de tentativas; a do /admin/ não teria.
+        resposta = self.client.get("/admin/login/?next=/admin/")
+        self.assertRedirects(resposta, reverse("entrar") + "?next=/admin/", fetch_redirect_response=False)

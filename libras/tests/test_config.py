@@ -142,3 +142,55 @@ class BackupDadosTests(SimpleTestCase):
         conexao = sqlite3.connect(raiz / "restaurado" / "dados" / "banco.sqlite3")
         self.assertEqual(conexao.execute("select x from t").fetchone(), (42,))
         conexao.close()
+
+
+class PublicarTests(SimpleTestCase):
+    """Site no ar a partir deste computador (publicar.cmd)."""
+
+    def test_le_o_link_do_tunel(self):
+        from libras.management.commands.publicar import link_na_linha
+
+        linha = "2026-10-07T06:40:01Z INF |  https://ab-cd-12.trycloudflare.com                |"
+        self.assertEqual(link_na_linha(linha), "https://ab-cd-12.trycloudflare.com")
+        self.assertIsNone(link_na_linha("INF Requesting new quick Tunnel on trycloudflare.com..."))
+
+    def test_recusa_fora_do_modo_producao(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        with self.assertRaises(CommandError) as contexto:
+            call_command("publicar", "--sem-tunel")
+        self.assertIn("publicar.cmd", str(contexto.exception))
+
+    def test_env_publico_aceita_o_link_do_tunel(self):
+        import secrets
+        import subprocess
+        import sys
+
+        pasta = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, pasta, ignore_errors=True)
+        arquivo = pasta / ".env.teste"
+        arquivo.write_text(
+            "LIBRAI_PRODUCAO=1\n"
+            f"LIBRAI_SECRET_KEY={secrets.token_urlsafe(50)}\n"
+            "LIBRAI_HOSTS=.trycloudflare.com,127.0.0.1\n"
+            "LIBRAI_IP_CABECALHO=HTTP_CF_CONNECTING_IP\n",
+            encoding="utf-8",
+        )
+        ambiente = {k: v for k, v in os.environ.items() if not k.startswith("LIBRAI_")}
+        ambiente["LIBRAI_ENV"] = str(arquivo)
+        codigo = (
+            "from django.conf import settings as s; from django.test import Client; "
+            "c = Client(HTTP_HOST='abc-def.trycloudflare.com', HTTP_X_FORWARDED_PROTO='https'); "
+            "r = c.get('/'); "
+            "print(s.PRODUCAO, s.CSRF_TRUSTED_ORIGINS, s.LOGIN_IP_DO_CABECALHO, r.status_code)"
+        )
+        resultado = subprocess.run(
+            [sys.executable, "manage.py", "shell", "-c", codigo], cwd=settings.BASE_DIR, env=ambiente,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
+        )
+        self.assertEqual(
+            resultado.stdout.strip().splitlines()[-1],
+            "True ['https://*.trycloudflare.com', 'https://127.0.0.1'] HTTP_CF_CONNECTING_IP 200",
+            resultado.stderr,
+        )

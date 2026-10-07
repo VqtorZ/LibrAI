@@ -50,3 +50,6 @@ $RECYCLE.BIN/
 
 # --- Claude Code (configurações pessoais; o restante de .claude/ é versionado) ---
 .claude/settings.local.json
+
+# Link do túnel em uso (publicar.cmd)
+dados/link_publico.txt

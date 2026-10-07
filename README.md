@@ -51,8 +51,13 @@ site no ar, eles nascem no servidor. Cópia de segurança de tudo num .zip:
 
 ## Publicar (site no ar)
 
-O passo a passo para o PythonAnywhere (grátis) está em
-[`docs/publicar-pythonanywhere.md`](docs/publicar-pythonanywhere.md). No
+**A partir deste computador (o jeito em uso):** dois cliques em
+`publicar.cmd`. Ele sobe o servidor de produção (waitress, só em 127.0.0.1)
+e um túnel da Cloudflare, e mostra um link público https para a equipe. Guia
+completo: [`docs/publicar-no-meu-computador.md`](docs/publicar-no-meu-computador.md).
+
+**Num servidor (alternativa):** o passo a passo do PythonAnywhere (grátis)
+está em [`docs/publicar-pythonanywhere.md`](docs/publicar-pythonanywhere.md). No
 servidor, um arquivo `.env` (fora do Git) liga o modo produção
 (`LIBRAI_PRODUCAO=1`, `LIBRAI_SECRET_KEY`, `LIBRAI_HOSTS`); localmente nada
 muda. Com o site no ar, o login bloqueia por 15 minutos depois de 5 senhas
@@ -108,6 +113,7 @@ painel do Django em `/admin/`.
 | `python manage.py testar_movimento --arquivo dados/sinteticos/nao_j_sintetico.json` | Testa a rejeição de um movimento que não é J |
 | `python manage.py gerar_nao_j_sintetico` | Recria o arquivo sintético não-J |
 | `python manage.py criar_admin email --nome Nome [--master]` | Cria ou atualiza uma conta de administrador |
+| `publicar.cmd` (ou `manage.py publicar` com `LIBRAI_ENV=.env.publico`) | Põe o site no ar com link público (Ctrl+C desliga) |
 | `python manage.py backup_dados` | Gera `backups/librai-<data>.zip` com banco, amostras e modelos |
 | `python manage.py test libras` | Roda os testes |
 

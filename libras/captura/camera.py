@@ -43,6 +43,11 @@ CAMERA_ATIVA_S = 1.5
 # 400 árvores) derrubava o FPS da câmera do site.
 INTERVALO_CLASSIFICACAO_S = 0.15
 ROTULO_SEM_MAO = "Aguardando mão"
+# A cada intervalo a câmera confere se o modelo do alfabeto foi retreinado
+# (treinar_alfabeto ou o botão do site) e recarrega sem reiniciar o servidor.
+INTERVALO_CONFERIR_MODELO_S = 2.0
+# Uma amostra do alfabeto só é salva com pontos da mão vistos há pouco.
+MARCOS_RECENTES_S = 0.5
 ROTULO_GRAVANDO = "Gravando amostra"
 
 
@@ -80,24 +85,16 @@ class Camera:
         self._hands = criar_detector_maos()
         self.model = None
         self.model_error = None
-        if joblib is None:
-            self.model_error = "Dependência joblib ausente. Instale as dependências do projeto."
-        elif MODEL_PATH.exists():
-            try:
-                self.model = joblib.load(MODEL_PATH)
-            except (OSError, ValueError, ImportError) as exc:
-                self.model_error = f"Não foi possível carregar o modelo: {exc}"
-        if hasattr(self.model, "n_jobs"):
-            # Treinado com n_jobs=-1; para uma mão por vez, paralelizar
-            # custa mais que economiza (~48 ms contra ~20 ms por previsão).
-            self.model.n_jobs = 1
+        self._modelo_mtime = None
+        self._ultima_conferencia = 0.0
+        self._carregar_modelo()
+        self._ultimos_marcos = None  # (instante, 63 valores) da última mão vista
         self._rotulo_estatico = ROTULO_SEM_MAO
         self._ultima_classificacao = 0.0
         self.last_label = ROTULO_SEM_MAO
         self.last_error = None
-        # Reconhecimento de movimento: criado sob demanda porque depende
-        # do Django, e este módulo também é importado pelos scripts de
-        # coleta/treino do alfabeto, que rodam sem o Django configurado.
+        # Reconhecimento de movimento: criado sob demanda (depende do Django
+        # e de módulos mais pesados; a câmera carrega leve).
         self._movimento = None
         self.movimento_label = None
         self._movimento_ate = 0.0
@@ -108,6 +105,50 @@ class Camera:
         self._mao_presente = False
         self._ultimo_frame = 0.0
         self._clientes = 0
+
+    def _carregar_modelo(self):
+        """Carrega o modelo do alfabeto e anota a data do arquivo."""
+        self.model = None
+        self.model_error = None
+        if joblib is None:
+            self.model_error = "Dependência joblib ausente. Instale as dependências do projeto."
+            return
+        try:
+            self._modelo_mtime = MODEL_PATH.stat().st_mtime
+        except OSError:
+            self._modelo_mtime = None
+            return
+        try:
+            modelo = joblib.load(MODEL_PATH)
+        except (OSError, ValueError, ImportError, EOFError) as exc:
+            self.model_error = f"Não foi possível carregar o modelo: {exc}"
+            return
+        if hasattr(modelo, "n_jobs"):
+            # Treinado com n_jobs=-1; para uma mão por vez, paralelizar
+            # custa mais que economiza (~48 ms contra ~20 ms por previsão).
+            modelo.n_jobs = 1
+        self.model = modelo
+
+    def _conferir_modelo(self, agora):
+        """Recarrega o modelo do alfabeto se o arquivo mudou (retreino)."""
+        if agora - self._ultima_conferencia < INTERVALO_CONFERIR_MODELO_S:
+            return
+        self._ultima_conferencia = agora
+        try:
+            mtime = MODEL_PATH.stat().st_mtime
+        except OSError:
+            mtime = None
+        if mtime != self._modelo_mtime:
+            self._carregar_modelo()
+            self._ultima_classificacao = 0.0
+
+    def marcos_recentes(self):
+        """Os 63 valores da mão vista agora, para salvar uma amostra do alfabeto."""
+        with self._lock:
+            ultimos = self._ultimos_marcos
+        if ultimos is None or time.monotonic() - ultimos[0] > MARCOS_RECENTES_S:
+            raise GravacaoIndisponivel("Posicione a mão na câmera antes de salvar.")
+        return ultimos[1]
 
     def _open(self):
         if self._capture is None or not self._capture.isOpened():
@@ -171,6 +212,7 @@ class Camera:
 
     def _classificar_estatico(self, landmarks, agora):
         """Letra estática, reclassificada no máximo a cada intervalo."""
+        self._conferir_modelo(agora)
         if landmarks is None:
             # Sem mão: a próxima mão que aparecer é classificada na hora.
             self._ultima_classificacao = 0.0
@@ -186,6 +228,8 @@ class Camera:
         agora = time.monotonic()
         self._ultimo_frame = agora
         self._mao_presente = bool(result.multi_hand_landmarks)
+        valores, _ = marcos_da_mao(result)
+        self._ultimos_marcos = (agora, valores) if valores is not None else None
         # O status é exibido pela interface lateral; mantemos a imagem limpa.
         hand = None
         if result.multi_hand_landmarks:

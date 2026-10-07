@@ -30,7 +30,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 
-from ..caminhos import COMPRESSAO_MODELOS, MODELO_MOVIMENTOS
+from ..caminhos import MODELO_MOVIMENTOS, salvar_modelo_atomico
 from ..models import AmostraMovimento, Sinal
 from .amostras import ler_sequencia
 from .segmentacao import trecho_principal
@@ -269,8 +269,7 @@ def treinar(caminho=None):
         },
         "margem": MARGEM_LIMIAR,
     }
-    destino.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(modelo, destino, compress=COMPRESSAO_MODELOS)
+    salvar_modelo_atomico(modelo, destino)
     return TreinoResultado(
         modelo=modelo, trajetorias=trajetorias,
         invalidas=invalidas, excluidas=excluidas,

@@ -1,8 +1,9 @@
-<form class="form-treinar" method="post" action="{% url 'treinar_movimentos' %}">
+{% url 'treinar_movimentos' as url_padrao %}
+<form class="form-treinar" method="post" action="{{ url_treino|default:url_padrao }}">
     {% csrf_token %}
     <input type="hidden" name="voltar" value="{{ voltar }}">
     <button type="submit" class="{% if secundario %}secondary-button{% else %}primary-button{% endif %} botao-treinar">
-        <span class="botao-treinar-texto">Treinar reconhecimento</span>
+        <span class="botao-treinar-texto">{{ texto|default:"Treinar reconhecimento" }}</span>
         <span class="spinner" aria-hidden="true"></span>
     </button>
 </form>

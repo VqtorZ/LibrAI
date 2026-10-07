@@ -14,6 +14,7 @@ Tudo que é dado mora em ``dados/``:
 Módulo sem dependência do Django: as configurações (``config/settings.py``)
 também o usam.
 """
+import os
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -30,3 +31,18 @@ MODELO_MOVIMENTOS = MODELOS_TREINADOS / "movimentos.joblib"
 
 # Compressão dos modelos salvos: o RandomForest do alfabeto passava de 40 MB.
 COMPRESSAO_MODELOS = 3
+
+
+def salvar_modelo_atomico(modelo, destino):
+    """Salva o modelo num arquivo temporário e o troca pelo definitivo.
+
+    A câmera e o detector de movimentos recarregam o modelo quando o
+    arquivo muda; a troca atômica garante que nunca leiam um arquivo
+    pela metade.
+    """
+    import joblib
+
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    temporario = destino.with_name(destino.name + ".tmp")
+    joblib.dump(modelo, temporario, compress=COMPRESSAO_MODELOS)
+    os.replace(temporario, destino)

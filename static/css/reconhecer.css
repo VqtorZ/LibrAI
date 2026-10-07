@@ -587,3 +587,137 @@
         display: none;
     }
 }
+
+
+/* --------------------------------------------------------------------------
+   Gravar alfabeto (mesma página-base do reconhecer)
+   -------------------------------------------------------------------------- */
+.al-acoes {
+    display: grid;
+    gap: 10px;
+    margin-top: 24px;
+}
+
+.al-acoes .primary-button {
+    justify-content: center;
+}
+
+.al-retorno {
+    min-height: 1.5em;
+    margin: 12px 0 0;
+    color: #1F7A52;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.al-retorno.erro {
+    color: var(--color-error);
+}
+
+.al-retorno.pulso {
+    animation: rc-troca .4s cubic-bezier(.2, .8, .2, 1);
+}
+
+.al-escolha {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid var(--color-border);
+}
+
+.al-dica {
+    color: var(--color-text-muted);
+    font-size: 12.5px;
+}
+
+.al-letras {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 7px;
+}
+
+.al-letra {
+    display: grid;
+    place-items: center;
+    gap: 1px;
+    padding: 8px 0 6px;
+    border: 2px solid transparent;
+    border-radius: 14px;
+    background: var(--color-surface-alt);
+    color: var(--color-text);
+    font-family: var(--font-body);
+    cursor: pointer;
+    transition: transform .2s, background .2s, border-color .2s;
+}
+
+.al-letra:hover {
+    transform: translateY(-2px);
+    border-color: var(--color-primary);
+}
+
+.al-letra:focus-visible {
+    outline: 3px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+.al-letra-glifo {
+    font-size: 19px;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.al-letra-num {
+    color: var(--color-text-muted);
+    font: 600 10px var(--font-mono);
+}
+
+/* Letra ainda sem amostras: tracejada, com o zero em destaque. */
+.al-letra.vazia {
+    background: transparent;
+    border: 2px dashed #C6D0DF;
+}
+
+.al-letra.vazia .al-letra-num {
+    color: var(--color-secondary-hover);
+    font-weight: 700;
+}
+
+.al-letra.is-ativa {
+    background: linear-gradient(160deg, #8DB3EC, #4F7ED3);
+    color: #fff;
+    box-shadow: 0 8px 18px rgba(79, 126, 211, .3);
+}
+
+.al-letra.is-ativa .al-letra-num {
+    color: rgba(255, 255, 255, .9);
+}
+
+.al-treino {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 22px;
+    padding: 22px 24px;
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+}
+
+.al-treino strong {
+    font-size: 1.05rem;
+}
+
+.al-treino p {
+    margin: 4px 0 0;
+    color: var(--color-text-secondary);
+    font-size: 14px;
+}
+
+.rc .voltar {
+    margin: 0 0 14px;
+}
+
+.rc .messages {
+    margin: 18px 0 0;
+}

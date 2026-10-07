@@ -31,6 +31,19 @@
             {% include "libras/_botao_treinar.html" with voltar=request.path %}
         </div>
         {% endif %}
+        <section class="alfabeto-painel" aria-label="Alfabeto">
+            <span class="alfabeto-painel-icone" aria-hidden="true">Aa</span>
+            <div>
+                <h2>Alfabeto — letras paradas</h2>
+                <p>{{ alfabeto_letras }} letras com amostras · {{ alfabeto_amostras }} amostras. Grave pelo site
+                    com a câmera: escolha a letra e aperte <kbd>Espaço</kbd>.</p>
+            </div>
+            <div class="toolbar-acoes">
+                {% url 'treinar_alfabeto' as url_treino_alfabeto %}
+                {% include "libras/_botao_treinar.html" with url_treino=url_treino_alfabeto texto="Treinar alfabeto" voltar=request.path secundario=True %}
+                <a class="primary-button" href="{% url 'alfabeto_gravar' %}">Gravar letras <span aria-hidden="true">→</span></a>
+            </div>
+        </section>
         <div class="gestures-toolbar">
             <span class="section-label">{{ sinais|length }} {% if sinais|length == 1 %}sinal{% else %}sinais{% endif %}</span>
             <div class="toolbar-acoes">

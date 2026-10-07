@@ -7,14 +7,13 @@ acrescenta as features geométricas e salva o modelo em
 """
 from __future__ import annotations
 
-import joblib
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
 
-from ..caminhos import AMOSTRAS_ESTATICAS, COMPRESSAO_MODELOS, MODELO_ALFABETO
+from ..caminhos import AMOSTRAS_ESTATICAS, MODELO_ALFABETO, salvar_modelo_atomico
 from .features import features_geometricas
 
 COLUNAS_BASE = 63
@@ -32,8 +31,10 @@ def montar_features(dados):
     return np.hstack([coords, geo])
 
 
-def treinar(dataset=AMOSTRAS_ESTATICAS, destino=MODELO_ALFABETO):
+def treinar(dataset=None, destino=None):
     """Treina e salva o modelo; devolve o relatório de classificação."""
+    dataset = dataset if dataset is not None else AMOSTRAS_ESTATICAS
+    destino = destino if destino is not None else MODELO_ALFABETO
     if not dataset.exists():
         raise ErroTreino("Dataset ausente. Colete amostras com: python manage.py coletar_alfabeto <letra>")
     dados = pd.read_csv(dataset)
@@ -51,6 +52,5 @@ def treinar(dataset=AMOSTRAS_ESTATICAS, destino=MODELO_ALFABETO):
     )
     modelo.fit(X_treino, y_treino)
     relatorio = classification_report(y_teste, modelo.predict(X_teste), zero_division=0)
-    destino.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(modelo, destino, compress=COMPRESSAO_MODELOS)
+    salvar_modelo_atomico(modelo, destino)
     return relatorio

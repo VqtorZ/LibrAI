@@ -8,7 +8,7 @@
     <a href="{% url 'inicio' %}#projeto">O projeto</a>
     <a href="{% url 'inicio' %}#como-funciona">Como funciona</a>
     <a href="{% url 'inicio' %}#reconhece">O que reconhece</a>
-    <a href="{% url 'gestos' %}"{% if pagina == 'gestos' or pagina|slice:':6' == 'gesto_' %} class="is-active" aria-current="page"{% endif %}>Gestos</a>
+    <a href="{% url 'gestos' %}"{% if pagina == 'gestos' or pagina|slice:':6' == 'gesto_' or pagina|slice:':9' == 'alfabeto_' %} class="is-active" aria-current="page"{% endif %}>Gestos</a>
   </nav>
   <div class="header-actions">
     <a class="header-cta{% if pagina == 'reconhecer' %} is-active{% endif %}" href="{% url 'reconhecer' %}"{% if pagina == 'reconhecer' %} aria-current="page"{% endif %}>Reconhecer <span aria-hidden="true">→</span></a>
@@ -21,7 +21,7 @@
   <a href="{% url 'inicio' %}#projeto">O projeto</a>
   <a href="{% url 'inicio' %}#como-funciona">Como funciona</a>
   <a href="{% url 'inicio' %}#reconhece">O que reconhece</a>
-  <a href="{% url 'gestos' %}"{% if pagina == 'gestos' or pagina|slice:':6' == 'gesto_' %} class="is-active" aria-current="page"{% endif %}>Gestos</a>
+  <a href="{% url 'gestos' %}"{% if pagina == 'gestos' or pagina|slice:':6' == 'gesto_' or pagina|slice:':9' == 'alfabeto_' %} class="is-active" aria-current="page"{% endif %}>Gestos</a>
   <a class="mobile-cta" href="{% url 'reconhecer' %}"{% if pagina == 'reconhecer' %} aria-current="page"{% endif %}>Reconhecer</a>
 </nav>
 {% endwith %}

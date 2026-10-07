@@ -40,3 +40,18 @@ def extrair_features(landmarks):
     scale = max((abs(value) for value in values), default=1.0) or 1.0
     normalized = [value / scale for value in values]
     return normalized + features_geometricas(normalized)
+
+
+class _Ponto:
+    """Ponto com x, y, z — o formato que extrair_features espera."""
+
+    __slots__ = ("x", "y", "z")
+
+    def __init__(self, x, y, z):
+        self.x, self.y, self.z = x, y, z
+
+
+def extrair_features_de_valores(valores):
+    """Mesmo que extrair_features, a partir dos 63 valores crus (x, y, z)."""
+    pontos = [_Ponto(*valores[i:i + 3]) for i in range(0, len(valores), 3)]
+    return extrair_features(pontos)

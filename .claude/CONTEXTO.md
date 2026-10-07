@@ -8,10 +8,10 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
 ## 1. Estado atual (onde paramos)
 
 - **Branch de trabalho:** `melhorias-movimento` (enviado ao GitHub,
-  `origin/melhorias-movimento`). Tem **27 commits que ainda não estão no
+  `origin/melhorias-movimento`). Tem **28 commits que ainda não estão no
   `main`** (o `main` está em `e61c9d3`). O merge (ou PR) espera a aprovação do
   usuário: https://github.com/VqtorZ/LibrAI/pull/new/melhorias-movimento
-- **Testes:** 203 passando (`libras/tests/`, divididos por área).
+- **Testes:** 220 passando (`libras/tests/`, divididos por área).
 - **Estrutura reorganizada em 2026-10-06** (seção 3): dados em `dados/`, código
   em `libras/captura/`, `libras/estatico/`, `libras/movimento/`; `scripts/` não
   existe mais (tudo via `manage.py`). Backup local de antes da reorganização
@@ -53,8 +53,14 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
   pose final de um movimento é ignorada por 1,5 s), dicas em cartões e a grade
   do alfabeto com dados reais. Conferida por prévias estáticas (template real
   + quadro simulado + status roteirizado), **não testada com a webcam**.
-- **Próximo passo combinado:** o usuário vai **regravar F, T, I e R**
-  (`manage.py coletar_alfabeto F` etc.) e depois rodar `treinar_alfabeto`.
+- **Gravar alfabeto pelo site** (2026-10-07): `/gestos/alfabeto/` — escolhe a
+  letra (clique ou tecla), Espaço salva 1 amostra no CSV, "Desfazer última",
+  "O LibrAI vê agora", botão Treinar alfabeto (~2,6 s). Usa a câmera e o
+  detector do reconhecimento ao vivo (o `coletar_alfabeto` usa outra config do
+  MediaPipe — pendência 6). A câmera recarrega o modelo do alfabeto sozinha
+  quando o arquivo muda; treinos salvam o modelo de forma atômica.
+- **Próximo passo combinado:** o usuário vai **regravar F, T, I e R** (agora
+  pelo site, em Gestos → Gravar letras) e depois treinar o alfabeto.
   Também testar J vs Z ao vivo (Z já treinado).
 
 ---
@@ -103,6 +109,7 @@ O README tem o mapa completo em árvore. Resumo:
 | `captura/camera.py` | Câmera do servidor (singleton `camera`). `abrir_camera()` (960×540, CAP_DSHOW) e `criar_detector_maos()` (modo vídeo, complexity 0, 0.65/0.6) são **a fonte única** de configuração da câmera. Stream MJPEG, letra estática (classificada no máximo a cada 150 ms, `n_jobs=1`), detector de movimento ao vivo, gravação pela página (`iniciar_gravacao`/`parar_gravacao`), status JSON. Imports de `movimento` (que dependem do Django) são feitos sob demanda dentro dos métodos. Nomes internos da classe `Camera` (classify, frames, status, last_label) e as chaves do JSON de status continuam em inglês (contrato com o JS das páginas). |
 | `captura/marcos.py` | Sem Django. `marcos_da_mao(result)` → (63 valores, "Right"/"Left") e `lateralidade()`. |
 | `estatico/features.py` | `extrair_features` (63 coords relativas ao pulso + 10 distâncias) e `features_geometricas`. Usado por coleta, treino e câmera. |
+| `estatico/amostras.py` | CSV do alfabeto: `salvar` (63 coords normalizadas, igual à coleta), `contar`, `desfazer` (só a última linha), `LETRAS_ESTATICAS` (A–Z sem J e Z). Caminho lido na hora da chamada (testes redirecionam `AMOSTRAS_ESTATICAS`). |
 | `estatico/treino.py` | `treinar(dataset, destino)` do RandomForest (mesmos parâmetros de sempre, `random_state=42`) e `montar_features`. |
 | `movimento/amostras.py` | Persistência: `salvar_amostra(sinal, sequencia, origem="opencv")`, `ler_sequencia` (com proteção de caminho), `apagar_amostra`, `pasta_do_sinal` (`<id>-<slug>`). Formato JSON **versão 2** (cada frame tem `mao`); versão 1 continua aceita. |
 | `movimento/verificacao.py` | Verificador estrutural dos JSONs: `verificar_conteudo` (sem banco) e `verificar_amostra` (confere com o banco). |
@@ -121,7 +128,9 @@ O README tem o mapa completo em árvore. Resumo:
 | `config/settings.py` | `LOGGING` mostra o logger `libras` (INFO) no terminal do runserver. |
 
 **Rotas:** `/` · `/reconhecer/` · `/video/` (MJPEG) · `/api/status/` ·
-`/gestos/` · `/gestos/novo/` · `POST /gestos/treinar/` · `/gestos/<id>/` · `/gestos/<id>/gravar/` ·
+`/gestos/` · `/gestos/novo/` · `POST /gestos/treinar/` · `/gestos/alfabeto/` ·
+`POST /gestos/alfabeto/amostras/` · `POST /gestos/alfabeto/desfazer/` ·
+`POST /gestos/alfabeto/treinar/` · `/gestos/<id>/` · `/gestos/<id>/gravar/` ·
 `POST /gestos/<id>/gravacao/iniciar/` · `POST /gestos/<id>/gravacao/parar/` ·
 `POST /gestos/<id>/amostras/<amostra_id>/apagar/`.
 
@@ -262,6 +271,11 @@ rejeição não-J com arquivo sintético, hoje em `dados/sinteticos/nao_j_sintet
     (pedido do usuário) e câmera maior — página com 1380 px, coluna da câmera
     2fr × painel .82fr (+38% a 1440 px), topo compacto e, em telas largas,
     largura limitada pela altura da tela para o vídeo caber inteiro
+25. modelo J+Z (treinado pelo usuário) e remoção das amostras F/T/I/R
+26. gravar alfabeto pelo site (`/gestos/alfabeto/`, Espaço salva), painel do
+    alfabeto em Gestos, treino do alfabeto pelo site, recarga automática do
+    modelo na câmera, `salvar_modelo_atomico`; 220 testes (o hash do CSV e dos
+    modelos reais é conferido antes/depois da suíte)
 
 ---
 

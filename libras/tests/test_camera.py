@@ -12,6 +12,8 @@ class DesempenhoCameraTests(TestCase):
         camera = modulo_camera.Camera.__new__(modulo_camera.Camera)
         camera._rotulo_estatico = modulo_camera.ROTULO_SEM_MAO
         camera._ultima_classificacao = 0.0
+        # Sem conferir o arquivo do modelo (o teste usa um classify falso).
+        camera._ultima_conferencia = float("inf")
         camera.chamadas = 0
 
         def classify(landmarks):

@@ -8,10 +8,10 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
 ## 1. Estado atual (onde paramos)
 
 - **Branch de trabalho:** `melhorias-movimento` (enviado ao GitHub,
-  `origin/melhorias-movimento`). Tem **20 commits que ainda não estão no
+  `origin/melhorias-movimento`). Tem **22 commits que ainda não estão no
   `main`** (o `main` está em `e61c9d3`). O merge (ou PR) espera a aprovação do
   usuário: https://github.com/VqtorZ/LibrAI/pull/new/melhorias-movimento
-- **Testes:** 180 passando (`libras/tests/`, divididos por área).
+- **Testes:** 200 passando (`libras/tests/`, divididos por área).
 - **Estrutura reorganizada em 2026-10-06** (seção 3): dados em `dados/`, código
   em `libras/captura/`, `libras/estatico/`, `libras/movimento/`; `scripts/` não
   existe mais (tudo via `manage.py`). Backup local de antes da reorganização
@@ -21,7 +21,9 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
   - `#2 J`, movimento: **26 amostras, todas de origem `opencv`** (~27 fps), em
     `dados/amostras_movimento/2-j/`. As 5 amostras antigas do navegador foram
     apagadas pelo usuário.
-  - `#3 Z`, movimento: **cadastrado, 0 amostras**.
+  - `#3 Z`, movimento: **20 amostras gravadas pelo site** (~25 fps — confirma
+    a correção de FPS do site; antes ficaria ~10). **Ainda não treinado**: o
+    modelo atual só tem o J (a página Gestos mostra "Precisa treinar").
   - Nenhum exemplo negativo gravado ainda.
 - **Modelo de movimentos** (`dados/modelos_treinados/movimentos.joblib`,
   versionado, formato 2, salvo comprimido): treinado em 2026-10-06T22:48Z,
@@ -34,10 +36,14 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
   envolvem movimento (a validar com o usuário).
 - **Resultado confirmado pelo usuário:** com as amostras gravadas pelo OpenCV,
   **o J é reconhecido ao vivo no `/reconhecer/`**.
-- **Próximo passo combinado:** o usuário vai **gravar o Z pela página do site**
-  (Gestos → Z → Gravar nova amostra) para testar a gravação web e o FPS novo.
-  Depois, rodar `verificar_movimentos` (esperado ~25–30 fps nas amostras
-  novas), `treinar_movimentos` e testar J vs Z ao vivo (ver Pendências).
+- **Front renovado em 2026-10-06** (seção 3): home nova (público principal:
+  pessoas surdas — visual, frases curtas, animações suaves sem piscar, dados
+  reais do sistema), botão "Treinar reconhecimento" no site, situação de cada
+  sinal ("No reconhecimento" / "Precisa treinar"), página do sinal com resumo
+  e tabela, menu marcando a página atual. Visual conferido por prints (Chrome
+  headless); **ainda não visto pelo usuário**.
+- **Próximo passo combinado:** o usuário treina o Z pelo botão do site (Gestos
+  → Treinar reconhecimento) e testa J vs Z ao vivo no `/reconhecer/`.
 
 ---
 
@@ -95,13 +101,15 @@ O README tem o mapa completo em árvore. Resumo:
 | `movimento/gravacao.py` | `GravadorMovimento` (limite 30 s / 1200 frames, origem "opencv") e `localizar_sinal`. Usado pelo comando **e** pela página. |
 | `models.py` | `Sinal` (titulo, tipo ESTATICO/MOVIMENTO, **negativo**, descricao, ativo) e `AmostraMovimento` (metadados + caminho do JSON). Migrações até `0003_sinal_negativo`. |
 | `views.py` / `urls.py` | Views `inicio`, `reconhecer`, `video`, `status`, `gestos`, `gesto_*`; nomes de rota iguais aos das views. |
+| `contexto.py` | Context processor `versao_estaticos`: os links de CSS levam `?v=<mtime>`, para o navegador não usar cópia velha (o runserver não manda cabeçalhos de cache). |
 | `management/commands/` | `coletar_alfabeto`, `treinar_alfabeto`, `gravar_movimento`, `verificar_movimentos`, `treinar_movimentos`, `testar_movimento`, `gerar_nao_j_sintetico`. |
 | `tests/` | `base.py` (bases e auxiliares) + `test_sinais`, `test_amostras`, `test_classificador`, `test_ao_vivo`, `test_gravacao`, `test_camera`, `test_alfabeto`. |
-| `templates/libras/` | `inicio`, `reconhecer` (ao vivo), `gestos`, `gesto_form` (checkbox "Exemplo negativo"), `gesto_detalhe`, `gravar` (estúdio de gravação), `_cabecalho`. |
+| `templates/libras/` | `inicio` (home: dados reais da view, mão animada `_mao_svg`), `reconhecer` (ao vivo), `gestos` (lista com amostras + situação + aviso de treino), `gesto_form` ("Exemplo negativo" só aparece para Movimento), `gesto_detalhe` (resumo + tabela), `gravar`, `_cabecalho` (página atual, "Pular para o conteúdo"), `_botao_treinar` (POST `treinar_movimentos`, mostra "Treinando…"). |
+| `static/css/` | `app.css` (geral; seções 16–17 = componentes e Gestos) e `home.css` (só a home). CSS da home antiga foi removido. Regra global `[hidden] { display: none !important }`. Animações respeitam `prefers-reduced-motion`; `.reveal` só esconde com a classe `.js` no `<html>`. |
 | `config/settings.py` | `LOGGING` mostra o logger `libras` (INFO) no terminal do runserver. |
 
 **Rotas:** `/` · `/reconhecer/` · `/video/` (MJPEG) · `/api/status/` ·
-`/gestos/` · `/gestos/novo/` · `/gestos/<id>/` · `/gestos/<id>/gravar/` ·
+`/gestos/` · `/gestos/novo/` · `POST /gestos/treinar/` · `/gestos/<id>/` · `/gestos/<id>/gravar/` ·
 `POST /gestos/<id>/gravacao/iniciar/` · `POST /gestos/<id>/gravacao/parar/` ·
 `POST /gestos/<id>/amostras/<amostra_id>/apagar/`.
 
@@ -229,16 +237,20 @@ rejeição não-J com arquivo sintético, hoje em `dados/sinteticos/nao_j_sintet
 19. `36daa54` CSS: o espaço do header fixo (76 px) passa a ser reservado no
     `body` de todas as páginas (o título de Gestos ficava sob o header) e
     `[id] { scroll-margin-top }` para os links do menu da home
+20. memória atualizada com a correção do header
+21. front renovado: home nova (`home.css`, `_mao_svg`), treino pelo site
+    (`treinar_movimentos`, `classificador.situacao_dos_sinais`), páginas de
+    Gestos com contagem/situação/resumo/tabela, menu com página atual, CSS
+    versionado (`contexto.py`), CSS morto removido; 200 testes
 
 ---
 
 ## 7. Pendências e próximos passos
 
-1. **Gravar o Z pelo site** (sinal #3 já existe) — ~10 amostras; conferir o FPS
-   delas com `verificar_movimentos` (esperado ~25–30) — isso valida a correção
-   de FPS e a página de gravação, ambas **não testadas ao vivo**.
-2. **Treinar com J + Z** e testar a confusão entre eles ao vivo (J não pode
-   virar Z e vice-versa); pedir ao usuário as linhas do terminal do runserver.
+1. ~~Gravar o Z pelo site~~ — feito (20 amostras, ~25 fps).
+2. **Treinar com J + Z** (botão do site) e testar a confusão entre eles ao vivo
+   (J não pode virar Z e vice-versa); pedir ao usuário as linhas do terminal do
+   runserver.
 3. **Merge do `melhorias-movimento` no `main`** (ou PR) — quando o usuário
    aprovar.
 4. **Exemplos negativos:** gravar "J incompleto" / "I parado" (mecanismo pronto,
@@ -252,7 +264,15 @@ rejeição não-J com arquivo sintético, hoje em `dados/sinteticos/nao_j_sintet
 7. **Melhoria possível:** com duas abas de câmera abertas, cada uma fica com
    metade do FPS (cada stream roda seu próprio loop). Uma thread única de
    captura compartilhada resolveria.
-8. **Plano de auto-aperfeiçoamento** (discutido em 2026-10-06; nada
+8. **Front — validar com o usuário** (e, idealmente, com pessoas surdas): a home
+   nova, a leitura no celular real e se o português está simples o bastante.
+   Ideia sugerida, não implementada (decisão do usuário, depende de internet
+   e de script externo): widget VLibras (gov.br), que traduz o texto da página
+   para Libras com um avatar.
+9. **Notas de prints:** o script de prints usa Chrome `--headless=new`
+    (largura mínima ~500 px; para celular usar Edge `--headless=old`). Nunca
+    tirar print de `/reconhecer/` ou `/gestos/<id>/gravar/` (abrem a webcam).
+10. **Plano de auto-aperfeiçoamento** (discutido em 2026-10-06; nada
    implementado; ordem recomendada — o usuário ainda não escolheu por onde
    começar):
    - **Fase 1 — medir:** conjunto de teste fixo (amostras que nunca entram no

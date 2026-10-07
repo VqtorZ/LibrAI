@@ -8,7 +8,7 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
 ## 1. Estado atual (onde paramos)
 
 - **Branch de trabalho:** `melhorias-movimento` (enviado ao GitHub,
-  `origin/melhorias-movimento`). Tem **28 commits que ainda não estão no
+  `origin/melhorias-movimento`). Tem **29 commits que ainda não estão no
   `main`** (o `main` está em `e61c9d3`). O merge (ou PR) espera a aprovação do
   usuário: https://github.com/VqtorZ/LibrAI/pull/new/melhorias-movimento
 - **Testes:** 220 passando (`libras/tests/`, divididos por área).
@@ -28,16 +28,16 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
   versionado, formato 2, salvo comprimido): treinado pelo usuário no site em
   2026-10-07T02:57Z com **J (26 amostras, limiar 0.766) e Z (20, limiar
   0.889)**, sem negativos.
-- **Modelo do alfabeto** (`dados/modelos_treinados/alfabeto.joblib`, era
-  `models/libras_alphabet.joblib`): RandomForest de 400 árvores, comprimido de
-  42,9 MB para 5,7 MB com previsões idênticas. Dataset
-  `dados/amostras_estaticas/landmarks.csv`: em 2026-10-07 o usuário pediu para
-  **apagar as amostras de F, T, I e R** (1.644 linhas) para regravá-las; restam
-  9.289 amostras de **17 letras** (ABCDEGLMNOPQSUVWY). Backup do CSV anterior em
-  `backups/antes-apagar-FTIR-2026-10-07/`. **O modelo do alfabeto NÃO foi
-  retreinado** e ainda reconhece F/T/I/R; retreinar antes de recoletar essas
-  letras faria o sistema deixar de reconhecê-las. Faltam H, J, K, X e Z; em Libras, H, K e X também
-  envolvem movimento (a validar com o usuário).
+- **Alfabeto estático — RECOMEÇANDO DO ZERO (2026-10-07):** a pedido do
+  usuário, **todas as amostras do CSV foram apagadas** (9.579 de 19 letras,
+  inclusive I e R recém-gravadas pelo site); `dados/amostras_estaticas/landmarks.csv`
+  tem só o cabeçalho. Backups: `backups/antes-apagar-FTIR-2026-10-07/` e
+  `backups/antes-apagar-alfabeto-2026-10-07/` (fora do Git; o histórico do Git
+  também guarda o CSV antigo). O usuário vai **regravar todas as letras pelo
+  site** (Gestos → Gravar letras). O modelo `alfabeto.joblib` (comprimido) é o
+  último treinado pelo usuário: reconhece 19 letras (ABCDEGILMNOPQRSUVWY) e segue
+  em uso até o próximo treino. Treinar com poucas letras gravadas faz as outras
+  deixarem de ser reconhecidas — gravar todas antes de treinar.
 - **Resultado confirmado pelo usuário:** com as amostras gravadas pelo OpenCV,
   **o J é reconhecido ao vivo no `/reconhecer/`**.
 - **Front renovado em 2026-10-06** (seção 3): home nova (público principal:
@@ -59,8 +59,9 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
   detector do reconhecimento ao vivo (o `coletar_alfabeto` usa outra config do
   MediaPipe — pendência 6). A câmera recarrega o modelo do alfabeto sozinha
   quando o arquivo muda; treinos salvam o modelo de forma atômica.
-- **Próximo passo combinado:** o usuário vai **regravar F, T, I e R** (agora
-  pelo site, em Gestos → Gravar letras) e depois treinar o alfabeto.
+- **Próximo passo combinado:** o usuário vai **regravar todo o alfabeto** pelo
+  site e depois treinar. Oferecido e ainda não decidido: botão de gravação em
+  rajada (vários quadros espaçados por Espaço).
   Também testar J vs Z ao vivo (Z já treinado).
 
 ---
@@ -276,6 +277,8 @@ rejeição não-J com arquivo sintético, hoje em `dados/sinteticos/nao_j_sintet
     alfabeto em Gestos, treino do alfabeto pelo site, recarga automática do
     modelo na câmera, `salvar_modelo_atomico`; 220 testes (o hash do CSV e dos
     modelos reais é conferido antes/depois da suíte)
+27. todas as amostras do alfabeto apagadas para regravar; modelo atual (19
+    letras) registrado
 
 ---
 
@@ -290,7 +293,8 @@ rejeição não-J com arquivo sintético, hoje em `dados/sinteticos/nao_j_sintet
 4. **Exemplos negativos:** gravar "J incompleto" / "I parado" (mecanismo pronto,
    nenhum gravado) — é o que resolve o J pela metade ainda aceito.
 5. **Mais pessoas** gravando cada sinal (hoje os dados são de uma pessoa).
-6. **Alfabeto estático (decisão do usuário):** o dataset antigo foi coletado na
+6. **Alfabeto estático** (resolve-se com a regravação pelo site, que usa o
+   detector do reconhecimento ao vivo): o dataset antigo foi coletado na
    resolução padrão da webcam (desconhecida); a coleta agora é 960×540. O
    `coletar_alfabeto` ainda usa `model_complexity` padrão (1) e confiança
    0.7/0.7, enquanto o reconhecedor usa complexity 0 e 0.65/0.6 — não alinhado

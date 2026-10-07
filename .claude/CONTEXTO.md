@@ -333,7 +333,9 @@ DTW experimental → teste de rejeição não-J.
      25 ms, mede a CPU nas mesmas imagens e fica com a mais rápida (testado
      com `--disable-gpu`: trocou para CPU, ~21 ms);
    - reserva: sem Worker/OffscreenCanvas, roda na página (modo adaptativo).
-   Falta o usuário medir de novo.
+   **Resultado medido pelo usuário (2026-10-07):** CPU (worker), câmera
+   **30 fps**, detector 26 fps, 21,9 ms por detecção — "está ótimo agora".
+   Na máquina dele, a CPU foi mais rápida que a GPU (60,6 ms → 21,9 ms).
 
 ---
 

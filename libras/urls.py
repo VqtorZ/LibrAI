@@ -23,6 +23,7 @@ urlpatterns = [
     path("gestos/alfabeto/treinar/", views.treinar_alfabeto, name="treinar_alfabeto"),
     path("gestos/<int:sinal_id>/", views.gesto_detalhe, name="gesto_detalhe"),
     path("gestos/<int:sinal_id>/gravar/", views.gesto_gravar, name="gesto_gravar"),
+    path("gestos/<int:sinal_id>/excluir/", views.gesto_excluir, name="gesto_excluir"),
     path(
         "gestos/<int:sinal_id>/gravacao/iniciar/",
         views.gesto_gravacao_iniciar,

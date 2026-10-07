@@ -17,7 +17,7 @@ from .estatico.treino import treinar as treinar_modelo_alfabeto
 from .forms import SinalForm
 from .models import AmostraMovimento, Sinal
 from .movimento import classificador
-from .movimento.amostras import AmostraInvalida, apagar_amostra
+from .movimento.amostras import AmostraInvalida, apagar_amostra, apagar_sinal
 
 
 def _modelo_de_movimentos():
@@ -346,4 +346,42 @@ def treinar_alfabeto(request):
         "amostras. O reconhecimento ao vivo já usa o modelo novo.",
     )
     return redirect(voltar)
+
+
+# --------------------------------------------------------------------------
+# Excluir um sinal inteiro
+# --------------------------------------------------------------------------
+def gesto_excluir(request, sinal_id):
+    """Exclui o sinal: cadastro, amostras e o que o modelo aprendeu dele.
+
+    GET mostra a confirmação (usada quando o navegador não abre a janela
+    de confirmação da página do sinal); só o POST exclui.
+    """
+    sinal = get_object_or_404(Sinal, pk=sinal_id)
+    if request.method != "POST":
+        return render(
+            request,
+            "libras/gesto_excluir.html",
+            {"sinal": sinal, "total_amostras": sinal.amostras.count()},
+        )
+    titulo = sinal.titulo
+    if sinal.tipo == Sinal.Tipo.MOVIMENTO:
+        try:
+            no_modelo = classificador.remover_do_modelo(sinal.pk, titulo)
+        except OSError as exc:
+            messages.error(request, f"Não foi possível atualizar o modelo, nada foi excluído: {exc}")
+            return redirect("gesto_detalhe", sinal_id=sinal.pk)
+    else:
+        no_modelo = None
+    total = apagar_sinal(sinal)
+    texto = f"Sinal {titulo} excluído"
+    if total:
+        texto += f", com {total} amostra{'s' if total != 1 else ''}"
+    texto += "."
+    if no_modelo == "removido":
+        texto += " O reconhecimento deixou de usá-lo; os outros sinais continuam como estavam."
+    elif no_modelo == "modelo_apagado":
+        texto += " Era o último sinal do modelo de movimentos, que foi apagado."
+    messages.success(request, texto)
+    return redirect("gestos")
 

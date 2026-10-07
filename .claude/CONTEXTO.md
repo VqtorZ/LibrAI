@@ -8,10 +8,10 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
 ## 1. Estado atual (onde paramos)
 
 - **Branch de trabalho:** `melhorias-movimento` (enviado ao GitHub,
-  `origin/melhorias-movimento`). Tem **30 commits que ainda não estão no
+  `origin/melhorias-movimento`). Tem **31 commits que ainda não estão no
   `main`** (o `main` está em `e61c9d3`). O merge (ou PR) espera a aprovação do
   usuário: https://github.com/VqtorZ/LibrAI/pull/new/melhorias-movimento
-- **Testes:** 221 passando (`libras/tests/`, divididos por área).
+- **Testes:** 232 passando (`libras/tests/`, divididos por área).
 - **Estrutura reorganizada em 2026-10-06** (seção 3): dados em `dados/`, código
   em `libras/captura/`, `libras/estatico/`, `libras/movimento/`; `scripts/` não
   existe mais (tudo via `manage.py`). Backup local de antes da reorganização
@@ -133,7 +133,7 @@ O README tem o mapa completo em árvore. Resumo:
 **Rotas:** `/` · `/reconhecer/` · `/video/` (MJPEG) · `/api/status/` ·
 `/gestos/` · `/gestos/novo/` · `POST /gestos/treinar/` · `/gestos/alfabeto/` ·
 `POST /gestos/alfabeto/amostras/` · `POST /gestos/alfabeto/desfazer/` ·
-`POST /gestos/alfabeto/treinar/` · `/gestos/<id>/` · `/gestos/<id>/gravar/` ·
+`POST /gestos/alfabeto/treinar/` · `/gestos/<id>/excluir/` (GET confirma, POST exclui) · `/gestos/<id>/` · `/gestos/<id>/gravar/` ·
 `POST /gestos/<id>/gravacao/iniciar/` · `POST /gestos/<id>/gravacao/parar/` ·
 `POST /gestos/<id>/amostras/<amostra_id>/apagar/`.
 
@@ -283,6 +283,11 @@ rejeição não-J com arquivo sintético, hoje em `dados/sinteticos/nao_j_sintet
     letras) registrado
 28. modelo do alfabeto apagado (recomeçar do zero); teste de modelo apagado
     com o servidor ligado
+29. excluir sinal inteiro: botão na página do sinal + janela de confirmação
+    (Sim verde / Não vermelho, foco no Não), `amostras.apagar_sinal` (registros,
+    JSONs e pasta) e `classificador.remover_do_modelo` (tira só esse sinal do
+    modelo, sem retreinar os outros; apaga o modelo se não sobrar classe);
+    232 testes
 
 ---
 

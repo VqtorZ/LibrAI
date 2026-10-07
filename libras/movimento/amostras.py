@@ -135,6 +135,31 @@ def apagar_amostra(amostra):
     amostra.delete()
 
 
+def apagar_sinal(sinal):
+    """Apaga o sinal inteiro: o cadastro, as amostras e os arquivos delas.
+
+    Devolve quantas amostras foram apagadas. A pasta do sinal em
+    ``dados/amostras_movimento/`` é removida se ficar vazia. (Tirar o
+    sinal do modelo treinado é com ``classificador.remover_do_modelo``.)
+    """
+    amostras = list(sinal.amostras.all())
+    pastas = set()
+    for amostra in amostras:
+        if amostra.arquivo_dados:
+            pastas.add((Path(settings.MEDIA_ROOT) / amostra.arquivo_dados).parent)
+        apagar_amostra(amostra)
+    sinal.delete()
+    raiz = Path(settings.MEDIA_ROOT).resolve()
+    for pasta in pastas:
+        try:
+            pasta = pasta.resolve()
+            if pasta != raiz and pasta.is_relative_to(raiz) and not any(pasta.iterdir()):
+                pasta.rmdir()
+        except OSError:
+            pass
+    return len(amostras)
+
+
 def sinal_de_movimento(sinal):
     """Confere se o sinal aceita gravação de amostras temporais."""
     return sinal.tipo == Sinal.Tipo.MOVIMENTO

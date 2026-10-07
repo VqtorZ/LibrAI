@@ -1,0 +1,19 @@
+{% comment %}Texto e botões da confirmação de exclusão de um sinal.
+Usado na janela da página do sinal e na página de confirmação.{% endcomment %}
+<div class="excluir-icone" aria-hidden="true">!</div>
+<h2 id="titulo-excluir">Excluir o sinal {{ sinal.titulo }}?</h2>
+<p>Tem certeza que deseja excluir o sinal <strong>{{ sinal.titulo }}</strong>?
+    {% if sinal.tipo == "MOVIMENTO" %}Você perderá {% if total_amostras %}<strong>todas as {{ total_amostras }}
+        amostra{{ total_amostras|pluralize }}</strong>{% else %}o cadastro{% endif %} e o treinamento dele.
+    {% else %}O cadastro deste sinal estático será removido (as amostras do alfabeto ficam em Gravar letras).{% endif %}
+</p>
+<p class="excluir-aviso">Esta ação não pode ser desfeita.</p>
+<form method="post" action="{% url 'gesto_excluir' sinal.pk %}" class="excluir-acoes">
+    {% csrf_token %}
+    <button type="submit" class="botao-sim">Sim, excluir</button>
+    {% if dentro_da_janela %}
+    <button type="button" class="botao-nao" data-fechar autofocus>Não</button>
+    {% else %}
+    <a class="botao-nao" href="{% url 'gesto_detalhe' sinal.pk %}">Não</a>
+    {% endif %}
+</form>

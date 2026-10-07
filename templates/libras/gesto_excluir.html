@@ -1,0 +1,21 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Excluir {{ sinal.titulo }} — LibrAI</title>
+    <link rel="icon" type="image/png" href="{% static 'img/logo.png' %}">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}?v={{ versao_estaticos }}">
+</head>
+
+<body class="gestos">{% include "libras/_cabecalho.html" %}
+    <main class="section-wrap gestures-page" id="conteudo">
+        <section class="excluir-cartao" aria-labelledby="titulo-excluir">
+            {% include "libras/_confirmar_exclusao.html" %}
+        </section>
+    </main>
+</body>
+
+</html>

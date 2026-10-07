@@ -22,6 +22,7 @@
                 {% if sinal.negativo %}<p class="nota-negativo">Este sinal ensina o modelo a <strong>rejeitar</strong>
                     movimentos parecidos — ele nunca aparece como resultado.</p>{% endif %}
             </div>
+            <a class="botao-excluir" id="abrir-excluir" href="{% url 'gesto_excluir' sinal.pk %}">Excluir sinal</a>
         </div>
         {% if messages %}
         <ul class="messages">{% for message in messages %}<li class="{{ message.tags }}">{{ message }}</li>{% endfor %}</ul>
@@ -102,6 +103,26 @@
         </div>
         {% endif %}
     </main>
+
+    <dialog class="excluir-janela" id="janela-excluir" aria-labelledby="titulo-excluir">
+        {% include "libras/_confirmar_exclusao.html" with total_amostras=amostras|length dentro_da_janela=True %}
+    </dialog>
+    <script>
+        // "Excluir sinal" abre a confirmação na própria página; sem suporte
+        // a <dialog>, o link leva à página de confirmação.
+        (function () {
+            const janela = document.getElementById('janela-excluir');
+            const abrir = document.getElementById('abrir-excluir');
+            if (!janela.showModal) return;
+            abrir.addEventListener('click', (evento) => {
+                evento.preventDefault();
+                janela.showModal();
+            });
+            janela.querySelector('[data-fechar]').addEventListener('click', () => janela.close());
+            // Clicar fora da caixa também cancela.
+            janela.addEventListener('click', (evento) => { if (evento.target === janela) janela.close(); });
+        })();
+    </script>
 </body>
 
 </html>

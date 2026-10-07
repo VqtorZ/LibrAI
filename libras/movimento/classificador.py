@@ -296,6 +296,43 @@ def carregar_modelo(caminho=None):
     return modelo
 
 
+def remover_do_modelo(sinal_id, titulo, caminho=None):
+    """Tira um sinal do modelo treinado, sem retreinar os demais.
+
+    Remove a classe (templates, limiar, calibração) ou, se o sinal era
+    um exemplo negativo, as amostras negativas dele. Os outros sinais
+    ficam exatamente como estavam. Se não sobrar nenhuma classe, o
+    arquivo do modelo é apagado. Devolve ``"removido"``,
+    ``"modelo_apagado"`` ou ``None`` (o sinal não estava no modelo).
+    """
+    destino = _caminho(caminho)
+    try:
+        modelo = carregar_modelo(caminho)
+    except ErroTemporal:
+        return None
+    classes = [c for c in modelo["classes"] if modelo["sinal_id"].get(c) == sinal_id]
+
+    def do_sinal(entrada):
+        # Modelos antigos não guardavam o sinal_id dos negativos.
+        if "sinal_id" in entrada:
+            return entrada["sinal_id"] == sinal_id
+        return entrada["sinal"] == titulo
+
+    negativos = [e for e in modelo["negativos"] if not do_sinal(e)]
+    if not classes and len(negativos) == len(modelo["negativos"]):
+        return None
+    modelo["negativos"] = negativos
+    for classe in classes:
+        for chave in ("templates", "amostras_por_classe", "loo", "limiares", "calibracao", "sinal_id"):
+            modelo[chave].pop(classe, None)
+    modelo["classes"] = [c for c in modelo["classes"] if c not in classes]
+    if not modelo["classes"]:
+        destino.unlink(missing_ok=True)
+        return "modelo_apagado"
+    salvar_modelo_atomico(modelo, destino)
+    return "removido"
+
+
 def amostras_no_modelo(modelo):
     """{sinal_id: {ids das amostras}} que o modelo usou no treino."""
     por_sinal = {}

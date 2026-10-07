@@ -1481,7 +1481,7 @@ button.secondary-button:disabled {
 
 .sinal-cabecalho {
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto 1fr auto;  /* letra · textos · Excluir sinal */
     gap: 24px;
     align-items: center;
     margin-bottom: 28px;
@@ -1879,3 +1879,145 @@ kbd {
         grid-column: 1 / -1;
     }
 }
+
+/* ==========================================================================
+   19. EXCLUIR SINAL (janela de confirmação e página equivalente)
+   Sim em verde e Não em vermelho, como pedido; tons escuros para o texto
+   branco ter contraste.
+   ========================================================================== */
+.botao-excluir {
+    align-self: start;
+    padding: 9px 16px;
+    border: 1.5px solid rgba(217, 90, 71, .45);
+    border-radius: var(--radius-full);
+    color: var(--color-error);
+    font-size: 13px;
+    font-weight: 800;
+    text-decoration: none;
+    transition: background .2s, border-color .2s;
+}
+
+.botao-excluir:hover {
+    background: rgba(217, 90, 71, .08);
+    border-color: var(--color-error);
+}
+
+.excluir-janela {
+    width: min(92vw, 460px);
+    padding: 32px;
+    border: 0;
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    color: var(--color-text);
+    box-shadow: 0 30px 80px rgba(28, 43, 74, .35);
+    text-align: center;
+}
+
+.excluir-janela[open] {
+    animation: excluir-entra .25s cubic-bezier(.2, .8, .2, 1);
+}
+
+.excluir-janela::backdrop {
+    background: rgba(28, 43, 74, .55);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+}
+
+@keyframes excluir-entra {
+    from {
+        opacity: 0;
+        transform: translateY(14px) scale(.96);
+    }
+}
+
+.excluir-cartao {
+    max-width: 520px;
+    margin: 40px auto 0;
+    padding: 36px;
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-md);
+    text-align: center;
+}
+
+.excluir-icone {
+    display: grid;
+    place-items: center;
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 14px;
+    border-radius: 50%;
+    background: rgba(217, 90, 71, .12);
+    color: var(--color-error);
+    font-size: 30px;
+    font-weight: 800;
+}
+
+.excluir-janela h2,
+.excluir-cartao h2 {
+    margin: 0 0 10px;
+    font-size: 1.45rem;
+}
+
+.excluir-janela p,
+.excluir-cartao p {
+    margin: 0 0 8px;
+    color: var(--color-text-secondary);
+    font-size: 15px;
+    line-height: 1.6;
+}
+
+.excluir-aviso {
+    font-size: 13px !important;
+    font-weight: 700;
+}
+
+.excluir-acoes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 22px;
+}
+
+.botao-sim,
+.botao-nao {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 18px;
+    border: 0;
+    border-radius: var(--radius-full);
+    color: #fff;
+    font: 800 15px var(--font-body);
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform .2s, filter .2s;
+}
+
+.botao-sim {
+    background: #1F7A52;
+}
+
+.botao-nao {
+    background: #C0392B;
+}
+
+.botao-sim:hover,
+.botao-nao:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.08);
+}
+
+.botao-sim:focus-visible,
+.botao-nao:focus-visible {
+    outline: 3px solid var(--color-primary);
+    outline-offset: 3px;
+}
+
+@media (max-width:560px) {
+    .botao-excluir {
+        justify-self: start;
+    }
+}
+

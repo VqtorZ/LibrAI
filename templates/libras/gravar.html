@@ -90,14 +90,14 @@
     </style>
 </head>
 
-<body class="recognizer">{% include "libras/_header.html" %}
+<body class="recognizer">{% include "libras/_cabecalho.html" %}
     <main class="recognizer-layout">
         <div>
             <div class="page-intro">
                 <p class="section-label">COLETA TEMPORAL</p>
                 <h1>Gravar "{{ sinal.titulo }}"</h1>
             </div>
-            <section class="camera"><img src="{% url 'video_feed' %}"
+            <section class="camera"><img src="{% url 'video' %}"
                     alt="Câmera ao vivo com os marcos da mão para gravação do sinal">
                 <div class="camera-topline"><span id="rec-badge" hidden><i class="rec-dot"></i> GRAVANDO</span><span>Webcam
                         local</span></div>

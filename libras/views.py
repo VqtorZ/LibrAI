@@ -10,15 +10,15 @@ from .captura.camera import GravacaoIndisponivel, camera
 from .movimento.amostras import AmostraInvalida, apagar_amostra
 
 
-def home(request):
-    return render(request, "libras/home.html")
+def inicio(request):
+    return render(request, "libras/inicio.html")
 
 
-def recognizer(request):
-    return render(request, "libras/recognizer.html")
+def reconhecer(request):
+    return render(request, "libras/reconhecer.html")
 
 
-def video_feed(request):
+def video(request):
     return StreamingHttpResponse(
         camera.frames(), content_type="multipart/x-mixed-replace; boundary=frame"
     )

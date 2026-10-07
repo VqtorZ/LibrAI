@@ -10,13 +10,13 @@
     <link rel="stylesheet" href="{% static 'css/app.css' %}">
 </head>
 
-<body class="recognizer">{% include "libras/_header.html" %}<main class="recognizer-layout">
+<body class="recognizer">{% include "libras/_cabecalho.html" %}<main class="recognizer-layout">
         <div>
             <div class="page-intro">
                 <p class="section-label">SESSÃO AO VIVO</p>
                 <h1>Reconhecimento de sinais</h1>
             </div>
-            <section class="camera"><img src="{% url 'video_feed' %}"
+            <section class="camera"><img src="{% url 'video' %}"
                     alt="Transmissão da webcam para reconhecimento de Libras">
                 <div class="camera-topline"><span><i></i> AO VIVO</span><span>Webcam local</span></div>
                 <div class="scan"></div>

@@ -8,21 +8,28 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
 ## 1. Estado atual (onde paramos)
 
 - **Branch de trabalho:** `melhorias-movimento` (enviado ao GitHub,
-  `origin/melhorias-movimento`). Tem **15 commits que ainda não estão no
-  `main`** (13 de código + 2 de memória/documentação); o `main` está em
-  `e61c9d3`. O merge (ou PR) espera a aprovação do
+  `origin/melhorias-movimento`). Tem **18 commits que ainda não estão no
+  `main`** (o `main` está em `e61c9d3`). O merge (ou PR) espera a aprovação do
   usuário: https://github.com/VqtorZ/LibrAI/pull/new/melhorias-movimento
-- **Testes:** 172 passando.
-- **Sinais cadastrados (banco local `db.sqlite3`, fora do Git):**
-  - `#2 J`, movimento: **26 amostras, todas de origem `opencv`** (gravadas pelo
-    `gravar_movimento`, ~25–30 fps). As 5 amostras antigas do navegador foram
+- **Testes:** 180 passando (`libras/tests/`, divididos por área).
+- **Estrutura reorganizada em 2026-10-06** (seção 3): dados em `dados/`, código
+  em `libras/captura/`, `libras/estatico/`, `libras/movimento/`; `scripts/` não
+  existe mais (tudo via `manage.py`). Backup local de antes da reorganização
+  (banco + 26 gravações + CSV) em `backups/antes-reorganizacao-2026-10-06/`,
+  fora do Git — pode ser apagado quando o usuário quiser.
+- **Sinais cadastrados (`dados/banco.sqlite3`, fora do Git):**
+  - `#2 J`, movimento: **26 amostras, todas de origem `opencv`** (~27 fps), em
+    `dados/amostras_movimento/2-j/`. As 5 amostras antigas do navegador foram
     apagadas pelo usuário.
   - `#3 Z`, movimento: **cadastrado, 0 amostras**.
   - Nenhum exemplo negativo gravado ainda.
-- **Modelo de movimentos** (`models/movimentos.joblib`, versionado, formato 2):
-  treinado em 2026-10-06T22:48Z, classe única `J` (26 amostras), limiar 0.766.
-- **Modelo estático** (`models/libras_alphabet.joblib`): RandomForest de 400
-  árvores; dataset `dataset/landmarks.csv` com 10.933 amostras de **21 letras**
+- **Modelo de movimentos** (`dados/modelos_treinados/movimentos.joblib`,
+  versionado, formato 2, salvo comprimido): treinado em 2026-10-06T22:48Z,
+  classe única `J` (26 amostras), limiar 0.766.
+- **Modelo do alfabeto** (`dados/modelos_treinados/alfabeto.joblib`, era
+  `models/libras_alphabet.joblib`): RandomForest de 400 árvores, comprimido de
+  42,9 MB para 5,7 MB com previsões idênticas. Dataset
+  `dados/amostras_estaticas/landmarks.csv` com 10.933 amostras de **21 letras**
   (ABCDEFGILMNOPQRSTUVWY). Faltam H, J, K, X e Z; em Libras, H, K e X também
   envolvem movimento (a validar com o usuário).
 - **Resultado confirmado pelo usuário:** com as amostras gravadas pelo OpenCV,
@@ -41,8 +48,8 @@ Aplicação **Django local** que reconhece Libras pela webcam usando OpenCV e os
 
 - **Estático (alfabeto manual):** RandomForest classifica a letra frame a frame
   a partir das 63 coordenadas normalizadas + 10 distâncias entre pontas dos
-  dedos. Coleta: `scripts/coletar_libras.py` (janela OpenCV, tecla S salva).
-  Treino: `scripts/treinar_libras.py`.
+  dedos. Coleta: `manage.py coletar_alfabeto <letra>` (janela OpenCV, S salva).
+  Treino: `manage.py treinar_alfabeto`.
 - **Movimento (J, Z, gestos):** amostras temporais (sequências de landmarks)
   comparadas por DTW (vizinho mais próximo) com limiar de rejeição.
 
@@ -55,21 +62,42 @@ Rodar: `.\.venv\Scripts\python.exe manage.py runserver` → http://127.0.0.1:800
 
 ---
 
-## 3. Arquitetura (arquivos e responsabilidades)
+## 3. Arquitetura (pastas e responsabilidades)
+
+O README tem o mapa completo em árvore. Resumo:
+
+**Dados — `dados/`** (caminhos definidos só em `libras/caminhos.py`, que também
+é usado pelo `config/settings.py`):
+
+| Caminho | Conteúdo | Git |
+|---|---|---|
+| `dados/banco.sqlite3` | banco do Django (sinais + registro das amostras) | não |
+| `dados/amostras_estaticas/landmarks.csv` | alfabeto: letra + 63 coordenadas por linha | sim |
+| `dados/amostras_movimento/<id>-<slug do título>/<amostra>.json` | uma amostra de movimento por arquivo (MEDIA_ROOT); o caminho de cada uma fica salvo no banco (`AmostraMovimento.arquivo_dados`) | não |
+| `dados/modelos_treinados/` | `alfabeto.joblib`, `movimentos.joblib` (salvos com `compress=3`) | sim |
+| `dados/sinteticos/nao_j_sintetico.json` | dado artificial do teste de rejeição | sim |
+
+**Código — `libras/`:**
 
 | Arquivo | Papel |
 |---|---|
-| `libras/vision.py` | Câmera do servidor (singleton `camera`). `abrir_camera()` (960×540, CAP_DSHOW) e `criar_detector_maos()` (modo vídeo, complexity 0, 0.65/0.6) são **a fonte única** de configuração. Stream MJPEG, classificação estática (limitada a cada 150 ms, `n_jobs=1`), detector de movimento ao vivo, gravação de amostras pela página (`iniciar_gravacao`/`parar_gravacao`), status JSON. Importável **sem Django** (os scripts do alfabeto usam): imports de Django são feitos sob demanda. |
-| `libras/marcos.py` | Sem Django. `marcos_da_mao(result)` → (63 valores, "Right"/"Left") e `lateralidade()`. Usado por todos os caminhos de captura. |
-| `libras/movimentos.py` | Persistência das amostras: `salvar_amostra(sinal, sequencia, origem="opencv")` grava JSON em `media/movimentos/<sinal>/<amostra>.json` + registro `AmostraMovimento`; `ler_sequencia` (com proteção de caminho); `apagar_amostra`. Formato JSON **versão 2** (cada frame tem `mao`); versão 1 continua aceita. |
-| `libras/verificacao.py` | Verificador estrutural dos JSONs (Etapa 4.1): `verificar_conteudo` (sem banco) e `verificar_amostra` (confere com o banco). |
-| `libras/temporal.py` | Pipeline temporal: segmentação, features, DTW, treino, calibração, previsão (detalhes na seção 4). |
-| `libras/ao_vivo.py` | `DetectorMovimento`: recebe frames ao vivo, usa o `Segmentador`, avalia com o modelo quando a mão para, recarrega o modelo quando o arquivo muda e registra cada movimento no log (`libras.ao_vivo`). |
-| `libras/gravacao.py` | `GravadorMovimento` (acumula frames, limite 30 s / 1200 frames, salva com origem "opencv") e `localizar_sinal` (por título sem diferenciar caixa ou por número). Usado pelo comando **e** pela página. |
-| `libras/models.py` | `Sinal` (titulo, tipo ESTATICO/MOVIMENTO, **negativo**, descricao, ativo) e `AmostraMovimento` (metadados + caminho do JSON). Migrações até `0003_sinal_negativo`. |
-| `libras/views.py` / `urls.py` | Páginas e rotas (abaixo). |
-| `libras/management/commands/` | `verificar_movimentos`, `treinar_movimentos`, `testar_movimento`, `gravar_movimento`. |
-| `templates/libras/` | `home`, `recognizer` (ao vivo), `gestos`, `gesto_form` (com checkbox "Exemplo negativo"), `gesto_detalhe`, `gravar` (estúdio de gravação). |
+| `caminhos.py` | Fonte única dos caminhos de dados (sem Django). |
+| `captura/camera.py` | Câmera do servidor (singleton `camera`). `abrir_camera()` (960×540, CAP_DSHOW) e `criar_detector_maos()` (modo vídeo, complexity 0, 0.65/0.6) são **a fonte única** de configuração da câmera. Stream MJPEG, letra estática (classificada no máximo a cada 150 ms, `n_jobs=1`), detector de movimento ao vivo, gravação pela página (`iniciar_gravacao`/`parar_gravacao`), status JSON. Imports de `movimento` (que dependem do Django) são feitos sob demanda dentro dos métodos. Nomes internos da classe `Camera` (classify, frames, status, last_label) e as chaves do JSON de status continuam em inglês (contrato com o JS das páginas). |
+| `captura/marcos.py` | Sem Django. `marcos_da_mao(result)` → (63 valores, "Right"/"Left") e `lateralidade()`. |
+| `estatico/features.py` | `extrair_features` (63 coords relativas ao pulso + 10 distâncias) e `features_geometricas`. Usado por coleta, treino e câmera. |
+| `estatico/treino.py` | `treinar(dataset, destino)` do RandomForest (mesmos parâmetros de sempre, `random_state=42`) e `montar_features`. |
+| `movimento/amostras.py` | Persistência: `salvar_amostra(sinal, sequencia, origem="opencv")`, `ler_sequencia` (com proteção de caminho), `apagar_amostra`, `pasta_do_sinal` (`<id>-<slug>`). Formato JSON **versão 2** (cada frame tem `mao`); versão 1 continua aceita. |
+| `movimento/verificacao.py` | Verificador estrutural dos JSONs: `verificar_conteudo` (sem banco) e `verificar_amostra` (confere com o banco). |
+| `movimento/segmentacao.py` | `Segmentador` (início/fim do movimento por velocidade), `recortar`, `segmentos`, `trecho_principal`. |
+| `movimento/trajetoria.py` | `normalizar_frame`, `processar_frames` (forma + deslocamento do pulso, espelhamento, reamostragem, aparo de repouso). |
+| `movimento/classificador.py` | `distancia_dtw`, `treinar`, `_calibrar`/limiares, `carregar_modelo`, `prever`, `processar_sequencia`, `testar_amostra`, `testar_arquivo`, `ErroTemporal`, `MODELO_PATH`. |
+| `movimento/ao_vivo.py` | `DetectorMovimento`: frames ao vivo → segmentação → previsão quando a mão para; recarrega o modelo quando o arquivo muda; log `libras.movimento.ao_vivo`. |
+| `movimento/gravacao.py` | `GravadorMovimento` (limite 30 s / 1200 frames, origem "opencv") e `localizar_sinal`. Usado pelo comando **e** pela página. |
+| `models.py` | `Sinal` (titulo, tipo ESTATICO/MOVIMENTO, **negativo**, descricao, ativo) e `AmostraMovimento` (metadados + caminho do JSON). Migrações até `0003_sinal_negativo`. |
+| `views.py` / `urls.py` | Views `inicio`, `reconhecer`, `video`, `status`, `gestos`, `gesto_*`; nomes de rota iguais aos das views. |
+| `management/commands/` | `coletar_alfabeto`, `treinar_alfabeto`, `gravar_movimento`, `verificar_movimentos`, `treinar_movimentos`, `testar_movimento`, `gerar_nao_j_sintetico`. |
+| `tests/` | `base.py` (bases e auxiliares) + `test_sinais`, `test_amostras`, `test_classificador`, `test_ao_vivo`, `test_gravacao`, `test_camera`, `test_alfabeto`. |
+| `templates/libras/` | `inicio`, `reconhecer` (ao vivo), `gestos`, `gesto_form` (checkbox "Exemplo negativo"), `gesto_detalhe`, `gravar` (estúdio de gravação), `_cabecalho`. |
 | `config/settings.py` | `LOGGING` mostra o logger `libras` (INFO) no terminal do runserver. |
 
 **Rotas:** `/` · `/reconhecer/` · `/video/` (MJPEG) · `/api/status/` ·
@@ -92,14 +120,14 @@ Rodar: `.\.venv\Scripts\python.exe manage.py runserver` → http://127.0.0.1:800
      grava/para, Q/ESC sai). Só grava sinais já cadastrados como movimento.
    - Protocolo de gravação: configuração inicial com a mão **parada** (no J, o
      I), Espaço, movimento completo, mão parada, Espaço.
-2. **Segmentação** (`temporal.Segmentador`, usada no treino **e** ao vivo):
+2. **Segmentação** (`movimento/segmentacao.py`, usada no treino **e** ao vivo):
    velocidade = norma da variação de [forma normalizada + pulso/tamanho da mão]
    por segundo, média de 3 frames. Começa com ≥ 6.0 u/s, termina após 350 ms
    abaixo de 4.0 u/s (ou sem mão, ou aos 4 s). Mínimo 400 ms de movimento;
    inclui 300 ms de contexto antes. Nas gravações, `trecho_principal` usa o
    movimento mais longo (descarta a mão entrando/saindo). Calibrado com dados
    reais: repouso ~1–3,5 u/s, movimento do J ~8–25 u/s.
-3. **Features por passo** (`processar_frames`, 65 valores): 63 da forma da mão
+3. **Features por passo** (`movimento/trajetoria.py`, 65 valores): 63 da forma da mão
    (relativa ao pulso e à escala) + 2 do **deslocamento do pulso** desde o
    início, em tamanhos de mão (pulso→base do dedo médio, mediana). Antes:
    lacunas interpoladas, mão esquerda espelhada (maioria dos frames "Left"),
@@ -167,7 +195,7 @@ Rodar: `.\.venv\Scripts\python.exe manage.py runserver` → http://127.0.0.1:800
 Projeto inicial (A–D estáticos) → classificador RandomForest do alfabeto →
 cadastro de sinais (`Sinal`) → tipo estático/movimento → coleta temporal pelo
 navegador → Etapa 4.1 (verificador) → 4.2 (DTW experimental) → 4.3 (teste de
-rejeição não-J com arquivo sintético `dataset/nao_j_sintetico.json`).
+rejeição não-J com arquivo sintético, hoje em `dados/sinteticos/nao_j_sintetico.json`).
 
 ### 2026-10-06 (branch `melhorias-movimento`)
 1. `fce1be8` lateralidade da mão por frame (formato JSON v2)
@@ -189,6 +217,15 @@ rejeição não-J com arquivo sintético `dataset/nao_j_sintetico.json`).
 14. memória do projeto em `.claude/` (`CLAUDE.md`, `CONTEXTO.md`, `/relembre`)
 15. registro da decisão de não usar bases externas e do plano de
     auto-aperfeiçoamento (só documentação)
+16. `3db6105` dados reunidos em `dados/` (`libras/caminhos.py`), 26 amostras
+    migradas para `2-j/`, modelos comprimidos (alfabeto 42,9 → 5,7 MB)
+17. `f6e5d51` código em `captura/`, `estatico/`, `movimento/` (temporal.py
+    dividido em segmentacao/trajetoria/classificador); scripts viram comandos
+    (`coletar_alfabeto`, `treinar_alfabeto`, `gerar_nao_j_sintetico`); testes
+    divididos em `libras/tests/` (180). Retreinos pelo código novo deram
+    resultados idênticos aos modelos atuais.
+18. nomes em português (views/rotas/templates `inicio`, `reconhecer`,
+    `video`, `_cabecalho`), README com mapa do projeto, esta memória
 
 ---
 
@@ -206,7 +243,7 @@ rejeição não-J com arquivo sintético `dataset/nao_j_sintetico.json`).
 5. **Mais pessoas** gravando cada sinal (hoje os dados são de uma pessoa).
 6. **Alfabeto estático (decisão do usuário):** o dataset antigo foi coletado na
    resolução padrão da webcam (desconhecida); a coleta agora é 960×540. O
-   `coletar_libras.py` ainda usa `model_complexity` padrão (1) e confiança
+   `coletar_alfabeto` ainda usa `model_complexity` padrão (1) e confiança
    0.7/0.7, enquanto o reconhecedor usa complexity 0 e 0.65/0.6 — não alinhado
    de propósito (exigiria recoletar). H, K e X não estão no dataset.
 7. **Melhoria possível:** com duas abas de câmera abertas, cada uma fica com
@@ -225,7 +262,7 @@ rejeição não-J com arquivo sintético `dataset/nao_j_sintetico.json`).
      nos casos de dúvida (distância perto do limiar).
    - **Fase 4 — retreino automático com trava:** `retreinar_auto` só promove o
      modelo novo se não piorar no teste fixo; versões antigas em
-     `models/historico/`.
+     `dados/modelos_treinados/historico/`.
    - **Fase 5 — trocar o modelo de movimento** (DTW compara com todas as
      amostras; com centenas por sinal, migrar para um classificador de
      sequências).
@@ -242,10 +279,10 @@ rejeição não-J com arquivo sintético `dataset/nao_j_sintetico.json`).
 .\.venv\Scripts\python.exe manage.py verificar_movimentos     # integridade + fps das amostras
 .\.venv\Scripts\python.exe manage.py treinar_movimentos
 .\.venv\Scripts\python.exe manage.py testar_movimento --amostra <id>
-.\.venv\Scripts\python.exe manage.py testar_movimento --arquivo dataset/nao_j_sintetico.json
+.\.venv\Scripts\python.exe manage.py testar_movimento --arquivo dados/sinteticos/nao_j_sintetico.json
 .\.venv\Scripts\python.exe manage.py test libras
-.\.venv\Scripts\python.exe scripts\coletar_libras.py          # alfabeto estático
-.\.venv\Scripts\python.exe scripts\treinar_libras.py
+.\.venv\Scripts\python.exe manage.py coletar_alfabeto A       # alfabeto estático (S salva, Q sai)
+.\.venv\Scripts\python.exe manage.py treinar_alfabeto
 ```
 
 **Conferir dados** (sinais, amostras por origem e modelo de movimentos):
@@ -254,14 +291,14 @@ rejeição não-J com arquivo sintético `dataset/nao_j_sintetico.json`).
 .venv/Scripts/python.exe -c "
 import os,django;os.environ['DJANGO_SETTINGS_MODULE']='config.settings';django.setup()
 from libras.models import Sinal
-from libras.movimentos import ler_sequencia
-from libras import temporal
+from libras.movimento.amostras import ler_sequencia
+from libras.movimento import classificador
 for s in Sinal.objects.all().order_by('pk'):
     ams=list(s.amostras.filter(ativo=True)); orig={}
     for a in ams:
         o=ler_sequencia(a).get('origem','navegador(antiga)'); orig[o]=orig.get(o,0)+1
     print(s.pk, s.titulo, s.tipo, 'negativo' if s.negativo else '', len(ams), orig)
-m=temporal.carregar_modelo()
+m=classificador.carregar_modelo()
 print(m['treinado_em'], m['amostras_por_classe'], {c: round(v,3) for c,v in m['limiares'].items()})
 " 2>/dev/null
 ```
@@ -280,10 +317,15 @@ print(m['treinado_em'], m['amostras_por_classe'], {c: round(v,3) for c,v in m['l
   quem faz o gesto é o usuário. Para validar a lógica sem câmera há os testes,
   o replay das gravações pelo `DetectorMovimento` e frames sintéticos em
   `Camera._annotate`.
-- `libras/vision.py` cria `camera = Camera()` na importação (carrega o
-  MediaPipe); os scripts do alfabeto o importam sem Django — mantenha os imports
-  de Django dentro de métodos.
-- `db.sqlite3` e `media/` estão no `.gitignore` (as amostras de movimento não
-  vão para o GitHub); `models/*.joblib` e `dataset/` são versionados.
+- `libras/captura/camera.py` cria `camera = Camera()` na importação (carrega o
+  MediaPipe e o modelo do alfabeto). Os imports de `libras.movimento` ficam
+  dentro dos métodos para o módulo carregar leve.
+- Cuidado com nomes: o módulo `libras.movimento.trajetoria` colide com
+  variáveis locais chamadas `trajetoria` (já causou erro na reorganização);
+  use `passos` para a variável.
+- `dados/banco.sqlite3` e `dados/amostras_movimento/` estão no `.gitignore`
+  (o banco e as gravações não vão para o GitHub); `dados/modelos_treinados/`,
+  `dados/amostras_estaticas/` e `dados/sinteticos/` são versionados. `backups/`
+  também é ignorada.
 - Privacidade: nenhum vídeo é armazenado, só landmarks. Se pessoas de fora forem
   gravar, lembrar o usuário de combinar consentimento.

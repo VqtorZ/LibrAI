@@ -121,12 +121,12 @@ class RotasExistentesTests(TestCase):
     """Garante que as rotas originais continuam funcionando."""
 
     def test_home(self):
-        response = self.client.get(reverse("home"))
+        response = self.client.get(reverse("inicio"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "LibrAI")
 
     def test_recognizer(self):
-        response = self.client.get(reverse("recognizer"))
+        response = self.client.get(reverse("reconhecer"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'id="label"')
 
@@ -200,7 +200,7 @@ class GestoDetalheEGravarTests(TemporalBase):
         response = self.client.get(reverse("gesto_gravar", args=[self.sinal.pk]))
         self.assertEqual(response.status_code, 200)
         # Mesma câmera do reconhecimento, com gravação pelo Espaço.
-        self.assertContains(response, reverse("video_feed"))
+        self.assertContains(response, reverse("video"))
         self.assertContains(response, reverse("gesto_gravacao_iniciar", args=[self.sinal.pk]))
         self.assertContains(response, "Espaço")
         self.assertContains(response, self.sinal.titulo)

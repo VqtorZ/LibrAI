@@ -11,14 +11,14 @@
     <link rel="stylesheet" href="{% static 'css/app.css' %}">
 </head>
 
-<body class="site-home">{% include "libras/_header.html" %}<main id="inicio">
+<body class="site-home">{% include "libras/_cabecalho.html" %}<main id="inicio">
         <section class="hero section-wrap">
             <div class="hero-copy">
                 <p class="kicker"><i></i> Tecnologia para incluir</p>
                 <h1>Comunicar é<br><em>pertencer.</em></h1>
                 <p class="hero-text">Uma experiência local que une visão computacional e Libras para tornar a tecnologia
                     mais atenta às diferentes formas de expressão.</p>
-                <div class="hero-actions"><a class="primary-button" href="{% url 'recognizer' %}">Iniciar reconhecimento
+                <div class="hero-actions"><a class="primary-button" href="{% url 'reconhecer' %}">Iniciar reconhecimento
                         <span>→</span></a><a class="text-link" href="#projeto">Conheça o projeto <span>↓</span></a>
                 </div>
                 <p class="privacy-note"><span class="lock">⌁</span> Sua imagem é processada localmente no computador.
@@ -102,7 +102,7 @@
         <section class="closing section-wrap">
             <p class="kicker"><i></i> Pronto para experimentar?</p>
             <h2>Uma conversa mais<br><em>acessível começa aqui.</em></h2><a class="primary-button"
-                href="{% url 'recognizer' %}">Abrir reconhecimento <span>→</span></a>
+                href="{% url 'reconhecer' %}">Abrir reconhecimento <span>→</span></a>
         </section>
     </main>
     <footer class="site-footer">

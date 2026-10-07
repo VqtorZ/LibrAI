@@ -318,7 +318,22 @@ DTW experimental → teste de rejeição não-J.
      `backdrop-filter`;
    - **modo diagnóstico**: `?diagnostico=1` em qualquer página com câmera
      mostra GPU/CPU, resolução, FPS da câmera e do detector e ms por
-     detecção. Falta o número real da máquina do usuário.
+     detecção.
+35. Medido na máquina do usuário (2026-10-07, `?diagnostico=1`): GPU, câmera
+   12 fps, detector 12 fps, **60,6 ms por detecção** — a análise travava a
+   página e a câmera. Solução:
+   - detector num **Web Worker** (`static/js/detector-maos-worker.js`,
+     clássico; o pacote `vision_bundle.cjs` fica em `static/js/vendor/`
+     porque o CDN o entrega como `application/node` e o navegador recusa;
+     o WASM continua no CDN). O vídeo não espera mais o detector; imagens
+     chegam enquanto ele está ocupado são puladas;
+   - análise em imagem reduzida a 640 px de largura (`createImageBitmap`,
+     mesma proporção, pontos normalizados iguais);
+   - **escolha automática GPU × CPU**: começa na GPU; se a média passar de
+     25 ms, mede a CPU nas mesmas imagens e fica com a mais rápida (testado
+     com `--disable-gpu`: trocou para CPU, ~21 ms);
+   - reserva: sem Worker/OffscreenCanvas, roda na página (modo adaptativo).
+   Falta o usuário medir de novo.
 
 ---
 

@@ -2,7 +2,7 @@
 from django.conf import settings
 
 # Arquivos estáticos que mudam com frequência (CSS e o JS da câmera).
-ESTILOS = ("css/app.css", "css/home.css", "css/reconhecer.css", "css/entrar.css", "js/camera-maos.js")
+ESTILOS = ("css/app.css", "css/home.css", "css/reconhecer.css", "css/entrar.css", "js/camera-maos.js", "js/detector-maos-worker.js")
 
 
 def versao_estaticos(request):

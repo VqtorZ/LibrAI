@@ -2,6 +2,8 @@
 //
 // Usado pelo Reconhecer, Gravar letras e Gravar movimento. A câmera é a
 // de quem está usando o site; só os 21 pontos da mão vão para o servidor.
+// A análise roda num Web Worker (detector-maos-worker.js) para não travar
+// o vídeo; se o navegador não permitir, roda na própria página.
 //
 // Formato dos pontos (versão 3, o mesmo das amostras e dos modelos):
 //  - espelhados como numa selfie: x' = 1 - x, e a mão "Left"/"Right"
@@ -20,9 +22,9 @@ const CONEXOES = [
 ];
 const PONTAS = new Set([4, 8, 12, 16, 20]);
 
-// Em computadores lentos, o detector descansa entre uma análise e outra
-// (no máximo ~metade do tempo da página), mas nunca abaixo de 15 por
-// segundo — o reconhecimento de movimento já trabalha a 15 por segundo.
+// Reserva (detector na própria página): em computadores lentos, ele
+// descansa entre análises, mas nunca abaixo de 15 por segundo — o
+// reconhecimento de movimento já trabalha a 15 por segundo.
 const INTERVALO_MAXIMO_MS = 66;
 
 function arredondar(valor) {
@@ -70,25 +72,10 @@ function desenhar(contexto, resultado, largura, altura) {
     });
 }
 
-async function criarDetector(modeloUrl) {
-    const { FilesetResolver, HandLandmarker } = await import(`${CDN}/vision_bundle.mjs`);
-    const arquivos = await FilesetResolver.forVisionTasks(`${CDN}/wasm`);
-    const opcoes = (delegate) => ({
-        baseOptions: { modelAssetPath: modeloUrl, delegate },
-        runningMode: 'VIDEO',
-        numHands: 1,
-        minHandDetectionConfidence: 0.6,
-        minHandPresenceConfidence: 0.6,
-        minTrackingConfidence: 0.5,
-    });
-    try {
-        const detector = await HandLandmarker.createFromOptions(arquivos, opcoes('GPU'));
-        return { detector, processador: 'GPU' };
-    } catch (falha) {
-        const detector = await HandLandmarker.createFromOptions(arquivos, opcoes('CPU'));
-        return { detector, processador: 'CPU' };
-    }
-}
+// Imagem analisada: no máximo 640 px de largura (a mesma proporção da
+// câmera, então os pontos normalizados não mudam). Menos pixels para
+// enviar e processar; o modelo trabalha em 224 px de qualquer jeito.
+const LARGURA_ANALISE = 640;
 
 /** Medidas de desempenho (janela dos últimos 2 s), para o modo diagnóstico. */
 export const medidas = {
@@ -118,6 +105,123 @@ export const medidas = {
     },
 };
 
+/*
+ * "Motores" de detecção. Os dois têm a mesma cara:
+ *   livre()                          → pode analisar uma imagem agora?
+ *   analisar(video, instante, entregar) → entregar(resultado, instante, ms)
+ *   fechar()
+ */
+
+/** Principal: o detector roda num Web Worker, sem travar o vídeo e a página. */
+async function criarMotorWorker(modeloUrl) {
+    const endereco = new URL('./detector-maos-worker.js', import.meta.url);
+    endereco.search = new URL(import.meta.url).search; // mesma versão (?v=) deste arquivo
+    const worker = new Worker(endereco);
+    let ocupado = false;
+    let entregarAtual = null;
+    try {
+        await new Promise((pronto, falhou) => {
+            const tempo = setTimeout(() => falhou(new Error('O detector demorou demais para carregar.')), 45000);
+            worker.onmessage = ({ data }) => {
+                if (data.tipo === 'pronto') {
+                    clearTimeout(tempo);
+                    console.info(`Detector de mão iniciado (${data.processador}, worker).`);
+                    medidas.processador = `${data.processador} (worker)`;
+                    pronto();
+                } else if (data.tipo === 'erro') {
+                    clearTimeout(tempo);
+                    falhou(new Error(data.mensagem));
+                }
+            };
+            worker.onerror = (evento) => {
+                evento.preventDefault();
+                clearTimeout(tempo);
+                falhou(new Error(evento.message || 'Falha no worker do detector.'));
+            };
+            worker.postMessage({ tipo: 'iniciar', modeloUrl: new URL(modeloUrl, location.href).href });
+        });
+    } catch (falha) {
+        worker.terminate();
+        throw falha;
+    }
+    worker.onmessage = ({ data }) => {
+        if (data.tipo === 'processador') {
+            medidas.processador = `${data.processador} (worker)`;
+            console.info(`Detector de mão: ${data.processador} foi mais rápido nesta máquina.`);
+            return;
+        }
+        if (data.tipo !== 'resultado') return;
+        ocupado = false;
+        if (data.ignorado || data.erro || !entregarAtual) return;
+        const resultado = {
+            landmarks: data.pontos ? [data.pontos.map(([x, y, z]) => ({ x, y, z }))] : [],
+            handedness: data.lado ? [[{ categoryName: data.lado }]] : [],
+        };
+        entregarAtual(resultado, data.instante, data.ms);
+    };
+    return {
+        livre: () => !ocupado,
+        analisar(video, instante, entregar) {
+            ocupado = true;
+            entregarAtual = entregar;
+            const largura = Math.min(LARGURA_ANALISE, video.videoWidth);
+            const altura = Math.round(video.videoHeight * largura / video.videoWidth);
+            createImageBitmap(video, { resizeWidth: largura, resizeHeight: altura, resizeQuality: 'low' })
+                .then((imagem) => worker.postMessage({ tipo: 'quadro', imagem, instante }, [imagem]))
+                .catch(() => { ocupado = false; });
+        },
+        fechar: () => worker.terminate(),
+    };
+}
+
+/** Reserva (navegadores sem worker com OffscreenCanvas): roda na própria página. */
+async function criarMotorPagina(modeloUrl) {
+    const { FilesetResolver, HandLandmarker } = await import(`${CDN}/vision_bundle.mjs`);
+    const arquivos = await FilesetResolver.forVisionTasks(`${CDN}/wasm`);
+    const opcoes = (delegate) => ({
+        baseOptions: { modelAssetPath: modeloUrl, delegate },
+        runningMode: 'VIDEO',
+        numHands: 1,
+        minHandDetectionConfidence: 0.6,
+        minHandPresenceConfidence: 0.6,
+        minTrackingConfidence: 0.5,
+    });
+    let detector;
+    try {
+        detector = await HandLandmarker.createFromOptions(arquivos, opcoes('GPU'));
+        medidas.processador = 'GPU (página)';
+    } catch (falha) {
+        detector = await HandLandmarker.createFromOptions(arquivos, opcoes('CPU'));
+        medidas.processador = 'CPU (página)';
+    }
+    let ultimaDeteccao = -Infinity;
+    let msMedio = 0; // média móvel do tempo de cada detecção
+    return {
+        // Em computador lento, descansa entre análises (~metade do tempo da
+        // página), sem cair abaixo de 15 por segundo.
+        livre: () => performance.now() - ultimaDeteccao >= Math.min(msMedio, INTERVALO_MAXIMO_MS),
+        analisar(video, instante, entregar) {
+            const resultado = detector.detectForVideo(video, instante);
+            const ms = performance.now() - instante;
+            ultimaDeteccao = instante;
+            msMedio = msMedio ? msMedio * 0.9 + ms * 0.1 : ms;
+            entregar(resultado, instante, ms);
+        },
+        fechar: () => detector.close(),
+    };
+}
+
+async function criarMotor(modeloUrl) {
+    if (window.Worker && window.createImageBitmap && window.OffscreenCanvas) {
+        try {
+            return await criarMotorWorker(modeloUrl);
+        } catch (falha) {
+            console.warn('Detector em worker indisponível; usando a própria página.', falha);
+        }
+    }
+    return criarMotorPagina(modeloUrl);
+}
+
 const MENSAGENS = {
     NotAllowedError: 'O acesso à câmera foi negado. Libere a câmera nas configurações do navegador (ícone ao lado do endereço) e tente de novo.',
     NotFoundError: 'Nenhuma câmera foi encontrada neste aparelho.',
@@ -129,7 +233,7 @@ const MENSAGENS = {
  * Liga a câmera e o detector de mão.
  * @param {{video: HTMLVideoElement, canvas: HTMLCanvasElement, modeloUrl: string,
  *          aoQuadro: function, aoEstado: function}} opcoes
- *   aoQuadro({t, marcos, mao}) a cada imagem da câmera;
+ *   aoQuadro({t, marcos, mao}) a cada imagem analisada;
  *   aoEstado(estado, mensagem) com 'carregando' | 'pedindo-camera' | 'ao-vivo' | 'erro'.
  */
 export async function ligarCameraMaos({ video, canvas, modeloUrl, aoQuadro, aoEstado }) {
@@ -137,17 +241,18 @@ export async function ligarCameraMaos({ video, canvas, modeloUrl, aoQuadro, aoEs
         aoEstado('erro', MENSAGENS.SecurityError);
         return null;
     }
-    let detector;
+    let motor;
     let fluxo;
     try {
         aoEstado('carregando');
-        ({ detector, processador: medidas.processador } = await criarDetector(modeloUrl));
+        motor = await criarMotor(modeloUrl);
         aoEstado('pedindo-camera');
         fluxo = await navigator.mediaDevices.getUserMedia({
             video: { width: { ideal: 960 }, height: { ideal: 540 }, facingMode: 'user' },
             audio: false,
         });
     } catch (falha) {
+        if (motor) motor.fechar();
         const mensagem = MENSAGENS[falha && falha.name]
             || 'Não foi possível iniciar o detector de mão. Verifique a internet e recarregue a página.';
         aoEstado('erro', mensagem);
@@ -159,39 +264,33 @@ export async function ligarCameraMaos({ video, canvas, modeloUrl, aoQuadro, aoEs
     await video.play().catch(() => {});
     const contexto = canvas.getContext('2d');
     let rodando = true;
-    let ultimaDeteccao = -Infinity;
-    let msMedio = 0; // média móvel do tempo de cada detecção
     aoEstado('ao-vivo');
 
-    function horaDeDetectar() {
-        const intervalo = Math.min(msMedio, INTERVALO_MAXIMO_MS);
-        return performance.now() - ultimaDeteccao >= intervalo;
-    }
-
-    function detectar() {
+    function entregar(resultado, instante, msDeteccao) {
+        if (!rodando) return;
         if (canvas.width !== video.videoWidth) {
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
         }
-        const instante = performance.now();
-        medidas.resolucao = `${video.videoWidth}×${video.videoHeight}`;
-        const resultado = detector.detectForVideo(video, instante);
-        const depoisDeteccao = performance.now();
-        ultimaDeteccao = instante;
-        msMedio = msMedio ? msMedio * 0.9 + (depoisDeteccao - instante) * 0.1 : depoisDeteccao - instante;
+        const antes = performance.now();
         desenhar(contexto, resultado, canvas.width, canvas.height);
-        medidas.registrarDeteccao(instante, depoisDeteccao - instante, performance.now() - depoisDeteccao);
+        medidas.registrarDeteccao(instante, msDeteccao, performance.now() - antes);
         aoQuadro(quadroDe(resultado, instante, video.videoWidth / video.videoHeight));
     }
 
-    // Uma detecção por quadro NOVO da câmera. O laço por requestAnimationFrame
-    // (60+ vezes por segundo) analisava a mesma imagem 3 a 4 vezes e ocupava
-    // a página quase inteira.
+    function novoQuadro(agora) {
+        medidas.registrarQuadroCamera(agora);
+        if (!video.videoWidth || !motor.livre()) return; // ocupado: pula esta imagem
+        medidas.resolucao = `${video.videoWidth}×${video.videoHeight}`;
+        motor.analisar(video, performance.now(), entregar);
+    }
+
+    // Uma análise por quadro NOVO da câmera (o laço por requestAnimationFrame
+    // analisava a mesma imagem 3 a 4 vezes).
     if (video.requestVideoFrameCallback) {
         const aCadaQuadro = (agora) => {
             if (!rodando) return;
-            medidas.registrarQuadroCamera(agora);
-            if (video.videoWidth && horaDeDetectar()) detectar();
+            novoQuadro(agora);
             video.requestVideoFrameCallback(aCadaQuadro);
         };
         video.requestVideoFrameCallback(aCadaQuadro);
@@ -200,10 +299,9 @@ export async function ligarCameraMaos({ video, canvas, modeloUrl, aoQuadro, aoEs
         let ultimoTempo = -1;
         const passo = () => {
             if (!rodando) return;
-            if (video.readyState >= 2 && video.videoWidth && video.currentTime !== ultimoTempo) {
+            if (video.readyState >= 2 && video.currentTime !== ultimoTempo) {
                 ultimoTempo = video.currentTime;
-                medidas.registrarQuadroCamera(performance.now());
-                if (horaDeDetectar()) detectar();
+                novoQuadro(performance.now());
             }
             requestAnimationFrame(passo);
         };
@@ -214,7 +312,7 @@ export async function ligarCameraMaos({ video, canvas, modeloUrl, aoQuadro, aoEs
         parar() {
             rodando = false;
             fluxo.getTracks().forEach((trilha) => trilha.stop());
-            detector.close();
+            motor.fechar();
         },
     };
 }

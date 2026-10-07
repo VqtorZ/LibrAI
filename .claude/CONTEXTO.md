@@ -8,7 +8,7 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
 ## 1. Estado atual (onde paramos)
 
 - **Branch de trabalho:** `melhorias-movimento` (enviado ao GitHub,
-  `origin/melhorias-movimento`). Tem **32 commits que ainda não estão no
+  `origin/melhorias-movimento`). Tem **33 commits que ainda não estão no
   `main`** (o `main` está em `e61c9d3`). O merge (ou PR) espera a aprovação do
   usuário: https://github.com/VqtorZ/LibrAI/pull/new/melhorias-movimento
 - **Testes:** 247 passando (`libras/tests/`, divididos por área).
@@ -70,6 +70,16 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
   digitou "giovana,gii", corrigido para ponto — confirmar com ele). Recomendado
   ao usuário trocar as senhas (foram enviadas no chat; as de Yasmin/Giovana são
   fracas). Novas contas: `manage.py criar_admin`.
+- **Kanban no Trello (2026-10-07):** quadro **LibrAI** em
+  https://trello.com/b/nTSkTuue/librai (área de trabalho de VqtorZ), colunas
+  Ideias → A fazer → Fazendo → Para validar → Feito, etiquetas Alfabeto,
+  Movimento, Site, IA/Dados, Segurança, Infra; 28 cartões criados a partir das
+  pendências desta memória. Acesso pela API do Trello: credenciais em
+  `C:/Users/victo/.trello-librai.json` (fora do projeto — **nunca imprimir,
+  repetir no chat ou copiar para o projeto**); ids do quadro/listas/etiquetas em
+  `C:/Users/victo/.trello-librai-quadro.json`. O token vale 30 dias (até
+  ~2026-11-06); depois, gerar outro pelo link de autorização com a chave do app
+  "LibrAI Kanban". Ao concluir tarefas, oferecer mover os cartões.
 - **Próximo passo combinado:** o usuário vai **regravar todo o alfabeto** pelo
   site e depois treinar. Oferecido e ainda não decidido: botão de gravação em
   rajada (vários quadros espaçados por Espaço).

@@ -133,30 +133,31 @@
 @keyframes mira {
     50% {
         transform: scale(.88);
-        border-color: rgba(141, 179, 236, .95);
+        opacity: .65;
     }
 }
 
+/* Animações sobre o vídeo usam só transform/opacity: a placa de vídeo
+   cuida delas, sem disputar o processador com o detector de mão. */
 .rc-scan {
     position: absolute;
-    left: 0;
-    right: 0;
-    top: -90px;
-    height: 90px;
-    background: linear-gradient(180deg, transparent, rgba(120, 164, 230, .18));
+    inset: 0;
+    background: linear-gradient(180deg, transparent calc(100% - 90px), rgba(120, 164, 230, .18));
     border-bottom: 2px solid rgba(141, 179, 236, .6);
+    transform: translateY(-100%);
     animation: rc-varre 5s ease-in-out infinite;
+    will-change: transform;
     pointer-events: none;
 }
 
 @keyframes rc-varre {
     0% {
-        top: -90px;
+        transform: translateY(-100%);
     }
 
     55%,
     100% {
-        top: 100%;
+        transform: translateY(100%);
     }
 }
 
@@ -176,29 +177,38 @@
     gap: 8px;
     padding: 8px 13px;
     border-radius: var(--radius-full);
-    background: rgba(22, 35, 63, .72);
-    -webkit-backdrop-filter: blur(6px);
-    backdrop-filter: blur(6px);
+    background: rgba(22, 35, 63, .86);
     color: #fff;
     font: 600 11px var(--font-mono);
     letter-spacing: .08em;
 }
 
 .rc-ao-vivo {
+    position: relative;
     width: 8px;
     height: 8px;
     border-radius: 50%;
     background: #6FDD8F;
+}
+
+.rc-ao-vivo::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(111, 221, 143, .6);
     animation: rc-pulso 2s ease-out infinite;
 }
 
 @keyframes rc-pulso {
     0% {
-        box-shadow: 0 0 0 0 rgba(111, 221, 143, .6);
+        transform: scale(1);
+        opacity: 1;
     }
 
     100% {
-        box-shadow: 0 0 0 9px rgba(111, 221, 143, 0);
+        transform: scale(3.2);
+        opacity: 0;
     }
 }
 
@@ -825,4 +835,19 @@
     border-radius: 12px;
     background: var(--color-surface-alt);
     animation: rc-troca .35s cubic-bezier(.2, .8, .2, 1);
+}
+
+/* Modo diagnóstico (?diagnostico=1): FPS e tempos do detector. */
+.rc-diagnostico {
+    position: absolute;
+    left: 12px;
+    bottom: 12px;
+    z-index: 5;
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, .72);
+    color: #9EF0B5;
+    font: 12px/1.45 ui-monospace, Consolas, monospace;
+    pointer-events: none;
 }

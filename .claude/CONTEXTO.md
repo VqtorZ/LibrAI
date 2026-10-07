@@ -307,6 +307,18 @@ DTW experimental → teste de rejeição não-J.
    Resultado: 250 testes e teste de fumaça com câmera falsa.
 33. Produção: `.env`, segurança, limite de login, validação de senha,
    `backup_dados`, guia do PythonAnywhere; dados fora do Git; 262 testes.
+34. Fluidez da câmera (usuário relatou FPS baixo em 2026-10-07). Medido com
+   câmera falsa: o laço por requestAnimationFrame rodava o detector 74×/s
+   para 20 quadros/s da câmera (~900 ms de trabalho por segundo). Agora:
+   - uma detecção por quadro novo (`requestVideoFrameCallback`), ~3× menos
+     trabalho;
+   - modo adaptativo: em máquina lenta, o detector espera entre análises (no
+     máximo ~metade do tempo da página), garantindo ≥ 15/s;
+   - animações sobre o vídeo só com transform/opacity e chips sem
+     `backdrop-filter`;
+   - **modo diagnóstico**: `?diagnostico=1` em qualquer página com câmera
+     mostra GPU/CPU, resolução, FPS da câmera e do detector e ms por
+     detecção. Falta o número real da máquina do usuário.
 
 ---
 

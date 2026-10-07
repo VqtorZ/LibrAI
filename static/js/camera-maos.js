@@ -20,6 +20,11 @@ const CONEXOES = [
 ];
 const PONTAS = new Set([4, 8, 12, 16, 20]);
 
+// Em computadores lentos, o detector descansa entre uma análise e outra
+// (no máximo ~metade do tempo da página), mas nunca abaixo de 15 por
+// segundo — o reconhecimento de movimento já trabalha a 15 por segundo.
+const INTERVALO_MAXIMO_MS = 66;
+
 function arredondar(valor) {
     return Math.round(valor * 100000) / 100000;
 }
@@ -77,11 +82,41 @@ async function criarDetector(modeloUrl) {
         minTrackingConfidence: 0.5,
     });
     try {
-        return await HandLandmarker.createFromOptions(arquivos, opcoes('GPU'));
+        const detector = await HandLandmarker.createFromOptions(arquivos, opcoes('GPU'));
+        return { detector, processador: 'GPU' };
     } catch (falha) {
-        return HandLandmarker.createFromOptions(arquivos, opcoes('CPU'));
+        const detector = await HandLandmarker.createFromOptions(arquivos, opcoes('CPU'));
+        return { detector, processador: 'CPU' };
     }
 }
+
+/** Medidas de desempenho (janela dos últimos 2 s), para o modo diagnóstico. */
+export const medidas = {
+    processador: null,
+    resolucao: null,
+    fpsCamera: 0,
+    fpsDeteccao: 0,
+    msDeteccao: 0,
+    msDesenho: 0,
+    _quadrosCamera: [],
+    _deteccoes: [],
+    registrarQuadroCamera(agora) {
+        this._quadrosCamera.push(agora);
+    },
+    registrarDeteccao(agora, msDeteccao, msDesenho) {
+        this._deteccoes.push([agora, msDeteccao, msDesenho]);
+    },
+    atualizar(agora) {
+        const limite = agora - 2000;
+        this._quadrosCamera = this._quadrosCamera.filter((t) => t >= limite);
+        this._deteccoes = this._deteccoes.filter(([t]) => t >= limite);
+        this.fpsCamera = this._quadrosCamera.length / 2;
+        this.fpsDeteccao = this._deteccoes.length / 2;
+        const n = this._deteccoes.length || 1;
+        this.msDeteccao = this._deteccoes.reduce((soma, d) => soma + d[1], 0) / n;
+        this.msDesenho = this._deteccoes.reduce((soma, d) => soma + d[2], 0) / n;
+    },
+};
 
 const MENSAGENS = {
     NotAllowedError: 'O acesso à câmera foi negado. Libere a câmera nas configurações do navegador (ícone ao lado do endereço) e tente de novo.',
@@ -106,7 +141,7 @@ export async function ligarCameraMaos({ video, canvas, modeloUrl, aoQuadro, aoEs
     let fluxo;
     try {
         aoEstado('carregando');
-        detector = await criarDetector(modeloUrl);
+        ({ detector, processador: medidas.processador } = await criarDetector(modeloUrl));
         aoEstado('pedindo-camera');
         fluxo = await navigator.mediaDevices.getUserMedia({
             video: { width: { ideal: 960 }, height: { ideal: 540 }, facingMode: 'user' },
@@ -123,26 +158,57 @@ export async function ligarCameraMaos({ video, canvas, modeloUrl, aoQuadro, aoEs
     video.playsInline = true;
     await video.play().catch(() => {});
     const contexto = canvas.getContext('2d');
-    let ultimoTempo = -1;
     let rodando = true;
+    let ultimaDeteccao = -Infinity;
+    let msMedio = 0; // média móvel do tempo de cada detecção
     aoEstado('ao-vivo');
 
-    function passo() {
-        if (!rodando) return;
-        if (video.readyState >= 2 && video.currentTime !== ultimoTempo && video.videoWidth) {
-            ultimoTempo = video.currentTime;
-            if (canvas.width !== video.videoWidth) {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-            }
-            const instante = performance.now();
-            const resultado = detector.detectForVideo(video, instante);
-            desenhar(contexto, resultado, canvas.width, canvas.height);
-            aoQuadro(quadroDe(resultado, instante, video.videoWidth / video.videoHeight));
+    function horaDeDetectar() {
+        const intervalo = Math.min(msMedio, INTERVALO_MAXIMO_MS);
+        return performance.now() - ultimaDeteccao >= intervalo;
+    }
+
+    function detectar() {
+        if (canvas.width !== video.videoWidth) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
         }
+        const instante = performance.now();
+        medidas.resolucao = `${video.videoWidth}×${video.videoHeight}`;
+        const resultado = detector.detectForVideo(video, instante);
+        const depoisDeteccao = performance.now();
+        ultimaDeteccao = instante;
+        msMedio = msMedio ? msMedio * 0.9 + (depoisDeteccao - instante) * 0.1 : depoisDeteccao - instante;
+        desenhar(contexto, resultado, canvas.width, canvas.height);
+        medidas.registrarDeteccao(instante, depoisDeteccao - instante, performance.now() - depoisDeteccao);
+        aoQuadro(quadroDe(resultado, instante, video.videoWidth / video.videoHeight));
+    }
+
+    // Uma detecção por quadro NOVO da câmera. O laço por requestAnimationFrame
+    // (60+ vezes por segundo) analisava a mesma imagem 3 a 4 vezes e ocupava
+    // a página quase inteira.
+    if (video.requestVideoFrameCallback) {
+        const aCadaQuadro = (agora) => {
+            if (!rodando) return;
+            medidas.registrarQuadroCamera(agora);
+            if (video.videoWidth && horaDeDetectar()) detectar();
+            video.requestVideoFrameCallback(aCadaQuadro);
+        };
+        video.requestVideoFrameCallback(aCadaQuadro);
+    } else {
+        // Navegadores sem requestVideoFrameCallback: confere se a imagem mudou.
+        let ultimoTempo = -1;
+        const passo = () => {
+            if (!rodando) return;
+            if (video.readyState >= 2 && video.videoWidth && video.currentTime !== ultimoTempo) {
+                ultimoTempo = video.currentTime;
+                medidas.registrarQuadroCamera(performance.now());
+                if (horaDeDetectar()) detectar();
+            }
+            requestAnimationFrame(passo);
+        };
         requestAnimationFrame(passo);
     }
-    requestAnimationFrame(passo);
 
     return {
         parar() {
@@ -245,4 +311,20 @@ export function iniciarCameraDaPagina({ aoQuadro }) {
     }
     tentar.addEventListener('click', ligar);
     ligar();
+    if (new URLSearchParams(location.search).has('diagnostico')) mostrarDiagnostico(camera);
+}
+
+/** Painel com FPS e tempos (abra a página com ?diagnostico=1). */
+function mostrarDiagnostico(camera) {
+    const painel = document.createElement('pre');
+    painel.className = 'rc-diagnostico';
+    camera.appendChild(painel);
+    setInterval(() => {
+        medidas.atualizar(performance.now());
+        painel.textContent = [
+            `detector: ${medidas.processador || '…'}  imagem: ${medidas.resolucao || '…'}`,
+            `câmera: ${medidas.fpsCamera.toFixed(0)} fps   detector: ${medidas.fpsDeteccao.toFixed(0)} fps`,
+            `detecção: ${medidas.msDeteccao.toFixed(1)} ms   desenho: ${medidas.msDesenho.toFixed(1)} ms`,
+        ].join('\n');
+    }, 500);
 }

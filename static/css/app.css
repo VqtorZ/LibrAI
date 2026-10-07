@@ -79,10 +79,17 @@ body {
     overflow-x: clip;
 }
 
-/* O header é fixo: ambas as páginas reservam espaço equivalente. */
-body.site-home,
-body.recognizer {
+/* O header é fixo e está em todas as páginas: o espaço dele é reservado
+   no body (antes só a home e o reconhecedor reservavam, e o título das
+   páginas de Gestos ficava escondido sob o header). */
+body {
     padding-top: var(--header-height);
+}
+
+/* Links do menu para seções (#projeto, #como-funciona…) param logo
+   abaixo do header fixo, em vez de esconder o topo da seção. */
+[id] {
+    scroll-margin-top: calc(var(--header-height) + 16px);
 }
 
 img {

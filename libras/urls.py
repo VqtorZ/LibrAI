@@ -17,6 +17,7 @@ urlpatterns = [
         name="entrar",
     ),
     path("sair/", auth_views.LogoutView.as_view(), name="sair"),
+    path("conta/senha/", views.trocar_senha, name="trocar_senha"),
     path("api/quadros/", views.api_quadros, name="api_quadros"),
     path("gestos/", views.gestos, name="gestos"),
     path("gestos/novo/", views.gesto_novo, name="gesto_novo"),

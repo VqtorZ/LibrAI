@@ -200,3 +200,65 @@ class LoginDoAdminTests(TestCase):
         # A tela do site tem o limite de tentativas; a do /admin/ não teria.
         resposta = self.client.get("/admin/login/?next=/admin/")
         self.assertRedirects(resposta, reverse("entrar") + "?next=/admin/", fetch_redirect_response=False)
+
+
+@RAPIDO
+class TrocarSenhaTests(TestCase):
+    URL = "/conta/senha/"
+
+    def setUp(self):
+        cache.clear()
+        self.usuario = User.objects.create_user(
+            "ana@exemplo.com", "ana@exemplo.com", "senha-antiga-1", first_name="Ana", is_staff=True
+        )
+        self.client.force_login(self.usuario)
+
+    def trocar(self, atual, nova, repetida=None):
+        return self.client.post(reverse("trocar_senha"), {
+            "old_password": atual, "new_password1": nova, "new_password2": repetida or nova,
+        })
+
+    def test_pagina(self):
+        self.assertEqual(reverse("trocar_senha"), self.URL)
+        resposta = self.client.get(self.URL)
+        self.assertContains(resposta, "Trocar minha senha")
+        self.assertContains(resposta, "ana@exemplo.com")
+        self.assertContains(resposta, "Senha atual")
+        self.assertContains(resposta, 'id="mostrar-senhas"')
+        # O "Olá, Ana" do cabeçalho leva até aqui.
+        self.assertContains(self.client.get(reverse("inicio")), f'href="{self.URL}"')
+
+    def test_troca_e_continua_logado(self):
+        resposta = self.trocar("senha-antiga-1", "libras-mao-azul-2026")
+        self.assertRedirects(resposta, reverse("gestos"), fetch_redirect_response=False)
+        self.assertContains(self.client.get(reverse("gestos")), "Senha trocada")
+        self.usuario.refresh_from_db()
+        self.assertTrue(self.usuario.check_password("libras-mao-azul-2026"))
+
+    def test_senha_atual_errada(self):
+        resposta = self.trocar("chute-errado", "libras-mao-azul-2026")
+        self.assertContains(resposta, "A senha atual não confere")
+        self.usuario.refresh_from_db()
+        self.assertTrue(self.usuario.check_password("senha-antiga-1"))
+
+    def test_regras_da_senha_nova(self):
+        casos = [
+            ("curta-1", "curta-1", None),
+            ("1234567890123", "1234567890123", None),
+            ("libras-mao-azul-2026", "libras-mao-azul-2027", "não são iguais"),
+            ("senha-antiga-1", "senha-antiga-1", "diferente da atual"),
+        ]
+        for nova, repetida, mensagem in casos:
+            with self.subTest(nova=nova):
+                resposta = self.trocar("senha-antiga-1", nova, repetida)
+                self.assertEqual(resposta.status_code, 200)
+                if mensagem:
+                    self.assertContains(resposta, mensagem)
+        self.usuario.refresh_from_db()
+        self.assertTrue(self.usuario.check_password("senha-antiga-1"))
+
+    def test_visitante_vai_para_o_login(self):
+        self.client.logout()
+        self.assertRedirects(
+            self.client.get(self.URL), f"{reverse('entrar')}?next={self.URL}", fetch_redirect_response=False
+        )

@@ -2078,6 +2078,20 @@ kbd {
     text-overflow: ellipsis;
 }
 
+/* "Olá, Nome" leva à troca de senha. */
+a.conta-ola {
+    text-decoration: none;
+    border-radius: var(--radius-full);
+}
+
+a.conta-ola:hover,
+a.conta-ola:focus-visible,
+a.conta-ola.is-active {
+    color: var(--color-link);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
 .mobile-sair {
     margin: 0;
 }

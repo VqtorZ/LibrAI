@@ -12,7 +12,7 @@
   </nav>
   <div class="header-actions">
     {% if user.is_authenticated %}
-    <span class="conta-ola" title="{{ user.email }}">Olá, {{ user.first_name|default:user.email }}</span>
+    <a class="conta-ola{% if pagina == 'trocar_senha' %} is-active{% endif %}" href="{% url 'trocar_senha' %}" title="{{ user.email }} — trocar minha senha">Olá, {{ user.first_name|default:user.email }}</a>
     <form method="post" action="{% url 'sair' %}" class="conta-sair">{% csrf_token %}<button type="submit">Sair</button></form>
     {% else %}
     <a class="conta-entrar{% if pagina == 'entrar' %} is-active{% endif %}" href="{% url 'entrar' %}">Entrar</a>
@@ -29,6 +29,7 @@
   <a href="{% url 'inicio' %}#reconhece">O que reconhece</a>
   <a href="{% url 'gestos' %}"{% if pagina == 'gestos' or pagina|slice:':6' == 'gesto_' or pagina|slice:':9' == 'alfabeto_' %} class="is-active" aria-current="page"{% endif %}>Gestos</a>
   {% if user.is_authenticated %}
+  <a href="{% url 'trocar_senha' %}"{% if pagina == 'trocar_senha' %} class="is-active" aria-current="page"{% endif %}>Trocar minha senha</a>
   <form method="post" action="{% url 'sair' %}" class="mobile-sair">{% csrf_token %}<button type="submit">Sair ({{ user.first_name|default:user.email }})</button></form>
   {% else %}
   <a href="{% url 'entrar' %}"{% if pagina == 'entrar' %} class="is-active" aria-current="page"{% endif %}>Entrar</a>

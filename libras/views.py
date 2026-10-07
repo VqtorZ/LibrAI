@@ -10,6 +10,7 @@ from datetime import datetime
 from string import ascii_uppercase
 
 from django.contrib import messages
+from django.contrib.auth import views as auth_views
 from django.db.models import Avg, Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -17,7 +18,7 @@ from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from .acesso import apenas_admin
+from .acesso import FormularioTrocarSenha, apenas_admin
 from .estatico import amostras as amostras_alfabeto
 from .estatico.classificador import alfabeto as classificador_alfabeto
 from .estatico.treino import ErroTreino
@@ -433,4 +434,25 @@ def gesto_excluir(request, sinal_id):
         texto += " Era o último sinal do modelo de movimentos, que foi apagado."
     messages.success(request, texto)
     return redirect("gestos")
+
+
+# --------------------------------------------------------------------------
+# Conta: trocar a própria senha
+# --------------------------------------------------------------------------
+class TrocarSenha(auth_views.PasswordChangeView):
+    """Cada administrador troca a própria senha (continua logado depois)."""
+
+    template_name = "libras/trocar_senha.html"
+    form_class = FormularioTrocarSenha
+
+    def get_success_url(self):
+        return reverse("gestos")
+
+    def form_valid(self, form):
+        resposta = super().form_valid(form)
+        messages.success(self.request, "Senha trocada. Use a nova senha no próximo login.")
+        return resposta
+
+
+trocar_senha = apenas_admin(TrocarSenha.as_view())
 

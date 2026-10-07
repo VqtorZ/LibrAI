@@ -135,6 +135,20 @@
     background: #D5E3F8;
 }
 
+/* Trocar minha senha */
+.senha-dica {
+    margin: 4px 0 0;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.senha-mostrar {
+    position: static;
+    justify-self: start;
+    transform: none;
+}
+
 .entrar-botao {
     justify-content: center;
     margin-top: 4px;

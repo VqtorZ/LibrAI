@@ -91,7 +91,8 @@ sinal pede para regravá-lo.
 
 A home e o **Reconhecer** são livres para todos. A área de **Gestos** (cadastrar,
 gravar, apagar, excluir e treinar) é só para administradores: entre em
-**Entrar** (`/entrar/`) com o e-mail e a senha. Contas são criadas pelo
+**Entrar** (`/entrar/`) com o e-mail e a senha. Cada pessoa troca a própria senha
+em **Olá, Nome → Trocar minha senha** (`/conta/senha/`). Contas são criadas pelo
 terminal, com a senha digitada na hora (nunca fica em arquivo):
 
 ```powershell

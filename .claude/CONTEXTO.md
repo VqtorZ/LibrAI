@@ -98,8 +98,13 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
      passaram pelo chat);
   2. liga o `publicar.cmd` e manda o link para Yasmin e Giovana;
   3. a equipe regrava o alfabeto, o J e o Z.
-- **Ideia oferecida:** página "trocar minha senha" para cada admin. Link
-  fixo (domínio próprio, ngrok ou Tailscale) só se fizer falta.
+- **Trocar minha senha (2026-10-07):** `/conta/senha/` (`views.TrocarSenha`,
+  `acesso.FormularioTrocarSenha`: senha atual + nova 2×, mesmas regras do
+  `criar_admin`, recusa repetir a atual; continua logado; "Olá, Nome" no
+  cabeçalho é o link). Link fixo (domínio próprio, ngrok ou Tailscale) só se
+  fizer falta.
+- **Dados novos (2026-10-07):** o alfabeto já tem **245 amostras de 2
+  letras** no `alfabeto.csv` (v3), gravadas pelo site depois da migração.
 - **Mudança no Git (2026-10-07):** `dados/amostras_estaticas/` e
   `dados/modelos_treinados/` passaram para o `.gitignore` (os dados nascem no
   servidor; versioná-los faria o `git pull` de lá brigar com eles).
@@ -364,6 +369,7 @@ DTW experimental → teste de rejeição não-J.
    (waitress + cloudflared), `LIBRAI_ENV`, WhiteNoise, origens CSRF com
    curinga, cabeçalho de IP configurável, login do `/admin/` pelo `/entrar/`;
    266 testes.
+37. Página "Trocar minha senha" (`/conta/senha/`); 271 testes.
 
 ---
 

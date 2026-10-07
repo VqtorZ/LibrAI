@@ -16,7 +16,7 @@ bloqueado por 15 minutos (``LOGIN_*`` em ``config/settings.py``).
 from django import forms
 from django.conf import settings
 from django.contrib.auth.decorators import user_passes_test
-from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm
 from django.core.cache import cache
 
 
@@ -98,3 +98,37 @@ class FormularioEntrar(AuthenticationForm):
             raise forms.ValidationError(
                 "Esta conta não tem acesso de administrador.", code="sem_acesso"
             )
+
+
+def _campo_senha(rotulo, autocomplete, **atributos):
+    return forms.CharField(
+        label=rotulo,
+        strip=False,
+        widget=forms.PasswordInput(attrs={"autocomplete": autocomplete, **atributos}),
+    )
+
+
+class FormularioTrocarSenha(PasswordChangeForm):
+    """Troca da própria senha: pede a atual e a nova duas vezes.
+
+    A nova passa pelas mesmas regras do criar_admin (10+ caracteres, nada
+    óbvio, diferente do e-mail/nome — AUTH_PASSWORD_VALIDATORS).
+    """
+
+    old_password = _campo_senha("Senha atual", "current-password", autofocus=True)
+    new_password1 = _campo_senha("Nova senha", "new-password")
+    new_password2 = _campo_senha("Repita a nova senha", "new-password")
+    error_messages = {
+        "password_incorrect": "A senha atual não confere. Digite de novo.",
+        "password_mismatch": "As duas senhas novas não são iguais.",
+    }
+
+    def clean(self):
+        dados = super().clean()
+        nova = dados.get("new_password1")
+        if nova and not self.has_error("new_password2") and self.user.check_password(nova):
+            self.add_error("new_password2", forms.ValidationError(
+                "A nova senha precisa ser diferente da atual.", code="mesma_senha"
+            ))
+        return dados
+

@@ -53,8 +53,10 @@ de conta nem de mexer no roteador.
   .\.venv\Scripts\python.exe manage.py criar_admin giovana.gii@gmail.com --nome Giovana
   ```
 
-  (10+ caracteres, nada óbvio. Combine as senhas da Yasmin e da Giovana por um
-  canal privado.)
+  (10+ caracteres, nada óbvio.) Depois, **cada pessoa troca a própria
+  senha** pelo site: clicar em **"Olá, Nome"** no topo (ou no menu do
+  celular, "Trocar minha senha") → `/conta/senha/`. Assim você só precisa
+  passar uma senha provisória, e cada uma define a sua.
 - Nenhum vídeo sai do aparelho de quem usa: só os pontos da mão.
 
 ## Backup

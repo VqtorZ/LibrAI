@@ -8,10 +8,10 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
 ## 1. Estado atual (onde paramos)
 
 - **Branch de trabalho:** `melhorias-movimento` (enviado ao GitHub,
-  `origin/melhorias-movimento`). Tem **22 commits que ainda não estão no
+  `origin/melhorias-movimento`). Tem **24 commits que ainda não estão no
   `main`** (o `main` está em `e61c9d3`). O merge (ou PR) espera a aprovação do
   usuário: https://github.com/VqtorZ/LibrAI/pull/new/melhorias-movimento
-- **Testes:** 200 passando (`libras/tests/`, divididos por área).
+- **Testes:** 203 passando (`libras/tests/`, divididos por área).
 - **Estrutura reorganizada em 2026-10-06** (seção 3): dados em `dados/`, código
   em `libras/captura/`, `libras/estatico/`, `libras/movimento/`; `scripts/` não
   existe mais (tudo via `manage.py`). Backup local de antes da reorganização
@@ -41,7 +41,14 @@ Arquivo de contexto para retomar o trabalho (palavra-chave **RELEMBRE**).
   reais do sistema), botão "Treinar reconhecimento" no site, situação de cada
   sinal ("No reconhecimento" / "Precisa treinar"), página do sinal com resumo
   e tabela, menu marcando a página atual. Visual conferido por prints (Chrome
-  headless); **ainda não visto pelo usuário**.
+  headless) e **aprovado pelo usuário** ("ficou perfeito").
+- **Página Reconhecer renovada** (mesma linguagem da home): estados visuais com
+  cor/símbolo/frase, indicador "Mão detectada", selo do resultado sobre a
+  câmera, "Soletrando" (forma palavras; letra parada fica provisória até o
+  próximo sinal e é descartada se um movimento for reconhecido — evita "IJ";
+  pose final de um movimento é ignorada por 1,5 s), dicas em cartões e a grade
+  do alfabeto com dados reais. Conferida por prévias estáticas (template real
+  + quadro simulado + status roteirizado), **não testada com a webcam**.
 - **Próximo passo combinado:** o usuário treina o Z pelo botão do site (Gestos
   → Treinar reconhecimento) e testa J vs Z ao vivo no `/reconhecer/`.
 
@@ -105,7 +112,7 @@ O README tem o mapa completo em árvore. Resumo:
 | `management/commands/` | `coletar_alfabeto`, `treinar_alfabeto`, `gravar_movimento`, `verificar_movimentos`, `treinar_movimentos`, `testar_movimento`, `gerar_nao_j_sintetico`. |
 | `tests/` | `base.py` (bases e auxiliares) + `test_sinais`, `test_amostras`, `test_classificador`, `test_ao_vivo`, `test_gravacao`, `test_camera`, `test_alfabeto`. |
 | `templates/libras/` | `inicio` (home: dados reais da view, mão animada `_mao_svg`), `reconhecer` (ao vivo), `gestos` (lista com amostras + situação + aviso de treino), `gesto_form` ("Exemplo negativo" só aparece para Movimento), `gesto_detalhe` (resumo + tabela), `gravar`, `_cabecalho` (página atual, "Pular para o conteúdo"), `_botao_treinar` (POST `treinar_movimentos`, mostra "Treinando…"). |
-| `static/css/` | `app.css` (geral; seções 16–17 = componentes e Gestos) e `home.css` (só a home). CSS da home antiga foi removido. Regra global `[hidden] { display: none !important }`. Animações respeitam `prefers-reduced-motion`; `.reveal` só esconde com a classe `.js` no `<html>`. |
+| `static/css/` | `app.css` (geral; seções 16–17 = componentes e Gestos; 18 = `.etiqueta` e grade `.alfabeto-*`, usadas na home e no reconhecer), `home.css` (só a home) e `reconhecer.css` (só o reconhecer, classes `rc-*`). A página de gravação ainda usa os estilos antigos `.recognizer-layout`/`.recognition-panel`. CSS da home antiga foi removido. Regra global `[hidden] { display: none !important }`. Animações respeitam `prefers-reduced-motion`; `.reveal` só esconde com a classe `.js` no `<html>`. |
 | `config/settings.py` | `LOGGING` mostra o logger `libras` (INFO) no terminal do runserver. |
 
 **Rotas:** `/` · `/reconhecer/` · `/video/` (MJPEG) · `/api/status/` ·
@@ -242,6 +249,10 @@ rejeição não-J com arquivo sintético, hoje em `dados/sinteticos/nao_j_sintet
     (`treinar_movimentos`, `classificador.situacao_dos_sinais`), páginas de
     Gestos com contagem/situação/resumo/tabela, menu com página atual, CSS
     versionado (`contexto.py`), CSS morto removido; 200 testes
+22. memória com o front renovado e o Z gravado
+23. página Reconhecer renovada (`reconhecer.css`, estados, Soletrando),
+    componentes `.etiqueta`/`.alfabeto-*` compartilhados, `views._alfabeto()`;
+    203 testes
 
 ---
 
@@ -271,7 +282,12 @@ rejeição não-J com arquivo sintético, hoje em `dados/sinteticos/nao_j_sintet
    para Libras com um avatar.
 9. **Notas de prints:** o script de prints usa Chrome `--headless=new`
     (largura mínima ~500 px; para celular usar Edge `--headless=old`). Nunca
-    tirar print de `/reconhecer/` ou `/gestos/<id>/gravar/` (abrem a webcam).
+    tirar print de `/reconhecer/` ou `/gestos/<id>/gravar/` (abrem a webcam):
+    para ver o reconhecer, renderizar o template pelo Django Client, trocar
+    `src="/video/"` por uma imagem e sobrescrever `window.fetch` com um
+    status roteirizado (foi assim em 2026-10-06).
+11. **Página de gravação** (`gravar.html`) ainda tem o visual antigo — pode
+    ganhar a mesma linguagem do reconhecer se o usuário quiser.
 10. **Plano de auto-aperfeiçoamento** (discutido em 2026-10-06; nada
    implementado; ordem recomendada — o usuário ainda não escolheu por onde
    começar):

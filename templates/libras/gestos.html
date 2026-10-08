@@ -43,6 +43,15 @@
                 {% include "libras/_botao_treinar.html" with url_treino=url_treino_alfabeto texto="Treinar alfabeto" voltar=request.path secundario=True %}
                 <a class="primary-button" href="{% url 'alfabeto_gravar' %}">Gravar letras <span aria-hidden="true">→</span></a>
             </div>
+            <div class="alfabeto-painel-letras">
+                <p class="section-label">VER E EXCLUIR AMOSTRAS DE CADA LETRA</p>
+                <nav class="letras-nav letras-nav--painel" aria-label="Ver as amostras de cada letra">
+                    {% for item in alfabeto_contagem %}
+                    <a href="{% url 'alfabeto_letra' item.letra %}" class="letras-nav-item{% if not item.amostras %} vazia{% endif %}"
+                        title="Ver e excluir amostras da letra {{ item.letra }}"><span>{{ item.letra }}</span><small>{{ item.amostras }}</small></a>
+                    {% endfor %}
+                </nav>
+            </div>
         </section>
         <div class="gestures-toolbar">
             <span class="section-label">{{ sinais|length }} {% if sinais|length == 1 %}sinal{% else %}sinais{% endif %}</span>

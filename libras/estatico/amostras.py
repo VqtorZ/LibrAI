@@ -7,7 +7,9 @@ gravadas pelo site, com os pontos vindos da câmera do navegador.
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
+import os
 import threading
 from collections import Counter
 
@@ -20,6 +22,8 @@ CABECALHO = ["label"] + [f"f{i}" for i in range(N_FEATURES)]
 LETRAS_ESTATICAS = [letra for letra in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" if letra not in "JZ"]
 
 _lock = threading.Lock()
+# Caracteres de fim de linha (o csv grava as linhas terminadas em CR+LF).
+FIM_DE_LINHA = chr(13) + chr(10)
 
 
 class AmostraEstaticaInvalida(Exception):
@@ -100,3 +104,91 @@ def desfazer(linha, caminho=None):
         with caminho.open("r+b") as arquivo:
             arquivo.truncate(len(conteudo) - len(alvo))
     return True
+
+
+def id_da_linha(linha):
+    """Parte principal da identificação: tirada do próprio conteúdo da amostra.
+
+    Não depende da posição no arquivo — se alguém grava ou apaga outra
+    amostra ao mesmo tempo, as demais continuam com o mesmo id.
+    """
+    return hashlib.sha1(linha.rstrip(FIM_DE_LINHA).encode("utf-8")).hexdigest()[:12]
+
+
+class _Ids:
+    """Dá ids às linhas na ordem do arquivo: ``<conteúdo>-<n>``.
+
+    Duas amostras idênticas (Espaço apertado duas vezes na mesma imagem da
+    câmera) recebem ``-1`` e ``-2``: apagar uma não leva a outra junto.
+    """
+
+    def __init__(self):
+        self.vistas = Counter()
+
+    def __call__(self, linha):
+        base = id_da_linha(linha)
+        self.vistas[base] += 1
+        return f"{base}-{self.vistas[base]}"
+
+
+def listar(letra, caminho=None):
+    """Amostras da letra, na ordem em que foram gravadas.
+
+    Cada item: ``{"id", "numero", "valores"}`` (63 coordenadas relativas ao
+    pulso, como ficam no arquivo).
+    """
+    letra = validar_letra(letra)
+    caminho = _arquivo(caminho)
+    amostras = []
+    ids = _Ids()
+    try:
+        with caminho.open(encoding="utf-8") as arquivo:
+            next(arquivo, None)  # cabeçalho
+            for linha in arquivo:
+                partes = linha.rstrip(FIM_DE_LINHA).split(",")
+                if partes[0].strip() != letra or len(partes) != N_FEATURES + 1:
+                    continue
+                try:
+                    valores = [float(v) for v in partes[1:]]
+                except ValueError:
+                    continue
+                amostras.append({"id": ids(linha), "numero": len(amostras) + 1, "valores": valores})
+    except FileNotFoundError:
+        pass
+    return amostras
+
+
+def apagar(letra, ids, caminho=None):
+    """Apaga as amostras da letra com esses ids; devolve quantas saíram.
+
+    Reescreve o arquivo num temporário e troca de uma vez (``os.replace``):
+    uma falha no meio nunca deixa o CSV pela metade.
+    """
+    letra = validar_letra(letra)
+    alvo = set(ids)
+    if not alvo:
+        return 0
+    caminho = _arquivo(caminho)
+    with _lock:
+        try:
+            # newline="": mantém a quebra de linha do csv (o "Desfazer última" compara bytes).
+            with caminho.open(encoding="utf-8", newline="") as arquivo:
+                linhas = arquivo.readlines()
+        except FileNotFoundError:
+            return 0
+        if not linhas:
+            return 0
+        mantidas = [linhas[0]]
+        apagadas = 0
+        ids = _Ids()
+        for linha in linhas[1:]:
+            if linha.split(",", 1)[0].strip() == letra and ids(linha) in alvo:
+                apagadas += 1
+            else:
+                mantidas.append(linha)
+        if apagadas:
+            temporario = caminho.with_name(caminho.name + ".tmp")
+            temporario.write_text("".join(mantidas), encoding="utf-8", newline="")
+            os.replace(temporario, caminho)
+    return apagadas
+

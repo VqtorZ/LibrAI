@@ -1,0 +1,12 @@
+{% comment %}Janela "Excluir amostras?" (Sim verde / Não vermelho), usada com
+static/js/selecao-amostras.js, que preenche a pergunta.{% endcomment %}
+<dialog class="excluir-janela" id="janela-amostras" aria-labelledby="titulo-amostras" aria-describedby="texto-amostras">
+    <div class="excluir-icone" aria-hidden="true">!</div>
+    <h2 id="titulo-amostras">Excluir amostras?</h2>
+    <p id="texto-amostras"></p>
+    <p class="excluir-aviso">Esta ação não pode ser desfeita.</p>
+    <div class="excluir-acoes">
+        <button type="button" class="botao-sim" id="confirmar-amostras">Sim, excluir</button>
+        <button type="button" class="botao-nao" data-fechar autofocus>Não</button>
+    </div>
+</dialog>

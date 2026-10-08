@@ -1,0 +1,94 @@
+{% load static l10n %}
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Letra {{ letra }} — amostras — LibrAI</title>
+    <link rel="icon" type="image/png" href="{% static 'img/logo.png' %}">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}?v={{ versao_estaticos }}">
+</head>
+
+<body class="gestos">{% include "libras/_cabecalho.html" %}
+    <main class="section-wrap gestures-page" id="conteudo">
+        <p class="voltar"><a class="text-link" href="{% url 'gestos' %}">← Todos os gestos</a></p>
+        <div class="sinal-cabecalho">
+            <div class="sinal-letra" aria-hidden="true">{{ letra }}</div>
+            <div>
+                <p class="section-label">ALFABETO · LETRA PARADA</p>
+                <h1>Amostras da letra {{ letra }}</h1>
+                <p class="gestures-subtitle">{% if amostras %}{{ amostras|length }} amostra{{ amostras|length|pluralize }}
+                    gravada{{ amostras|length|pluralize }}. Cada quadro mostra a mão como ela foi salva: marque as que
+                    saíram erradas (mão torta, outra letra) e exclua.{% else %}Nenhuma amostra desta letra
+                    ainda.{% endif %}</p>
+            </div>
+            <a class="primary-button" href="{% url 'alfabeto_gravar' %}?letra={{ letra }}">Gravar mais <span
+                    aria-hidden="true">→</span></a>
+        </div>
+
+        <nav class="letras-nav" aria-label="Escolher outra letra">
+            {% for item in letras %}
+            <a href="{% url 'alfabeto_letra' item.letra %}" class="letras-nav-item{% if item.letra == letra %} is-ativa{% endif %}{% if not item.amostras %} vazia{% endif %}"{% if item.letra == letra %} aria-current="page"{% endif %}>
+                <span>{{ item.letra }}</span><small>{{ item.amostras }}</small>
+            </a>
+            {% endfor %}
+        </nav>
+
+        {% if messages %}
+        <ul class="messages">{% for message in messages %}<li class="{{ message.tags }}">{{ message }}</li>{% endfor %}</ul>
+        {% endif %}
+
+        {% if amostras %}
+        <div class="selecao-barra" data-selecao="form-apagar" data-rotulo="da letra {{ letra }}">
+            <label class="selecao-todas">
+                <input type="checkbox" id="selecionar-todas"> Selecionar todas
+            </label>
+            <span class="selecao-contador" id="total-selecionadas" aria-live="polite">nenhuma selecionada</span>
+            <form method="post" action="{% url 'alfabeto_amostras_apagar' letra %}" id="form-apagar">
+                {% csrf_token %}
+                <button type="submit" class="botao-excluir-selecionadas" id="excluir-selecionadas" disabled>Excluir
+                    selecionadas</button>
+            </form>
+        </div>
+
+        <ul class="amostras-grade">
+            {% for amostra in amostras %}
+            <li class="amostra-cartao">
+                <label class="amostra-selecao">
+                    {% localize off %}{# SVG usa ponto decimal, não a vírgula do pt-BR #}
+                    <svg class="amostra-mao" viewBox="0 0 100 100" aria-hidden="true">
+                        {% for x1, y1, x2, y2 in amostra.desenho.linhas %}<line x1="{{ x1 }}" y1="{{ y1 }}" x2="{{ x2 }}" y2="{{ y2 }}"/>{% endfor %}
+                        {% for ponto in amostra.desenho.pontos %}<circle cx="{{ ponto.x }}" cy="{{ ponto.y }}" r="{% if ponto.ponta %}3.4{% else %}2.4{% endif %}"{% if ponto.ponta %} class="ponta"{% endif %}/>{% endfor %}
+                    </svg>
+                    {% endlocalize %}
+                    <span class="amostra-numero"><input type="checkbox" form="form-apagar" name="amostra"
+                            value="{{ amostra.id }}" aria-label="Selecionar a amostra {{ amostra.numero }}">
+                        #{{ amostra.numero }}</span>
+                </label>
+                <form method="post" action="{% url 'alfabeto_amostras_apagar' letra %}" data-excluir-uma="#{{ amostra.numero }}">
+                    {% csrf_token %}
+                    <input type="hidden" name="amostra" value="{{ amostra.id }}">
+                    <button type="submit" class="amostra-apagar" aria-label="Excluir a amostra {{ amostra.numero }}">Excluir</button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+        <div class="al-treino-rodape">
+            <p>Depois de excluir, treine o alfabeto de novo para o reconhecimento esquecer as amostras apagadas.</p>
+            {% url 'treinar_alfabeto' as url_treino_alfabeto %}
+            {% include "libras/_botao_treinar.html" with url_treino=url_treino_alfabeto texto="Treinar alfabeto" voltar=request.path secundario=True %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p class="empty-title">Nenhuma amostra da letra {{ letra }}.</p>
+            <p>Grave pelo site: escolha a letra, faça o sinal na câmera e aperte Espaço.</p>
+            <a class="primary-button" href="{% url 'alfabeto_gravar' %}?letra={{ letra }}">Gravar a letra {{ letra }} <span aria-hidden="true">→</span></a>
+        </div>
+        {% endif %}
+    </main>
+    {% include "libras/_confirmar_amostras.html" %}
+    <script src="{% static 'js/selecao-amostras.js' %}?v={{ versao_estaticos }}"></script>
+</body>
+
+</html>

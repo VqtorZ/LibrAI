@@ -370,6 +370,24 @@ DTW experimental → teste de rejeição não-J.
    curinga, cabeçalho de IP configurável, login do `/admin/` pelo `/entrar/`;
    266 testes.
 37. Página "Trocar minha senha" (`/conta/senha/`); 271 testes.
+38. 2026-10-08: o site está em uso pela equipe (1.321 amostras do alfabeto
+   em 11 letras às 17h50, com treinos pelo site). Três mudanças:
+   - **amostras por letra:** `/gestos/alfabeto/<letra>/` com a mão de cada
+     amostra desenhada em SVG (`views.desenho_da_mao`; `{% localize off %}`,
+     senão o pt-BR põe vírgula nas coordenadas e nada aparece);
+   - **excluir uma, várias ou todas**, com confirmação. Ids das amostras do
+     CSV = hash do conteúdo + número da repetição (`estatico.amostras._Ids`),
+     estáveis com gravações simultâneas; amostras idênticas são apagadas uma
+     de cada vez. Reescrita atômica preservando o CR+LF (o "Desfazer"
+     compara bytes);
+   - **mesma seleção na tabela dos sinais de movimento**
+     (`gesto_amostras_apagar`), com JS compartilhado
+     `static/js/selecao-amostras.js` e `_confirmar_amostras.html`.
+
+   Atalhos para as letras no painel do alfabeto em Gestos e "Ver e excluir
+   amostras" na gravação. 291 testes.
+   **Mudanças de código só entram no ar quando o site é religado** (o link
+   muda).
 
 ---
 

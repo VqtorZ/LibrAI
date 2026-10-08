@@ -41,6 +41,9 @@
                     <div class="rc-resultado-texto">
                         <strong><span id="contagem-atual">0</span> <span id="palavra-amostras">amostras</span></strong>
                         <p class="rc-explica">O LibrAI vê agora: <b id="vendo-agora">—</b></p>
+                        <p class="rc-explica"><a class="text-link" id="ver-amostras"
+                                href="{% url 'alfabeto_letra' letra_inicial %}">Ver e excluir amostras de
+                                <span id="ver-amostras-letra">{{ letra_inicial }}</span> →</a></p>
                     </div>
                 </div>
 
@@ -112,6 +115,7 @@
             const URL_QUADROS = "{% url 'api_quadros' %}";
             const URL_SALVAR = "{% url 'alfabeto_amostra_salvar' %}";
             const URL_DESFAZER = "{% url 'alfabeto_amostra_desfazer' %}";
+            const URL_LETRA = "{% url 'alfabeto_letra' 'A' %}".replace('/A/', '/LETRA/');
             const CSRF = document.querySelector('meta[name="csrf-token"]').content;
             const $ = (id) => document.getElementById(id);
             const letraAtual = $('letra-atual');
@@ -143,6 +147,8 @@
                     b.setAttribute('aria-checked', String(ativa));
                 });
                 letraAtual.textContent = l;
+                $('ver-amostras').href = URL_LETRA.replace('LETRA', l);
+                $('ver-amostras-letra').textContent = l;
                 mostrarContagem(botao.dataset.amostras);
                 letraAtual.classList.remove('troca'); void letraAtual.offsetWidth; letraAtual.classList.add('troca');
                 history.replaceState(null, '', `?letra=${l}`);

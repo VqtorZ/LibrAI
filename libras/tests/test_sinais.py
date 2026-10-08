@@ -293,3 +293,52 @@ class GestoAmostraApagarTests(TemporalBase):
             response,
             reverse("gesto_amostra_apagar", args=[self.sinal.pk, amostra.pk]),
         )
+
+
+class ExcluirVariasAmostrasTests(TemporalBase):
+    """Tabela do sinal: marcar uma, várias ou todas as amostras e excluir."""
+
+    def setUp(self):
+        super().setUp()
+        self.amostras = [salvar_amostra(self.sinal, self.gerar_sequencia()) for _ in range(3)]
+        self.outro = Sinal.objects.create(titulo="Z", tipo=Sinal.Tipo.MOVIMENTO)
+        self.do_outro = salvar_amostra(self.outro, self.gerar_sequencia())
+
+    def apagar(self, ids, sinal=None):
+        url = reverse("gesto_amostras_apagar", args=[(sinal or self.sinal).pk])
+        return self.client.post(url, {"amostra": ids}, follow=True)
+
+    def test_tabela_tem_selecao(self):
+        resposta = self.client.get(reverse("gesto_detalhe", args=[self.sinal.pk]))
+        self.assertContains(resposta, 'id="selecionar-todas"')
+        self.assertContains(resposta, 'form="form-apagar" name="amostra"', count=3)
+        self.assertContains(resposta, "js/selecao-amostras.js")
+
+    def test_apaga_as_marcadas_com_os_arquivos(self):
+        caminho = Path(self.media_tmp) / self.amostras[0].arquivo_dados
+        self.assertTrue(caminho.exists())
+        resposta = self.apagar([self.amostras[0].pk, self.amostras[2].pk])
+        self.assertContains(resposta, "2 amostras apagadas")
+        self.assertEqual(
+            list(AmostraMovimento.objects.filter(sinal=self.sinal).values_list("pk", flat=True)),
+            [self.amostras[1].pk],
+        )
+        self.assertFalse(caminho.exists())
+
+    def test_ids_de_outro_sinal_sao_ignorados(self):
+        resposta = self.apagar([self.do_outro.pk, "abc"])
+        self.assertContains(resposta, "Nenhuma amostra selecionada")
+        self.assertTrue(AmostraMovimento.objects.filter(pk=self.do_outro.pk).exists())
+        self.assertEqual(AmostraMovimento.objects.filter(sinal=self.sinal).count(), 3)
+
+    def test_todas_de_uma_vez(self):
+        self.assertContains(self.apagar([a.pk for a in self.amostras]), "3 amostras apagadas")
+        self.assertFalse(AmostraMovimento.objects.filter(sinal=self.sinal).exists())
+        self.assertTrue(AmostraMovimento.objects.filter(pk=self.do_outro.pk).exists())
+
+    def test_so_admin_e_so_post(self):
+        url = reverse("gesto_amostras_apagar", args=[self.sinal.pk])
+        self.assertEqual(self.client.get(url).status_code, 405)
+        self.client.logout()
+        self.assertEqual(self.client.post(url, {"amostra": [self.amostras[0].pk]}).status_code, 302)
+        self.assertEqual(AmostraMovimento.objects.filter(sinal=self.sinal).count(), 3)

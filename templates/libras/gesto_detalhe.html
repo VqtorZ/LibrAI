@@ -55,10 +55,22 @@
             </div>
         </div>
         {% if amostras %}
+        <div class="selecao-barra" data-selecao="form-apagar" data-rotulo="do sinal {{ sinal.titulo }}">
+            <label class="selecao-todas">
+                <input type="checkbox" id="selecionar-todas"> Selecionar todas
+            </label>
+            <span class="selecao-contador" id="total-selecionadas" aria-live="polite">nenhuma selecionada</span>
+            <form method="post" action="{% url 'gesto_amostras_apagar' sinal.pk %}" id="form-apagar">
+                {% csrf_token %}
+                <button type="submit" class="botao-excluir-selecionadas" id="excluir-selecionadas" disabled>Excluir
+                    selecionadas</button>
+            </form>
+        </div>
         <div class="tabela-amostras-wrap">
             <table class="tabela-amostras">
                 <thead>
                     <tr>
+                        <th scope="col" class="col-selecao"><span class="visualmente-oculto">Selecionar</span></th>
                         <th scope="col">Amostra</th>
                         <th scope="col">Gravada em</th>
                         <th scope="col">Duração</th>
@@ -70,6 +82,8 @@
                 <tbody>
                     {% for amostra in amostras %}
                     <tr>
+                        <td class="col-selecao"><input type="checkbox" form="form-apagar" name="amostra"
+                                value="{{ amostra.pk }}" aria-label="Selecionar a amostra {{ amostra.pk }}"></td>
                         <th scope="row">#{{ amostra.pk }}</th>
                         <td>{{ amostra.criado_em|date:"d/m/Y H:i" }}</td>
                         <td>{{ amostra.duracao_segundos }} s</td>
@@ -77,7 +91,7 @@
                         <td>{{ amostra.fps|floatformat:0 }}</td>
                         <td class="acoes">
                             <form method="post" action="{% url 'gesto_amostra_apagar' sinal.pk amostra.pk %}"
-                                onsubmit="return confirm('Apagar a amostra #{{ amostra.pk }}? Esta ação não pode ser desfeita.');">
+                                data-excluir-uma="#{{ amostra.pk }}">
                                 {% csrf_token %}
                                 <button type="submit" class="amostra-apagar"
                                     aria-label="Apagar a amostra {{ amostra.pk }}">Apagar</button>
@@ -110,6 +124,10 @@
         {% endif %}
     </main>
 
+    {% if amostras %}
+    {% include "libras/_confirmar_amostras.html" %}
+    <script src="{% static 'js/selecao-amostras.js' %}?v={{ versao_estaticos }}"></script>
+    {% endif %}
     <dialog class="excluir-janela" id="janela-excluir" aria-labelledby="titulo-excluir">
         {% include "libras/_confirmar_exclusao.html" with total_amostras=total_todas dentro_da_janela=True %}
     </dialog>

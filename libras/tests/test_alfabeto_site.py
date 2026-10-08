@@ -255,3 +255,126 @@ class PaginasDoAlfabetoTests(PastaTemporaria, TestCase):
         self.assertContains(resposta, "Alfabeto — letras paradas")
         self.assertContains(resposta, reverse("alfabeto_gravar"))
         self.assertContains(resposta, reverse("treinar_alfabeto"))
+
+
+def mao(semente):
+    """63 valores de uma mão de teste; sementes diferentes, mãos diferentes."""
+    import random
+
+    gerador = random.Random(semente)
+    return [0.5 + gerador.uniform(-0.2, 0.2) for _ in range(63)]
+
+
+class ApagarAmostrasDoAlfabetoTests(PastaTemporaria, SimpleTestCase):
+    def setUp(self):
+        self.criar_pasta()
+        self.linhas_a = [amostras.salvar("A", mao(k / 100)) for k in range(4)]
+        amostras.salvar("B", mao(0.5))
+
+    def test_lista_so_a_letra_em_ordem(self):
+        lista = amostras.listar("a")
+        self.assertEqual([item["numero"] for item in lista], [1, 2, 3, 4])
+        self.assertEqual(len(lista[0]["valores"]), 63)
+        self.assertEqual(len({item["id"] for item in lista}), 4)
+        self.assertEqual(lista[0]["id"], amostras.id_da_linha(self.linhas_a[0]) + "-1")
+        self.assertEqual(amostras.listar("C"), [])
+
+    def test_apaga_as_escolhidas_e_mantem_o_resto(self):
+        lista = amostras.listar("A")
+        self.assertEqual(amostras.apagar("A", [lista[0]["id"], lista[2]["id"]]), 2)
+        self.assertEqual([item["id"] for item in amostras.listar("A")], [lista[1]["id"], lista[3]["id"]])
+        self.assertEqual(amostras.contar(), {"A": 2, "B": 1})
+        # Cabeçalho intacto e nada de arquivo temporário sobrando.
+        self.assertTrue(self.csv.read_text(encoding="utf-8").startswith("label,f0,"))
+        self.assertEqual([p.name for p in self.pasta.iterdir()], ["landmarks.csv"])
+
+    def test_id_de_outra_letra_ou_inexistente_nao_apaga(self):
+        id_b = amostras.listar("B")[0]["id"]
+        self.assertEqual(amostras.apagar("A", [id_b, "naoexiste123"]), 0)
+        self.assertEqual(amostras.apagar("A", []), 0)
+        self.assertEqual(amostras.contar(), {"A": 4, "B": 1})
+
+    def test_ids_continuam_validos_com_gravacoes_novas(self):
+        alvo = amostras.listar("A")[1]["id"]
+        amostras.apagar("A", [amostras.listar("A")[0]["id"]])  # posições mudam
+        amostras.salvar("A", mao(0.9))  # alguém gravou ao mesmo tempo
+        self.assertEqual(amostras.apagar("A", [alvo]), 1)
+        self.assertNotIn(alvo, [item["id"] for item in amostras.listar("A")])
+
+    def test_amostras_identicas_sao_apagadas_uma_de_cada_vez(self):
+        repetida = mao(42)
+        amostras.salvar("C", repetida)
+        amostras.salvar("C", repetida)  # Espaço duas vezes na mesma imagem
+        primeira, segunda = amostras.listar("C")
+        self.assertNotEqual(primeira["id"], segunda["id"])
+        self.assertEqual(amostras.apagar("C", [segunda["id"]]), 1)
+        self.assertEqual(amostras.contar()["C"], 1)
+
+    def test_desfazer_continua_funcionando_depois_de_apagar(self):
+        ultima = amostras.salvar("A", mao(0.7))
+        amostras.apagar("A", [amostras.listar("A")[0]["id"]])
+        self.assertTrue(amostras.desfazer(ultima))
+        self.assertEqual(amostras.contar(), {"A": 3, "B": 1})
+
+
+class PaginaDaLetraTests(PastaTemporaria, TestCase):
+    def setUp(self):
+        entrar_como_admin(self)
+        self.criar_pasta()
+        for k in range(3):
+            amostras.salvar("A", mao(k / 100))
+        amostras.salvar("B", mao(0.5))
+
+    def test_mostra_cada_amostra_desenhada(self):
+        resposta = self.client.get(reverse("alfabeto_letra", args=["a"]))
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(len(resposta.context["amostras"]), 3)
+        self.assertContains(resposta, 'class="amostra-mao"', count=3)
+        self.assertContains(resposta, "<line ", count=3 * 21)
+        # Coordenadas com ponto decimal (o pt-BR usaria vírgula e o SVG não desenharia).
+        import re
+        self.assertFalse(re.search(r'<line x1="\d+,\d', resposta.content.decode()))
+        self.assertTrue(re.search(r'<line x1="\d+(\.\d)?" ', resposta.content.decode()))
+        self.assertContains(resposta, 'id="selecionar-todas"')
+        self.assertContains(resposta, "js/selecao-amostras.js")
+        for x in [p["x"] for p in resposta.context["amostras"][0]["desenho"]["pontos"]]:
+            self.assertTrue(0 <= x <= 100)
+
+    def test_letra_invalida_ou_de_movimento(self):
+        self.assertEqual(self.client.get("/gestos/alfabeto/J/").status_code, 404)
+        self.assertEqual(self.client.get("/gestos/alfabeto/1/").status_code, 404)
+        # As rotas vizinhas continuam funcionando (não são confundidas com uma letra).
+        self.assertEqual(self.client.get(reverse("alfabeto_gravar")).status_code, 200)
+        self.assertEqual(self.client.post(reverse("alfabeto_amostra_desfazer")).status_code, 409)
+
+    def test_apagar_selecionadas_e_todas(self):
+        ids = [item["id"] for item in amostras.listar("A")]
+        url = reverse("alfabeto_amostras_apagar", args=["A"])
+        resposta = self.client.post(url, {"amostra": ids[:1]}, follow=True)
+        self.assertRedirects(resposta, reverse("alfabeto_letra", args=["A"]))
+        self.assertContains(resposta, "1 amostra da letra A apagada")
+        resposta = self.client.post(url, {"amostra": ids[1:]}, follow=True)
+        self.assertContains(resposta, "2 amostras da letra A apagadas")
+        self.assertContains(resposta, "Nenhuma amostra da letra A")
+        self.assertEqual(amostras.contar(), {"B": 1})
+
+    def test_apagar_sem_selecao(self):
+        resposta = self.client.post(reverse("alfabeto_amostras_apagar", args=["A"]), follow=True)
+        self.assertContains(resposta, "Nenhuma amostra apagada")
+        self.assertEqual(amostras.contar(), {"A": 3, "B": 1})
+
+    def test_so_admin_e_so_post(self):
+        url = reverse("alfabeto_amostras_apagar", args=["A"])
+        self.assertEqual(self.client.get(url).status_code, 405)
+        self.client.logout()
+        ids = [item["id"] for item in amostras.listar("A")]
+        self.assertEqual(self.client.post(url, {"amostra": ids}).status_code, 302)
+        self.assertEqual(self.client.get(reverse("alfabeto_letra", args=["A"])).status_code, 302)
+        self.assertEqual(amostras.contar(), {"A": 3, "B": 1})
+
+    def test_atalhos_para_a_pagina_da_letra(self):
+        gestos = self.client.get(reverse("gestos"))
+        self.assertContains(gestos, f'href="{reverse("alfabeto_letra", args=["A"])}"')
+        gravar = self.client.get(reverse("alfabeto_gravar") + "?letra=B")
+        self.assertContains(gravar, 'id="ver-amostras"')
+        self.assertContains(gravar, reverse("alfabeto_letra", args=["B"]))

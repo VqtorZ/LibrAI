@@ -12,7 +12,7 @@ from string import ascii_uppercase
 from django.contrib import messages
 from django.contrib.auth import views as auth_views
 from django.db.models import Avg, Count, Q
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -168,6 +168,10 @@ def gestos(request):
             "tem_movimento": bool(de_movimento),
             "alfabeto_letras": len(contagem_alfabeto),
             "alfabeto_amostras": sum(contagem_alfabeto.values()),
+            "alfabeto_contagem": [
+                {"letra": l, "amostras": contagem_alfabeto.get(l, 0)}
+                for l in amostras_alfabeto.LETRAS_ESTATICAS
+            ],
         },
     )
 
@@ -293,6 +297,30 @@ def gesto_amostra_gravar(request, sinal_id):
 
 @apenas_admin
 @require_POST
+def gesto_amostras_apagar(request, sinal_id):
+    """Apaga as amostras marcadas na tabela do sinal (uma, várias ou todas).
+
+    Só valem ids de amostras deste sinal; os outros são ignorados.
+    """
+    sinal = get_object_or_404(Sinal, pk=sinal_id)
+    ids = [int(i) for i in request.POST.getlist("amostra") if i.isdigit()]
+    amostras = list(AmostraMovimento.objects.filter(sinal=sinal, pk__in=ids))
+    for amostra in amostras:
+        apagar_amostra(amostra)
+    if amostras:
+        total = len(amostras)
+        messages.success(
+            request,
+            f"{total} amostra{'s' if total > 1 else ''} apagada{'s' if total > 1 else ''}. "
+            "Treine de novo para o reconhecimento esquecer.",
+        )
+    else:
+        messages.error(request, "Nenhuma amostra selecionada.")
+    return redirect("gesto_detalhe", sinal_id=sinal.pk)
+
+
+@apenas_admin
+@require_POST
 def gesto_amostra_apagar(request, sinal_id, amostra_id):
     """Apaga uma amostra temporal do sinal (registro e arquivo JSON).
 
@@ -373,6 +401,73 @@ def alfabeto_amostra_desfazer(request):
     if not amostras_alfabeto.desfazer(linha):
         return JsonResponse({"erro": "Não há amostra para desfazer."}, status=409)
     return JsonResponse(_resposta_contagem(linha.split(",", 1)[0]))
+
+
+# Ligações entre os 21 pontos da mão (as mesmas do desenho ao vivo).
+CONEXOES_DA_MAO = (
+    (0, 1), (1, 2), (2, 3), (3, 4), (0, 5), (5, 6), (6, 7), (7, 8), (5, 9), (9, 10),
+    (10, 11), (11, 12), (9, 13), (13, 14), (14, 15), (15, 16), (13, 17), (0, 17),
+    (17, 18), (18, 19), (19, 20),
+)
+PONTAS_DOS_DEDOS = {4, 8, 12, 16, 20}
+
+
+def desenho_da_mao(valores, tamanho=100, margem=12):
+    """Pontos e linhas (num quadro de ``tamanho``) para desenhar a mão em SVG.
+
+    As coordenadas da amostra são relativas ao pulso; aqui elas só são
+    centralizadas e ampliadas para caber no quadro, sem distorcer.
+    """
+    xs, ys = valores[0::3], valores[1::3]
+    largura = (max(xs) - min(xs)) or 1.0
+    altura = (max(ys) - min(ys)) or 1.0
+    escala = (tamanho - 2 * margem) / max(largura, altura)
+    dx = (tamanho - largura * escala) / 2 - min(xs) * escala
+    dy = (tamanho - altura * escala) / 2 - min(ys) * escala
+    pontos = [(round(x * escala + dx, 1), round(y * escala + dy, 1)) for x, y in zip(xs, ys)]
+    return {
+        "pontos": [{"x": x, "y": y, "ponta": i in PONTAS_DOS_DEDOS} for i, (x, y) in enumerate(pontos)],
+        "linhas": [(*pontos[a], *pontos[b]) for a, b in CONEXOES_DA_MAO],
+    }
+
+
+@apenas_admin
+def alfabeto_letra(request, letra):
+    """Amostras de uma letra: ver cada mão gravada e apagar as ruins."""
+    try:
+        letra = amostras_alfabeto.validar_letra(letra)
+    except amostras_alfabeto.AmostraEstaticaInvalida:
+        raise Http404("Letra inválida.")
+    amostras = amostras_alfabeto.listar(letra)
+    for amostra in amostras:
+        amostra["desenho"] = desenho_da_mao(amostra.pop("valores"))
+    contagem = amostras_alfabeto.contar()
+    letras = [{"letra": l, "amostras": contagem.get(l, 0)} for l in amostras_alfabeto.LETRAS_ESTATICAS]
+    return render(
+        request,
+        "libras/alfabeto_letra.html",
+        {"letra": letra, "amostras": amostras, "letras": letras},
+    )
+
+
+@apenas_admin
+@require_POST
+def alfabeto_amostras_apagar(request, letra):
+    """Apaga as amostras marcadas da letra (uma, várias ou todas)."""
+    try:
+        letra = amostras_alfabeto.validar_letra(letra)
+    except amostras_alfabeto.AmostraEstaticaInvalida:
+        raise Http404("Letra inválida.")
+    total = amostras_alfabeto.apagar(letra, request.POST.getlist("amostra"))
+    if total:
+        messages.success(
+            request,
+            f"{total} amostra{'s' if total > 1 else ''} da letra {letra} "
+            f"apagada{'s' if total > 1 else ''}. Treine o alfabeto de novo para o reconhecimento esquecer.",
+        )
+    else:
+        messages.error(request, "Nenhuma amostra apagada (nada selecionado ou já tinha sido apagada).")
+    return redirect("alfabeto_letra", letra=letra)
 
 
 @apenas_admin

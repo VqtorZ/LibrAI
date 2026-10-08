@@ -1,5 +1,5 @@
 from django.contrib.auth import views as auth_views
-from django.urls import path
+from django.urls import path, re_path
 
 from . import views
 from .acesso import FormularioEntrar
@@ -28,6 +28,13 @@ urlpatterns = [
         views.alfabeto_amostra_salvar,
         name="alfabeto_amostra_salvar",
     ),
+    # Uma letra só (A, b…): não conflita com "desfazer/", "treinar/" etc.
+    re_path(r"^gestos/alfabeto/(?P<letra>[A-Za-z])/$", views.alfabeto_letra, name="alfabeto_letra"),
+    re_path(
+        r"^gestos/alfabeto/(?P<letra>[A-Za-z])/apagar/$",
+        views.alfabeto_amostras_apagar,
+        name="alfabeto_amostras_apagar",
+    ),
     path(
         "gestos/alfabeto/desfazer/",
         views.alfabeto_amostra_desfazer,
@@ -46,5 +53,10 @@ urlpatterns = [
         "gestos/<int:sinal_id>/amostras/<int:amostra_id>/apagar/",
         views.gesto_amostra_apagar,
         name="gesto_amostra_apagar",
+    ),
+    path(
+        "gestos/<int:sinal_id>/amostras/apagar/",
+        views.gesto_amostras_apagar,
+        name="gesto_amostras_apagar",
     ),
 ]

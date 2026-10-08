@@ -2123,3 +2123,234 @@ a.conta-ola.is-active {
     }
 }
 
+
+/* ==========================================================================
+   Amostras: ver por letra e excluir várias de uma vez
+   ========================================================================== */
+
+/* Navegação pelas letras (página da letra e painel do alfabeto em Gestos). */
+.letras-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 22px 0 6px;
+}
+
+.alfabeto-painel-letras {
+    grid-column: 1 / -1;
+    padding-top: 16px;
+    border-top: 1px solid var(--color-border);
+}
+
+.letras-nav--painel {
+    margin: 10px 0 0;
+}
+
+.letras-nav-item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    padding: 6px 11px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-weight: 800;
+    font-size: 14px;
+    text-decoration: none;
+    transition: border-color .2s, background .2s;
+}
+
+.letras-nav-item small {
+    color: var(--color-text-secondary);
+    font-weight: 700;
+    font-size: 11px;
+}
+
+.letras-nav-item:hover,
+.letras-nav-item:focus-visible {
+    border-color: var(--color-primary);
+    background: var(--color-primary-soft);
+}
+
+.letras-nav-item.vazia {
+    color: var(--color-text-muted);
+    border-style: dashed;
+}
+
+.letras-nav-item.is-ativa {
+    border-color: var(--color-link);
+    background: var(--color-link);
+    color: #fff;
+}
+
+.letras-nav-item.is-ativa small {
+    color: #E4EEFA;
+}
+
+/* Barra de seleção: Selecionar todas · N selecionadas · Excluir selecionadas. */
+.selecao-barra {
+    position: sticky;
+    top: 86px;
+    z-index: 5;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px 20px;
+    margin: 22px 0 16px;
+    padding: 12px 16px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, .96);
+    box-shadow: 0 10px 30px rgba(28, 43, 74, .06);
+}
+
+.selecao-todas {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.selecao-todas input,
+.amostra-selecao input,
+.col-selecao input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-link);
+    cursor: pointer;
+}
+
+.selecao-contador {
+    color: var(--color-text-secondary);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.selecao-barra form {
+    margin-left: auto;
+}
+
+.botao-excluir-selecionadas {
+    padding: 10px 18px;
+    border: 0;
+    border-radius: var(--radius-full);
+    background: var(--color-error);
+    color: #fff;
+    font: 800 14px var(--font-body);
+    cursor: pointer;
+    transition: filter .2s, opacity .2s;
+}
+
+.botao-excluir-selecionadas:hover {
+    filter: brightness(.92);
+}
+
+.botao-excluir-selecionadas:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+    filter: none;
+}
+
+/* Grade de amostras do alfabeto: cada cartão desenha a mão gravada. */
+.amostras-grade {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.amostra-cartao {
+    display: grid;
+    gap: 6px;
+    padding: 8px 8px 10px;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    transition: border-color .15s, box-shadow .15s;
+}
+
+.amostra-cartao:has(input:checked) {
+    border-color: var(--color-error);
+    box-shadow: 0 0 0 3px rgba(217, 90, 71, .15);
+}
+
+.amostra-selecao {
+    position: relative;
+    display: grid;
+    cursor: pointer;
+}
+
+
+.amostra-mao {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 12px;
+    background: #1C2B4A;
+}
+
+.amostra-mao line {
+    stroke: rgba(141, 179, 236, .95);
+    stroke-width: 2.2;
+    stroke-linecap: round;
+}
+
+.amostra-mao circle {
+    fill: #fff;
+    stroke: #78A4E6;
+    stroke-width: 1;
+}
+
+.amostra-mao circle.ponta {
+    fill: #FCA973;
+    stroke: #FDE7D4;
+}
+
+.amostra-numero {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 6px;
+    color: var(--color-text-secondary);
+    font: 700 12px var(--font-mono);
+}
+
+.amostra-cartao form {
+    display: flex;
+    justify-content: center;
+}
+
+.amostra-cartao .amostra-apagar {
+    padding: 4px 12px;
+}
+
+.al-treino-rodape {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-top: 26px;
+    padding: 16px 20px;
+    border-radius: var(--radius-md);
+    background: var(--color-surface-alt);
+}
+
+.al-treino-rodape p {
+    margin: 0;
+    color: var(--color-text-secondary);
+}
+
+/* Coluna das caixinhas na tabela dos sinais de movimento. */
+.tabela-amostras .col-selecao {
+    width: 44px;
+    text-align: center;
+}
+
+.tabela-amostras tbody tr:has(.col-selecao input:checked) {
+    background: rgba(217, 90, 71, .06);
+}

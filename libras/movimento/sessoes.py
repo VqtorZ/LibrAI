@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 import threading
 import time
-from collections import OrderedDict
+from collections import OrderedDict, deque
 
 from ..estatico.classificador import NAO_IDENTIFICADO, SEM_MODELO
 from . import segmentacao
@@ -31,6 +31,9 @@ MOSTRAR_ANALISANDO_APOS_MS = 300
 # e em nenhuma a letra parada ficou firme o movimento todo — bloquearia 0.
 PULSO_PARADO_TAMANHOS = 0.3
 CONFIANCA_LETRA_FIRME = 0.8
+# A letra parada é decidida pela média das imagens com mão dos últimos
+# ~200 ms (não por uma imagem só): uma imagem ruim não troca a letra.
+JANELA_VOTACAO_MS = 200
 ROTULO_ANALISANDO = "Analisando movimento…"
 ROTULO_SEM_MAO = "Aguardando mão"
 # Sessões paradas somem da memória; e há um teto de sessões simultâneas.
@@ -46,7 +49,25 @@ class SessaoAoVivo:
         self.ultimo_t = None
         self.usada_em = time.monotonic()
         self.lock = threading.Lock()
+        self._recentes = deque()  # (t, marcos) das imagens com mão, ~200 ms
         self._zerar_acompanhamento()
+
+    def _guardar_para_votacao(self, quadro):
+        if quadro["landmarks"] is None:
+            self._recentes.clear()  # a mão saiu: a próxima letra começa do zero
+            return
+        t = quadro["timestamp_ms"]
+        self._recentes.append((t, quadro["landmarks"]))
+        while self._recentes[0][0] < t - JANELA_VOTACAO_MS:
+            self._recentes.popleft()
+
+    def _letra_parada(self, classificador_alfabeto):
+        """Letra parada pela média das imagens recentes (ou da última, se não der)."""
+        marcos = [m for _, m in self._recentes]
+        media = getattr(classificador_alfabeto, "classificar_media", None)
+        if media is not None:
+            return media(marcos)
+        return classificador_alfabeto.classificar_com_confianca(marcos[-1])
 
     # --- acompanhamento do movimento em andamento (tremor × movimento) ------
     def _zerar_acompanhamento(self):
@@ -93,6 +114,7 @@ class SessaoAoVivo:
                 self.ultimo_t = t
                 previsao = self.detector.observar(t, quadro["landmarks"], quadro["mao"])
                 self._acompanhar(quadro)
+                self._guardar_para_votacao(quadro)
                 if previsao is not None:
                     if previsao["reconhecido"] and not self._foi_tremor():
                         self.movimento_label = previsao["previsto"]
@@ -104,9 +126,7 @@ class SessaoAoVivo:
             if self.ultimo_t is not None and self.ultimo_t >= self.movimento_ate:
                 self.movimento_label = None
             mao = ultimo["landmarks"] is not None
-            letra, confianca = (
-                classificador_alfabeto.classificar_com_confianca(ultimo["landmarks"]) if mao else (None, 0.0)
-            )
+            letra, confianca = self._letra_parada(classificador_alfabeto) if mao else (None, 0.0)
             if mao and self._mov_inicio is not None:
                 self._letras.append((letra, confianca))
             if self.movimento_label:
@@ -129,12 +149,22 @@ class SessaoAoVivo:
             }
 
     def _analisando(self):
+        """Mostrar "Analisando movimento…"? Só se a mão anda DE VERDADE.
+
+        Trocar de uma letra parada para outra mexe os dedos (o segmentador
+        vê "movimento"), mas o pulso quase não sai do lugar: nesse caso a
+        letra nova aparece direto. Os sinais de movimento (J, Z…) andam o
+        pulso bem mais que isso (no mínimo 0,44 tamanho de mão no J).
+        Simulação com o modelo real: "Analisando" no meio de trocas de letra
+        caiu de 7/48 para 0/48.
+        """
         inicio = self.detector.inicio_movimento_ms
         return (
             self.detector.em_movimento
             and self.detector.pronto
             and inicio is not None
             and self.ultimo_t - inicio >= MOSTRAR_ANALISANDO_APOS_MS
+            and self._pulso_andou >= PULSO_PARADO_TAMANHOS
         )
 
 

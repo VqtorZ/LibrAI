@@ -108,17 +108,25 @@ class ClassificadorAlfabeto:
 
     def classificar_com_confianca(self, marcos):
         """``(letra ou aviso, confiança de 0 a 1)`` para os 63 valores da mão."""
+        return self.classificar_media([marcos])
+
+    def classificar_media(self, lista_de_marcos):
+        """Como ``classificar_com_confianca``, pela MÉDIA de várias imagens.
+
+        Uma imagem ruim (dedos tremendo, meio de uma troca de letra) erra
+        sozinha; na média das imagens dos últimos ~200 ms ela pesa pouco.
+        """
         self.conferir()
         modelo = self.modelo
-        if modelo is None:
+        if modelo is None or not lista_de_marcos:
             return SEM_MODELO, 0.0
-        features = extrair_features_de_valores(marcos)
+        todas = [extrair_features_de_valores(marcos) for marcos in lista_de_marcos]
         # Modelo treinado antes de uma medida nova: usa só as que ele conhece
         # (as novas sempre vão no fim da lista).
-        esperadas = getattr(modelo, "n_features_in_", len(features))
-        features = [features[:esperadas]]
+        esperadas = getattr(modelo, "n_features_in_", len(todas[0]))
+        features = [f[:esperadas] for f in todas]
         try:
-            probabilidades = modelo.predict_proba(features)[0]
+            probabilidades = modelo.predict_proba(features).mean(axis=0)
         except (AttributeError, IndexError, ValueError) as exc:
             self.erro = f"Modelo do alfabeto inválido: {exc}"
             return SEM_MODELO, 0.0

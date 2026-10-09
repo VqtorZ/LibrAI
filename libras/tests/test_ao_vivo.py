@@ -409,10 +409,11 @@ class LetraParadaTremendoTests(AoVivoBase):
         self.assertEqual({e["label"] for e in estados}, {"M"})
         self.assertTrue(all(e["movement_label"] is None for e in estados))
 
-    def test_sem_letra_firme_o_analisando_aparece(self):
+    def test_pulso_parado_nunca_mostra_analisando(self):
+        # Mesmo com a letra incerta: sem o pulso andar, não é movimento na tela.
         self.treinar_gesto()
         _, estados = self.rodar(self.tremendo_forte(), AlfabetoFalso("M", confianca=0.5))
-        self.assertIn(sessoes.ROTULO_ANALISANDO, {e["label"] for e in estados})
+        self.assertNotIn(sessoes.ROTULO_ANALISANDO, {e["label"] for e in estados})
 
     def test_movimento_de_verdade_com_letra_firme_continua_reconhecido(self):
         # Começa no I (letra firme o tempo todo, no simulado), mas o pulso anda: é o J.
@@ -424,3 +425,87 @@ class LetraParadaTremendoTests(AoVivoBase):
         ]
         _, estados = self.rodar(quadros, AlfabetoFalso("I", confianca=0.99))
         self.assertIn("J", {e["movement_label"] for e in estados})
+
+
+class AlfabetoQueConta(AlfabetoFalso):
+    """Registra quantas imagens entram em cada decisão da letra parada."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tamanhos = []
+
+    def classificar_media(self, lista):
+        self.tamanhos.append(len(lista))
+        return self.letra, self.confianca
+
+
+class VotacaoDaLetraParadaTests(AoVivoBase):
+    """A letra parada sai da média das imagens dos últimos ~200 ms."""
+
+    def quadros(self, vetores, inicio=0):
+        return [
+            {"timestamp_ms": inicio + i * self.PASSO_MS, "landmarks": v, "mao": "Right" if v else None}
+            for i, v in enumerate(vetores)
+        ]
+
+    def test_usa_as_imagens_dos_ultimos_200_ms(self):
+        alfabeto = AlfabetoQueConta("B")
+        sessao = sessoes.SessaoAoVivo()
+        mao = self.gesto(20)[3]
+        estado = sessao.processar(self.quadros([mao] * 12), alfabeto)
+        self.assertEqual(estado["label"], "B")
+        # 200 ms a ~30 imagens por segundo: 7 imagens (não só a última).
+        self.assertEqual(alfabeto.tamanhos, [7])
+
+    def test_mao_saindo_zera_a_votacao(self):
+        alfabeto = AlfabetoQueConta("B")
+        sessao = sessoes.SessaoAoVivo()
+        mao = self.gesto(20)[3]
+        sessao.processar(self.quadros([mao] * 6 + [None] + [mao] * 2), alfabeto)
+        self.assertEqual(alfabeto.tamanhos, [2])  # só as imagens depois da volta da mão
+
+    def test_classificador_real_faz_a_media(self):
+        import numpy as np
+
+        from libras.estatico.classificador import ClassificadorAlfabeto
+
+        class Modelo:
+            classes_ = np.array(["M", "N"])
+            n_features_in_ = 76
+
+            def predict_proba(self, features):
+                # Primeira imagem "ruim" (N), as outras M: a média fica M.
+                linhas = [[0.1, 0.9]] + [[0.95, 0.05]] * (len(features) - 1)
+                return np.array(linhas)
+
+        classificador = ClassificadorAlfabeto()
+        classificador.conferir = lambda agora_mesmo=False: None
+        classificador.modelo = Modelo()
+        mao = self.gesto(20)[3]
+        self.assertEqual(classificador.classificar_media([mao]), ("N", 0.9))
+        letra, confianca = classificador.classificar_media([mao] * 5)
+        self.assertEqual(letra, "M")
+        self.assertAlmostEqual(confianca, (0.1 + 0.95 * 4) / 5)
+
+
+class TrocarDeLetraSemAnalisandoTests(AoVivoBase):
+    """Trocar de uma letra parada para outra: a nova aparece direto."""
+
+    def test_troca_de_forma_com_pulso_parado(self):
+        from .base import mao_sintetica
+
+        self.treinar_gesto()
+        a = mao_sintetica(1.0, giro=-2.5, tamanho=0.15)
+        b = self.gesto(20)[0]
+        # Troca calma (~530 ms): dura mais que os 300 ms do "Analisando".
+        poses = [a] * 25 + [[x + (y - x) * k / 16 for x, y in zip(a, b)] for k in range(1, 17)] + [b] * 30
+        quadros = [{"timestamp_ms": i * self.PASSO_MS, "landmarks": v, "mao": "Right"} for i, v in enumerate(poses)]
+        sessao = sessoes.SessaoAoVivo()
+        viu_movimento = False
+        rotulos = []
+        for i in range(0, len(quadros), 4):
+            # Letra incerta durante a troca (como ao vivo): a regra do tremor não se aplica.
+            rotulos.append(sessao.processar(quadros[i:i + 4], AlfabetoFalso("L", confianca=0.5))["label"])
+            viu_movimento = viu_movimento or sessao.detector.em_movimento
+        self.assertTrue(viu_movimento)  # o segmentador viu a troca como "movimento"...
+        self.assertNotIn(sessoes.ROTULO_ANALISANDO, rotulos)  # ...mas a tela não

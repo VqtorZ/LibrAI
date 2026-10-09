@@ -479,6 +479,34 @@ DTW experimental → teste de rejeição não-J.
    Limitação conhecida: o X (dedo dobrando, pulso parado) depende de a
    letra parada mudar durante o gesto; validar quando o X for gravado.
    314 testes.
+44. 2026-10-09: o usuário relatou que todas as letras são reconhecidas, mas
+   **demoram para aparecer** e **não acertam 100%**. Diagnóstico medido:
+   - **Precisão offline** (validação por blocos de 20 amostras seguidas,
+     3.094 amostras, 21 letras): **99,6%**; M 100%, N 97%, Q 98% (erros
+     N↔Q↔M). Ângulos dos dedos e orientação da palma NÃO melhoraram
+     (99,6% também). O gargalo não é o modelo: é a diferença entre a
+     gravação e o ao vivo, e a decisão tomada com UMA imagem por lote.
+   - **Túnel:** ida e volta de ~276 ms (picos de 879 ms); direto no PC,
+     1,5 ms. Com o lote de 250 ms, a letra leva ~0,5 s ou mais para
+     aparecer. `http://localhost:8080` funciona com as configurações de
+     produção (testado: 37 POSTs 200).
+   - **Simulação de trocas de letra** com o modelo real e o J real: o
+     "Analisando" se mete em 7/48 trocas; com "Analisando só se o pulso
+     andar", 0/48.
+   - **M/N como movimento:** não recomendado. São estáticos em Libras, o
+     modelo já os separa, e o movimento só decide quando a mão para
+     (deixaria mais lento).
+
+   Propostas no Trello (Ideias), aguardando a decisão do usuário:
+   1. localhost para o Victor;
+   2. letra parada classificada no navegador;
+   3. votação de ~200 ms;
+   4. "Analisando" só com o pulso andando;
+   5. Certo/Errado salvando a mão como amostra, mais "modo teste" por
+      letra.
+
+   Trello atualizado em 2026-10-09 (`scratchpad/trello_atualizar2.py` +
+   `trello_base.py`).
 
 ---
 

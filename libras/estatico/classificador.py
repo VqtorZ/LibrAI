@@ -104,10 +104,14 @@ class ClassificadorAlfabeto:
 
     def classificar(self, marcos):
         """Letra reconhecida para os 63 valores da mão (ou um aviso)."""
+        return self.classificar_com_confianca(marcos)[0]
+
+    def classificar_com_confianca(self, marcos):
+        """``(letra ou aviso, confiança de 0 a 1)`` para os 63 valores da mão."""
         self.conferir()
         modelo = self.modelo
         if modelo is None:
-            return SEM_MODELO
+            return SEM_MODELO, 0.0
         features = extrair_features_de_valores(marcos)
         # Modelo treinado antes de uma medida nova: usa só as que ele conhece
         # (as novas sempre vão no fim da lista).
@@ -117,11 +121,12 @@ class ClassificadorAlfabeto:
             probabilidades = modelo.predict_proba(features)[0]
         except (AttributeError, IndexError, ValueError) as exc:
             self.erro = f"Modelo do alfabeto inválido: {exc}"
-            return SEM_MODELO
+            return SEM_MODELO, 0.0
         indice = int(probabilidades.argmax())
-        if float(probabilidades[indice]) < LIMIAR_CONFIANCA:
-            return NAO_IDENTIFICADO
-        return str(modelo.classes_[indice])
+        confianca = float(probabilidades[indice])
+        if confianca < LIMIAR_CONFIANCA:
+            return NAO_IDENTIFICADO, confianca
+        return str(modelo.classes_[indice]), confianca
 
 
 alfabeto = ClassificadorAlfabeto()

@@ -89,14 +89,18 @@ class DiagnosticoAoVivoTests(AoVivoBase):
 class AlfabetoFalso:
     """Classificador do alfabeto simulado: responde sempre a mesma letra."""
 
-    def __init__(self, letra="A", pronto=True):
+    def __init__(self, letra="A", pronto=True, confianca=0.95):
         self.letra = letra
         self.pronto = pronto
+        self.confianca = confianca
         self.chamadas = 0
 
     def classificar(self, marcos):
+        return self.classificar_com_confianca(marcos)[0]
+
+    def classificar_com_confianca(self, marcos):
         self.chamadas += 1
-        return self.letra
+        return self.letra, self.confianca
 
 
 class SessaoAoVivoTests(AoVivoBase):
@@ -367,3 +371,56 @@ class AnalisandoSoDepoisDeUmTempoTests(AoVivoBase):
         )
         self.assertEqual(estado["movement_speed"], 0.0)
         self.assertEqual(estado["movement_limit"], 6.0)
+
+
+class LetraParadaTremendoTests(AoVivoBase):
+    """M parado: o tremor dos dedos passa do filtro, mas não é movimento."""
+
+    def setUp(self):
+        super().setUp()
+        sessoes.limpar()
+        self.addCleanup(sessoes.limpar)
+
+    def tremendo_forte(self, quadros=80):
+        import random
+
+        aleatorio = random.Random(3)
+        base = self.gesto(20)[0]
+        saida = []
+        for i in range(quadros):
+            mao = list(base)
+            for ponto in range(5, 21):  # dedos tremem muito; pulso e palma firmes
+                mao[ponto * 3] += aleatorio.gauss(0, 0.03)
+                mao[ponto * 3 + 1] += aleatorio.gauss(0, 0.03)
+            saida.append({"timestamp_ms": i * self.PASSO_MS, "landmarks": mao, "mao": "Right"})
+        return saida
+
+    def rodar(self, quadros, alfabeto):
+        sessao = sessoes.SessaoAoVivo()
+        estados = [sessao.processar(quadros[i:i + 8], alfabeto) for i in range(0, len(quadros), 8)]
+        return sessao, estados
+
+    def test_m_parado_tremendo_continua_m(self):
+        self.treinar_gesto()
+        sessao, estados = self.rodar(self.tremendo_forte(), AlfabetoFalso("M", confianca=0.95))
+        # O tremor é forte o bastante para o segmentador "ver movimento"...
+        self.assertGreater(max(e["movement_speed"] for e in estados), 6.0)
+        # ...mas a tela nunca troca o M por "Analisando".
+        self.assertEqual({e["label"] for e in estados}, {"M"})
+        self.assertTrue(all(e["movement_label"] is None for e in estados))
+
+    def test_sem_letra_firme_o_analisando_aparece(self):
+        self.treinar_gesto()
+        _, estados = self.rodar(self.tremendo_forte(), AlfabetoFalso("M", confianca=0.5))
+        self.assertIn(sessoes.ROTULO_ANALISANDO, {e["label"] for e in estados})
+
+    def test_movimento_de_verdade_com_letra_firme_continua_reconhecido(self):
+        # Começa no I (letra firme o tempo todo, no simulado), mas o pulso anda: é o J.
+        self.treinar_gesto()
+        gesto = self.gesto(40, variacao=0.01)
+        quadros = [
+            {"timestamp_ms": i * self.PASSO_MS, "landmarks": v, "mao": "Right"}
+            for i, v in enumerate([gesto[0]] * 20 + gesto + [gesto[-1]] * 25)
+        ]
+        _, estados = self.rodar(quadros, AlfabetoFalso("I", confianca=0.99))
+        self.assertIn("J", {e["movement_label"] for e in estados})

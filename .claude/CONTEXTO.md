@@ -463,6 +463,22 @@ DTW experimental → teste de rejeição não-J.
      reais.
 
    O Z foi excluído pela equipe; o J tem 50 amostras v3. 311 testes.
+43. 2026-10-09: o N e o Q ficaram bons ao vivo (relato do usuário); **o M
+   continuava** (três dedos escondidos tremem mais). Segunda camada,
+   em `sessoes.SessaoAoVivo`:
+   - é "tremor de mão parada" quando o pulso anda menos de 0,3 tamanho de
+     mão (`PULSO_PARADO_TAMANHOS`) **e** a letra parada é a mesma, com
+     ≥ 80% (`CONFIANCA_LETRA_FIRME`), em todas as checagens do
+     movimento;
+   - nesse caso, a tela mantém a letra e o resultado do movimento é
+     ignorado.
+
+   Medido nas 76 gravações reais de J: o pulso anda ≥ 0,44 (mediana 0,9),
+   e em nenhuma a letra parada ficou firme o movimento todo, então a
+   regra bloquearia 0 J. Também: `ClassificadorAlfabeto.classificar_com_confianca`.
+   Limitação conhecida: o X (dedo dobrando, pulso parado) depende de a
+   letra parada mudar durante o gesto; validar quando o X for gravado.
+   314 testes.
 
 ---
 

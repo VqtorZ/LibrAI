@@ -24,13 +24,38 @@ def ponto(x, y, z=0.0):
 
 
 class FeaturesAlfabetoTests(SimpleTestCase):
-    def test_63_coordenadas_mais_10_distancias(self):
+    def test_63_coordenadas_mais_10_distancias_e_3_de_cruzamento(self):
         mao = [ponto(0.5 + 0.01 * i, 0.5 - 0.02 * i, 0.001 * i) for i in range(21)]
         features = extrair_features(mao)
-        self.assertEqual(len(features), 63 + 10)
+        self.assertEqual(len(features), 63 + 10 + 3)
         # Pulso na origem: as três primeiras coordenadas são zero.
         self.assertEqual(features[:3], [0.0, 0.0, 0.0])
         self.assertEqual(features[63:], features_geometricas(features[:63]))
+
+    @staticmethod
+    def mao_u_ou_r(cruzada, espelhar=False):
+        """Mão em pé: indicador (5-8) à direita do médio (9-12); no R as pontas trocam de lado."""
+        pontos = [ponto(0.5, 0.9)] + [ponto(0.5, 0.8)] * 4  # pulso e polegar
+        for k, x in enumerate((0.45, 0.45, 0.45, 0.45)):  # indicador: base e articulações
+            pontos.append(ponto(x, 0.6 - 0.1 * k))
+        for k in range(4):  # médio
+            pontos.append(ponto(0.55, 0.58 - 0.1 * k))
+        pontos += [ponto(0.6, 0.7)] * 8  # anelar e mindinho dobrados
+        if cruzada:  # R: as duas pontas do indicador passam para o outro lado
+            for i in (7, 8):
+                pontos[i] = ponto(0.6, pontos[i].y)
+        if espelhar:
+            pontos = [ponto(1 - p.x, p.y) for p in pontos]
+        return pontos
+
+    def test_cruzamento_separa_u_de_r(self):
+        u = extrair_features(self.mao_u_ou_r(cruzada=False))[-3:]
+        r = extrair_features(self.mao_u_ou_r(cruzada=True))[-3:]
+        self.assertGreater(u[2], 0.5)  # ponta do indicador do lado dele
+        self.assertLess(r[2], 0)  # pontas trocaram de lado
+        # Mão esquerda (espelhada) dá os mesmos valores.
+        for a, b in zip(r, extrair_features(self.mao_u_ou_r(cruzada=True, espelhar=True))[-3:]):
+            self.assertAlmostEqual(a, b)
 
     def test_invariante_a_posicao_da_mao(self):
         mao = [ponto(0.3 + 0.01 * i, 0.4 + 0.015 * i) for i in range(21)]

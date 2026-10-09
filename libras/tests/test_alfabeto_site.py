@@ -130,6 +130,16 @@ class ClassificadorAlfabetoTests(SimpleTestCase):
         salvar_modelo_atomico(modelo_salvo(probabilidades=(0.6, 0.4)), self.arquivo)
         self.assertEqual(self.classificador().classificar(MAO), NAO_IDENTIFICADO)
 
+    def test_modelo_anterior_a_medida_nova_continua_funcionando(self):
+        # Modelo de 73 medidas (antes do cruzamento U × R): usa só as primeiras.
+        from sklearn.ensemble import RandomForestClassifier
+
+        X = [extrair_features_de_valores(mao_x)[:73] for mao_x in (MAO, [v + 0.05 for v in MAO])]
+        antigo = RandomForestClassifier(n_estimators=5, random_state=0).fit(X * 3, ["A", "B"] * 3)
+        salvar_modelo_atomico({"formato": FORMATO_ALFABETO, "treinado_em": "2026-10-08T00:00:00+00:00",
+                               "modelo": antigo}, self.arquivo)
+        self.assertIn(self.classificador().classificar(MAO), ("A", "B", NAO_IDENTIFICADO))
+
     def test_modelo_do_formato_antigo_e_ignorado(self):
         # Antes o modelo era salvo puro (sem dicionário) e com pontos da câmera do servidor.
         salvar_modelo_atomico(ModeloFalso(["A"], [1.0]), self.arquivo)
@@ -418,7 +428,7 @@ class TreinoRegistraAmostrasTests(ModeloTemporario, SimpleTestCase):
         self.assertEqual(salvo["amostras"]["O"], [a["id"] for a in amostras.listar("O")])
         self.assertEqual(salvo["letras_fora"], [])
         # O modelo final aprende todas as amostras (não só os 80% do treino).
-        self.assertEqual(salvo["modelo"].n_features_in_, 73)
+        self.assertEqual(salvo["modelo"].n_features_in_, 76)
         self.assertEqual(sum(len(v) for v in salvo["amostras"].values()), 18)
 
     def test_treinar_sem_uma_letra(self):

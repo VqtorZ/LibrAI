@@ -404,6 +404,23 @@ DTW experimental → teste de rejeição não-J.
 
    O modelo real em uso (treinado 2026-10-08 20:55) é de antes do registro:
    as etiquetas aparecem depois do próximo treino. 300 testes.
+40. 2026-10-08, U × R se confundindo. A causa imediata: o modelo de 23:26
+   tinha U (215) e não tinha R; o R foi gravado depois, e o U excluído.
+   **Um modelo só conhece as letras com amostras no momento do treino.**
+   Às 23:29 o usuário excluiu U e R para regravar.
+
+   Melhoria: medida de **cruzamento indicador/médio**
+   (`features.cruzamento_indicador_medio`, 3 valores no fim das features
+   geométricas; total 76).
+   - Experimento com o backup de 07/10 (1.076 U, 539 R, câmera antiga): U
+     sempre positivo (mediana +0,79), R ~0 (mediana −0,01). Na validação
+     cruzada, as confusões U↔R caíram de 7 para 1 (acerto 99,4% → 99,5%).
+   - As amostras salvas continuam valendo, porque a medida é calculada dos
+     63 pontos.
+   - Modelos antigos (73 medidas) continuam funcionando:
+     `classificar` corta as features em `n_features_in_`.
+
+   302 testes.
 
 ---
 

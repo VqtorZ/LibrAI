@@ -108,7 +108,11 @@ class ClassificadorAlfabeto:
         modelo = self.modelo
         if modelo is None:
             return SEM_MODELO
-        features = [extrair_features_de_valores(marcos)]
+        features = extrair_features_de_valores(marcos)
+        # Modelo treinado antes de uma medida nova: usa só as que ele conhece
+        # (as novas sempre vão no fim da lista).
+        esperadas = getattr(modelo, "n_features_in_", len(features))
+        features = [features[:esperadas]]
         try:
             probabilidades = modelo.predict_proba(features)[0]
         except (AttributeError, IndexError, ValueError) as exc:

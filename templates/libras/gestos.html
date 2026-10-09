@@ -57,6 +57,7 @@
             <span class="section-label">{{ sinais|length }} {% if sinais|length == 1 %}sinal{% else %}sinais{% endif %}</span>
             <div class="toolbar-acoes">
                 {% if tem_movimento and not precisa_treinar %}{% include "libras/_botao_treinar.html" with voltar=request.path secundario=True %}{% endif %}
+                <a class="secondary-button" href="{% url 'teste_ao_vivo' %}">Modo teste</a>
                 <a class="primary-button" href="{% url 'gesto_novo' %}">Cadastrar novo sinal <span aria-hidden="true">→</span></a>
             </div>
         </div>

@@ -22,6 +22,8 @@ urlpatterns = [
     path("gestos/", views.gestos, name="gestos"),
     path("gestos/novo/", views.gesto_novo, name="gesto_novo"),
     path("gestos/treinar/", views.treinar_movimentos, name="treinar_movimentos"),
+    path("gestos/teste/", views.teste_ao_vivo, name="teste_ao_vivo"),
+    path("gestos/teste/resultado/", views.teste_ao_vivo_salvar, name="teste_ao_vivo_salvar"),
     path("gestos/alfabeto/", views.alfabeto_gravar, name="alfabeto_gravar"),
     path(
         "gestos/alfabeto/amostras/",

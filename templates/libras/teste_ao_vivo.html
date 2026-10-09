@@ -1,0 +1,312 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>Modo teste — LibrAI</title>
+    <link rel="icon" type="image/png" href="{% static 'img/logo.png' %}">
+    <script>document.documentElement.classList.add('js');</script>
+    <link rel="stylesheet" href="{% static 'css/app.css' %}?v={{ versao_estaticos }}">
+    <link rel="stylesheet" href="{% static 'css/reconhecer.css' %}?v={{ versao_estaticos }}">
+</head>
+
+<body class="pagina-reconhecer">{% include "libras/_cabecalho.html" %}
+    <main id="conteudo" class="rc">
+        <section class="section-wrap rc-topo">
+            <p class="voltar"><a class="text-link" href="{% url 'gestos' %}">← Gestos</a></p>
+            <p class="etiqueta"><span class="etiqueta-ponto"></span>Modo teste</p>
+            <h1>Quanto o LibrAI <em>acerta?</em></h1>
+            <p class="rc-lead">Escolha a letra. Em cada tentativa: mão abaixada, <kbd>Espaço</kbd>, faça a letra. O site
+                conta os acertos e o tempo até a letra certa aparecer. Você está testando <strong>{{ por_onde }}</strong>{% if por_onde == "pelo link" %}
+                (o tempo inclui a internet){% endif %}.</p>
+        </section>
+
+        <section class="section-wrap rc-palco">
+            <div>
+                {% include "libras/_camera_navegador.html" %}
+            </div>
+
+            <aside class="rc-painel">
+                <p class="section-label">TENTATIVA</p>
+                <div class="rc-resultado" id="estado-teste" data-estado="esperando">
+                    <div class="rc-tile"><output class="rc-tile-letra" id="letra-alvo">—</output></div>
+                    <div class="rc-resultado-texto">
+                        <strong id="titulo-teste">Escolha uma letra</strong>
+                        <p class="rc-explica" id="explica-teste">Depois aperte Espaço para a primeira tentativa.</p>
+                        <p class="rc-explica">O LibrAI vê agora: <b id="vendo-agora">—</b></p>
+                    </div>
+                </div>
+                <div class="teste-barra" aria-hidden="true"><span id="barra-tempo"></span></div>
+                <div class="al-acoes">
+                    <button type="button" class="primary-button botao-grande" id="botao-tentativa" disabled>Começar
+                        tentativa <kbd>Espaço</kbd></button>
+                    <button type="button" class="secondary-button" id="botao-recomecar">Recomeçar</button>
+                </div>
+                <div class="teste-placar">
+                    <span id="placar">0 de 0</span>
+                    <label>Tentativas
+                        <select id="total-tentativas">
+                            <option value="5">5</option>
+                            <option value="10" selected>10</option>
+                            <option value="20">20</option>
+                        </select>
+                    </label>
+                </div>
+                <ol class="teste-tentativas" id="tentativas" aria-live="polite"></ol>
+                <p class="al-retorno" id="retorno" role="status" aria-live="polite"></p>
+
+                <div class="al-escolha">
+                    <div class="rc-soletrando-topo"><span class="section-label">LETRAS PARADAS</span></div>
+                    <div class="al-letras" role="radiogroup" aria-label="Letra do teste">
+                        {% for item in paradas %}
+                        <button type="button" class="al-letra{% if not item.treinada %} vazia{% endif %}" role="radio"
+                            aria-checked="false" data-letra="{{ item.letra }}" data-tipo="parada"
+                            {% if not item.treinada %}title="Ainda não está no modelo"{% endif %}>
+                            <span class="al-letra-glifo">{{ item.letra }}</span>
+                        </button>
+                        {% endfor %}
+                    </div>
+                    {% if movimentos %}
+                    <div class="rc-soletrando-topo teste-grupo"><span class="section-label">COM MOVIMENTO</span></div>
+                    <div class="al-letras" role="radiogroup" aria-label="Sinal de movimento do teste">
+                        {% for item in movimentos %}
+                        <button type="button" class="al-letra{% if not item.treinada %} vazia{% endif %}" role="radio"
+                            aria-checked="false" data-letra="{{ item.letra }}" data-tipo="movimento"
+                            {% if not item.treinada %}title="Treine o reconhecimento antes"{% endif %}>
+                            <span class="al-letra-glifo">{{ item.letra }}</span>
+                        </button>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </aside>
+        </section>
+
+        <section class="section-wrap rc-secao">
+            <h2>Histórico dos testes</h2>
+            {% if historico %}
+            <div class="tabela-amostras-wrap">
+                <table class="tabela-amostras">
+                    <thead>
+                        <tr>
+                            <th scope="col">Quando</th>
+                            <th scope="col">Letra</th>
+                            <th scope="col">Acertos</th>
+                            <th scope="col">Tempo médio</th>
+                            <th scope="col">Errou como</th>
+                            <th scope="col">Por onde</th>
+                            <th scope="col">Quem</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for teste in historico %}
+                        <tr>
+                            <td>{{ teste.quando_texto }}</td>
+                            <th scope="row">{{ teste.letra }}</th>
+                            <td>{{ teste.acertos }}/{{ teste.tentativas }} ({{ teste.percentual }}%){% if teste.variacao %}
+                                <span class="teste-variacao {% if teste.variacao > 0 %}subiu{% else %}caiu{% endif %}">{% if teste.variacao > 0 %}▲ +{% else %}▼ {% endif %}{{ teste.variacao }}</span>{% endif %}</td>
+                            <td>{% if teste.tempo_medio_ms is not None %}{{ teste.tempo_medio_ms }} ms{% else %}—{% endif %}</td>
+                            <td>{% for letra, n in teste.erros.items %}{{ letra }} ({{ n }}){% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</td>
+                            <td>{{ teste.por_onde }}</td>
+                            <td>{{ teste.quem }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="teste-nota">▲/▼: diferença para o teste anterior da mesma letra feito pelo mesmo caminho (link ou PC).</p>
+            {% else %}
+            <div class="empty-state">
+                <p class="empty-title">Nenhum teste ainda.</p>
+                <p>Faça o primeiro: escolha uma letra e aperte Espaço.</p>
+            </div>
+            {% endif %}
+        </section>
+    </main>
+
+    <script type="module">
+        import { iniciarCameraDaPagina, criarEnvioAoVivo, enviarJson } from "{% static 'js/camera-maos.js' %}?v={{ versao_estaticos }}";
+
+        {
+            const URL_QUADROS = "{% url 'api_quadros' %}";
+            const URL_SALVAR = "{% url 'teste_ao_vivo_salvar' %}";
+            const CSRF = document.querySelector('meta[name="csrf-token"]').content;
+            // Tempo para acertar: letra parada 2 s; movimento 5 s.
+            const JANELA_MS = { parada: 2000, movimento: 5000 };
+            const $ = (id) => document.getElementById(id);
+            const botoes = [...document.querySelectorAll('.al-letra')];
+            const botao = $('botao-tentativa');
+            const painel = $('estado-teste');
+
+            let letra = null;
+            let tipo = null;
+            let feitas = [];
+            let tentativa = null;
+            let salvo = false;
+
+            const total = () => Number($('total-tentativas').value);
+            const nomeDo = (rotulo) => (rotulo === 'Aguardando mão' ? 'sem mão' : rotulo || 'nada');
+
+            function avisar(texto, ok) {
+                const retorno = $('retorno');
+                retorno.textContent = texto;
+                retorno.classList.toggle('erro', !ok);
+            }
+
+            function mostrar() {
+                const acertos = feitas.filter((f) => f.ok).length;
+                $('placar').textContent = `${acertos} de ${feitas.length}` + (feitas.length ? ` · ${Math.round(100 * acertos / feitas.length)}%` : '');
+                const lista = $('tentativas');
+                lista.innerHTML = '';
+                feitas.forEach((f, i) => {
+                    const item = document.createElement('li');
+                    item.className = f.ok ? 'ok' : 'erro';
+                    item.textContent = f.ok ? `✓ ${(f.tempo / 1000).toFixed(1).replace('.', ',')} s` : `✗ ${f.visto}`;
+                    item.title = `Tentativa ${i + 1}`;
+                    lista.appendChild(item);
+                });
+                const acabou = letra && feitas.length >= total();
+                botao.disabled = !letra || acabou || tentativa !== null;
+                painel.dataset.estado = tentativa ? 'analisando' : 'esperando';
+                if (!letra) return;
+                if (tentativa) {
+                    $('titulo-teste').textContent = tipo === 'parada' ? `Faça o ${letra} agora` : `Faça o movimento do ${letra}`;
+                    $('explica-teste').textContent = `Tentativa ${feitas.length + 1} de ${total()}.`;
+                } else if (acabou) {
+                    const tempos = feitas.filter((f) => f.ok).map((f) => f.tempo);
+                    const media = tempos.length ? tempos.reduce((a, b) => a + b, 0) / tempos.length : null;
+                    $('titulo-teste').textContent = `Resultado: ${acertos} de ${feitas.length}`;
+                    $('explica-teste').textContent = media === null ? 'Nenhum acerto.'
+                        : `Tempo médio até aparecer: ${(media / 1000).toFixed(1).replace('.', ',')} s.`;
+                } else {
+                    $('titulo-teste').textContent = `Mão abaixada, depois Espaço`;
+                    $('explica-teste').textContent = `Tentativa ${feitas.length + 1} de ${total()}: aperte Espaço e faça o ${letra}.`;
+                }
+            }
+
+            function escolher(novo) {
+                if (tentativa) return;
+                const alvo = botoes.find((b) => b.dataset.letra === novo.dataset.letra && b.dataset.tipo === novo.dataset.tipo);
+                letra = alvo.dataset.letra;
+                tipo = alvo.dataset.tipo;
+                botoes.forEach((b) => {
+                    const ativa = b === alvo;
+                    b.classList.toggle('is-ativa', ativa);
+                    b.setAttribute('aria-checked', String(ativa));
+                });
+                $('letra-alvo').textContent = letra;
+                recomecar();
+            }
+
+            function recomecar() {
+                if (tentativa) clearTimeout(tentativa.relogio);
+                tentativa = null;
+                feitas = [];
+                salvo = false;
+                $('barra-tempo').style.transition = 'none';
+                $('barra-tempo').style.width = '0';
+                avisar('', true);
+                mostrar();
+            }
+
+            function comecar() {
+                if (!letra || tentativa || feitas.length >= total()) return;
+                const janela = JANELA_MS[tipo];
+                tentativa = { inicio: performance.now(), vistos: [], seguidas: 0, primeira: null };
+                tentativa.relogio = setTimeout(() => terminar(false), janela);
+                const barra = $('barra-tempo');
+                barra.style.transition = 'none';
+                barra.style.width = '0';
+                void barra.offsetWidth;
+                barra.style.transition = `width ${janela}ms linear`;
+                barra.style.width = '100%';
+                mostrar();
+            }
+
+            function terminar(ok, tempo) {
+                if (!tentativa) return;
+                clearTimeout(tentativa.relogio);
+                let visto = null;
+                if (!ok) {
+                    // O que mais apareceu no lugar da letra certa.
+                    const contagem = {};
+                    tentativa.vistos.forEach((v) => { contagem[v] = (contagem[v] || 0) + 1; });
+                    visto = Object.entries(contagem).sort((a, b) => b[1] - a[1])[0]?.[0] || 'sem mão';
+                }
+                feitas.push({ ok, tempo, visto });
+                tentativa = null;
+                $('barra-tempo').style.transition = 'none';
+                $('barra-tempo').style.width = '0';
+                mostrar();
+                if (feitas.length >= total()) salvar();
+            }
+
+            async function salvar() {
+                if (salvo) return;
+                salvo = true;
+                const erros = {};
+                feitas.filter((f) => !f.ok).forEach((f) => { erros[f.visto] = (erros[f.visto] || 0) + 1; });
+                try {
+                    await enviarJson(URL_SALVAR, CSRF, {
+                        letra,
+                        tentativas: feitas.length,
+                        acertos: feitas.filter((f) => f.ok).length,
+                        tempos_ms: feitas.filter((f) => f.ok).map((f) => Math.round(f.tempo)),
+                        erros,
+                    });
+                    avisar('✓ Resultado salvo no histórico (recarregue a página para ver a tabela).', true);
+                } catch (falha) {
+                    salvo = false;
+                    avisar(falha.message, false);
+                }
+            }
+
+            function aoResposta(d) {
+                $('vendo-agora').textContent = d.movement_label || d.label || '—';
+                if (!tentativa) return;
+                const agora = performance.now() - tentativa.inicio;
+                if (tipo === 'parada') {
+                    if (d.label === letra) {
+                        // Acerto = a letra aparece em duas respostas seguidas (estável).
+                        tentativa.seguidas += 1;
+                        if (tentativa.primeira === null) tentativa.primeira = agora;
+                        if (tentativa.seguidas >= 2) terminar(true, tentativa.primeira);
+                        return;
+                    }
+                    tentativa.seguidas = 0;
+                    tentativa.primeira = null;
+                    if (d.hand_detected) tentativa.vistos.push(nomeDo(d.label));
+                } else {
+                    if (d.movement_label === letra) {
+                        terminar(true, agora);
+                        return;
+                    }
+                    if (d.movement_label) tentativa.vistos.push(d.movement_label);
+                    else if (d.hand_detected && d.label !== 'Analisando movimento…') tentativa.vistos.push(nomeDo(d.label));
+                }
+            }
+
+            const envio = criarEnvioAoVivo({ url: URL_QUADROS, csrf: CSRF, aoResposta });
+            iniciarCameraDaPagina({ aoQuadro: (quadro) => envio.adicionar(quadro) });
+
+            botoes.forEach((b) => b.addEventListener('click', () => escolher(b)));
+            botao.addEventListener('click', comecar);
+            $('botao-recomecar').addEventListener('click', recomecar);
+            $('total-tentativas').addEventListener('change', recomecar);
+            document.addEventListener('keydown', (evento) => {
+                if (evento.code !== 'Space' || evento.repeat) return;
+                if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+                evento.preventDefault();
+                // Um botão com foco também reagiria ao Espaço (duas ações de uma vez).
+                if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur();
+                comecar();
+            });
+            mostrar();
+        }
+    </script>
+</body>
+
+</html>

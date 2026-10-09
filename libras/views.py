@@ -15,9 +15,11 @@ from django.db.models import Avg, Count, Q
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
+from . import testes_ao_vivo
 from .acesso import FormularioTrocarSenha, apenas_admin
 from .estatico import amostras as amostras_alfabeto
 from .estatico.classificador import alfabeto as classificador_alfabeto
@@ -603,4 +605,68 @@ class TrocarSenha(auth_views.PasswordChangeView):
 
 
 trocar_senha = apenas_admin(TrocarSenha.as_view())
+
+
+# --------------------------------------------------------------------------
+# Modo teste: placar de acerto e de tempo ao vivo, por letra
+# --------------------------------------------------------------------------
+def _letras_do_teste():
+    """Letras paradas e sinais de movimento que dá para testar."""
+    classificador_alfabeto.conferir(agora_mesmo=True)
+    conhecidas = set(classificador_alfabeto.letras)
+    paradas = [
+        {"letra": l, "tipo": "parada", "treinada": l in conhecidas}
+        for l in amostras_alfabeto.LETRAS_ESTATICAS
+    ]
+    modelo = _modelo_de_movimentos()
+    no_modelo = set(modelo["classes"]) if modelo else set()
+    titulos = Sinal.objects.filter(
+        tipo=Sinal.Tipo.MOVIMENTO, ativo=True, negativo=False
+    ).order_by("titulo").values_list("titulo", flat=True)
+    movimentos = [{"letra": t, "tipo": "movimento", "treinada": t in no_modelo} for t in titulos]
+    return paradas, movimentos, modelo
+
+
+def _por_onde(request):
+    """Pelo link público ou no próprio PC: o tempo de resposta muda muito."""
+    host = request.get_host().split(":")[0]
+    return "no PC" if host in ("localhost", "127.0.0.1") else "pelo link"
+
+
+@apenas_admin
+def teste_ao_vivo(request):
+    """Página do modo teste: escolhe a letra, faz N vezes, vê o placar."""
+    paradas, movimentos, _ = _letras_do_teste()
+    return render(
+        request,
+        "libras/teste_ao_vivo.html",
+        {
+            "paradas": paradas,
+            "movimentos": movimentos,
+            "historico": testes_ao_vivo.historico(),
+            "por_onde": _por_onde(request),
+        },
+    )
+
+
+@apenas_admin
+@require_POST
+def teste_ao_vivo_salvar(request):
+    """Guarda o resultado de um teste no histórico."""
+    paradas, movimentos, modelo = _letras_do_teste()
+    tipos = {item["letra"]: item["tipo"] for item in paradas + movimentos}
+    try:
+        resultado = testes_ao_vivo.validar(_json(request), tipos)
+    except (AmostraInvalida, testes_ao_vivo.ResultadoInvalido) as exc:
+        return JsonResponse({"erro": str(exc)}, status=400)
+    resultado.update({
+        "quando": timezone.localtime().isoformat(timespec="seconds"),
+        "quem": request.user.first_name or request.user.email,
+        "tipo": tipos[resultado["letra"]],
+        "por_onde": _por_onde(request),
+        "modelo_alfabeto": classificador_alfabeto.treinado_em,
+        "modelo_movimentos": modelo["treinado_em"] if modelo else None,
+    })
+    testes_ao_vivo.registrar(resultado)
+    return JsonResponse({"ok": True})
 

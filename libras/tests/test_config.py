@@ -124,11 +124,14 @@ class BackupDadosTests(SimpleTestCase):
         conexao.commit()
         conexao.close()
         pastas = (dados / "amostras_estaticas", dados / "amostras_movimento", dados / "modelos_treinados")
+        historico = dados / "testes_ao_vivo.jsonl"
+        historico.write_text('{"letra": "A"}\n', encoding="utf-8")
         with patch.object(caminhos, "RAIZ", raiz), patch.object(caminhos, "BANCO", banco), \
+                patch.object(caminhos, "TESTES_AO_VIVO", historico), \
                 patch.object(backup_dados, "PASTAS", pastas):
             saida = StringIO()
             call_command("backup_dados", stdout=saida)
-        self.assertIn("4 arquivos", saida.getvalue())  # o .tmp fica de fora
+        self.assertIn("5 arquivos", saida.getvalue())  # o .tmp fica de fora
         (arquivo,) = (raiz / "backups").glob("librai-*.zip")
         with zipfile.ZipFile(arquivo) as zip_:
             nomes = sorted(zip_.namelist())
@@ -137,6 +140,7 @@ class BackupDadosTests(SimpleTestCase):
                 "dados/amostras_movimento/2-j/7.json",
                 "dados/banco.sqlite3",
                 "dados/modelos_treinados/alfabeto.joblib",
+                "dados/testes_ao_vivo.jsonl",
             ])
             zip_.extract("dados/banco.sqlite3", raiz / "restaurado")
         conexao = sqlite3.connect(raiz / "restaurado" / "dados" / "banco.sqlite3")

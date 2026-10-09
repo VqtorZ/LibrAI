@@ -851,3 +851,95 @@
     font: 12px/1.45 ui-monospace, Consolas, monospace;
     pointer-events: none;
 }
+
+/* --------------------------------------------------------------------------
+   Modo teste
+   -------------------------------------------------------------------------- */
+.teste-barra {
+    height: 6px;
+    margin: 10px 0 4px;
+    border-radius: 999px;
+    background: var(--color-surface-alt);
+    overflow: hidden;
+}
+
+.teste-barra span {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--color-primary);
+}
+
+.teste-placar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 14px;
+    font-weight: 800;
+}
+
+.teste-placar label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.teste-placar select {
+    padding: 4px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    font: inherit;
+}
+
+.teste-tentativas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.teste-tentativas li {
+    padding: 4px 10px;
+    border-radius: 999px;
+    font: 700 12px var(--font-mono);
+}
+
+.teste-tentativas li.ok {
+    background: rgba(47, 158, 110, .14);
+    color: #1F7A52;
+}
+
+.teste-tentativas li.erro {
+    background: rgba(217, 90, 71, .12);
+    color: #B4442F;
+}
+
+.teste-grupo {
+    margin-top: 14px;
+}
+
+.teste-variacao {
+    margin-left: 6px;
+    font: 700 12px var(--font-mono);
+}
+
+.teste-variacao.subiu {
+    color: #1F7A52;
+}
+
+.teste-variacao.caiu {
+    color: #B4442F;
+}
+
+.teste-nota {
+    margin: 10px 0 0;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+}

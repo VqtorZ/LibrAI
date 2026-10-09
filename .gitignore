@@ -22,6 +22,7 @@ dados/banco.sqlite3-journal
 dados/amostras_movimento/
 dados/amostras_estaticas/
 dados/modelos_treinados/
+dados/testes_ao_vivo.jsonl
 backups/
 
 # --- Django: destino do collectstatic no servidor ---

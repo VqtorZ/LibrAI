@@ -26,6 +26,8 @@ BANCO = DADOS / "banco.sqlite3"
 AMOSTRAS_ESTATICAS = DADOS / "amostras_estaticas" / "alfabeto.csv"
 AMOSTRAS_MOVIMENTO = DADOS / "amostras_movimento"
 SINTETICOS = DADOS / "sinteticos"
+# Histórico do modo teste (acerto e tempo ao vivo, por letra); fora do Git.
+TESTES_AO_VIVO = DADOS / "testes_ao_vivo.jsonl"
 
 MODELOS_TREINADOS = DADOS / "modelos_treinados"
 MODELO_ALFABETO = MODELOS_TREINADOS / "alfabeto.joblib"

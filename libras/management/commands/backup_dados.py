@@ -58,6 +58,11 @@ class Command(BaseCommand):
                     if arquivo.is_file() and not arquivo.name.endswith(".tmp"):
                         arquivo_zip.write(arquivo, arquivo.relative_to(caminhos.RAIZ).as_posix())
                         total += 1
+            if caminhos.TESTES_AO_VIVO.exists():
+                arquivo_zip.write(
+                    caminhos.TESTES_AO_VIVO, caminhos.TESTES_AO_VIVO.relative_to(caminhos.RAIZ).as_posix()
+                )
+                total += 1
         tamanho_mb = destino.stat().st_size / 1_000_000
         self.stdout.write(self.style.SUCCESS(
             f"Backup criado: {destino} ({total} arquivos, {tamanho_mb:.1f} MB)"

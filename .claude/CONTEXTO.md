@@ -507,6 +507,29 @@ DTW experimental → teste de rejeição não-J.
 
    Trello atualizado em 2026-10-09 (`scratchpad/trello_atualizar2.py` +
    `trello_base.py`).
+45. 2026-10-09, o usuário escolheu as propostas 3, 4 e 6 (feitas):
+   - **3. Votação:** a letra parada sai da média das probabilidades das
+     imagens com mão dos últimos 200 ms (`sessoes.JANELA_VOTACAO_MS`,
+     `ClassificadorAlfabeto.classificar_media`); zera quando a mão sai.
+   - **4. "Analisando" só com o pulso andando** (≥ 0,3 tamanho de mão), além
+     dos 300 ms.
+   - **6. Modo teste:** `/gestos/teste/` (botão em Gestos).
+     - Escolhe a letra (paradas + sinais de movimento não negativos) e o
+       número de tentativas.
+     - Em cada tentativa: mão abaixada → Espaço → faz a letra. Acerto da
+       letra parada = a letra certa em 2 respostas seguidas, em até 2 s;
+       do movimento = `movement_label` certo em até 5 s.
+     - Salva em `dados/testes_ao_vivo.jsonl` (fora do Git, entra no
+       `backup_dados`): quem, quando, "pelo link"/"no PC", acertos, tempos,
+       erros, versão dos modelos.
+     - O histórico mostra ▲/▼ em relação ao teste anterior da mesma letra
+       pelo mesmo caminho.
+     - Testado no Chrome com servidor de teste usando CÓPIA do banco (apagada
+       depois): 0/5 sem mão e 5/5 com respostas simuladas, ambos salvos.
+
+   324 testes. Os cartões de proposta 3 e 4 e o "Medir o modelo" foram
+   movidos para Feito no Trello. **Usar o modo teste ao vivo (com a mão)
+   para medir o M, N e Q antes e depois das próximas mudanças.**
 
 ---
 

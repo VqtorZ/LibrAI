@@ -78,7 +78,7 @@ class AmostrasDoAlfabetoTests(PastaTemporaria, SimpleTestCase):
         self.assertEqual(valores, extrair_features_de_valores(MAO)[:63])
 
     def test_rejeita_letras_de_movimento_e_invalidas(self):
-        for letra in ("J", "Z", "", "AB", "1", None):
+        for letra in ("H", "J", "K", "X", "Z", "", "AB", "1", None):
             with self.assertRaises(amostras.AmostraEstaticaInvalida):
                 amostras.salvar(letra, MAO)
         self.assertFalse(self.csv.exists())
@@ -212,8 +212,9 @@ class PaginasDoAlfabetoTests(PastaTemporaria, TestCase):
     def test_pagina_lista_letras_sem_j_e_z(self):
         response = self.client.get(reverse("alfabeto_gravar") + "?letra=b")
         letras = [item["letra"] for item in response.context["letras"]]
-        self.assertNotIn("J", letras)
-        self.assertNotIn("Z", letras)
+        for letra in "HJKXZ":
+            self.assertNotIn(letra, letras)
+        self.assertEqual(len(letras), 21)
         self.assertEqual(response.context["letra_inicial"], "B")
         self.assertEqual(response.context["total_amostras"], 1)
         self.assertContains(response, 'aria-current="page">Gestos', html=False)

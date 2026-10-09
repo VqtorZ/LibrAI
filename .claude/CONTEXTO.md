@@ -421,6 +421,28 @@ DTW experimental → teste de rejeição não-J.
      `classificar` corta as features em `n_features_in_`.
 
    302 testes.
+41. 2026-10-09: **H, K e X saíram das letras paradas**
+   (`estatico.amostras.LETRAS_MOVIMENTO = "HJKXZ"`); em Libras elas têm
+   movimento e devem ser cadastradas como sinais de movimento.
+
+   **Letra parada emendada no movimento** (A → J sem pausa não era
+   reconhecido; só funcionava parando no I antes). Causa: o trecho ao vivo
+   começava na troca de forma da mão, e o pulso era medido a partir desse
+   começo. Correção (`FORMATO_MODELO = 4`, é preciso retreinar):
+   - DTW com **início livre** (`classificador.INICIO_LIVRE`,
+     `distancia_dtw(..., inicio_livre=True)` no treino e no ao vivo): o
+     template casa com o FINAL do trecho, e o começo pode ser pulado;
+   - pulso medido a partir do **fim** (`trajetoria.processar_frames`);
+   - DTW reescrita em listas: o mesmo resultado, ~3× mais rápida.
+
+   Experimento com as 26 J e 20 Z antigas (formato 2):
+   - A→J emendado: 7/26 → 22/26 (igual ao J começando parado);
+   - Z emendado: 13/20 → 18/20;
+   - só troca de mão: 0/40 aceitos nas duas versões.
+
+   Na mesma conferência: o J tem 40 amostras v3 e o modelo de movimentos
+   em uso (23:41, formato 3, só J) precisa ser retreinado depois de religar
+   o site. 307 testes.
 
 ---
 

@@ -623,3 +623,37 @@ class ExemplosNegativosTests(TemporalMLBase):
         self.assertContains(response, "<strong>rejeitar</strong>", html=False)
         response = self.client.get(reverse("gesto_novo"))
         self.assertContains(response, "Exemplo negativo")
+
+
+class InicioLivreTests(TemporalMLBase):
+    """DTW com início livre: o começo do trecho pode ser pulado; o fim não."""
+
+    def test_comeco_estranho_e_ignorado(self):
+        import numpy as np
+
+        rng = np.random.default_rng(3)
+        template = rng.random((20, 65))
+        lixo = rng.random((10, 65)) * 5
+        com_lixo = np.vstack([lixo, template])
+        self.assertAlmostEqual(distancia_dtw(com_lixo, template, inicio_livre=True), 0.0)
+        self.assertGreater(distancia_dtw(com_lixo, template), 1.0)
+
+    def test_gesto_pela_metade_continua_longe(self):
+        import numpy as np
+
+        passos = np.array(self.trajetoria_sintetica(total=24))
+        metade = passos[:12]
+        self.assertGreater(
+            distancia_dtw(metade, passos, inicio_livre=True),
+            distancia_dtw(passos, passos, inicio_livre=True) + 0.1,
+        )
+
+    def test_pulso_medido_a_partir_do_fim(self):
+        from libras.movimento.trajetoria import processar_frames
+
+        from .base import frames_de, mao_sintetica
+
+        vetores = [mao_sintetica(i / 19, dx=0.3 * i / 19, giro=3.0) for i in range(20)]
+        passos = processar_frames(frames_de(vetores))
+        self.assertEqual(passos[-1][-2:], [0.0, 0.0])
+        self.assertNotEqual(passos[0][-2:], [0.0, 0.0])

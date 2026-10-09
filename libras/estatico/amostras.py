@@ -18,8 +18,10 @@ from .features import extrair_features_de_valores
 
 N_FEATURES = 63
 CABECALHO = ["label"] + [f"f{i}" for i in range(N_FEATURES)]
-# J e Z são reconhecidos pelo movimento (libras.movimento), não por aqui.
-LETRAS_ESTATICAS = [letra for letra in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" if letra not in "JZ"]
+# Letras com movimento em Libras: reconhecidas pelo movimento
+# (libras.movimento, cadastradas como sinais), não por aqui.
+LETRAS_MOVIMENTO = "HJKXZ"
+LETRAS_ESTATICAS = [letra for letra in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" if letra not in LETRAS_MOVIMENTO]
 
 _lock = threading.Lock()
 # Caracteres de fim de linha (o csv grava as linhas terminadas em CR+LF).
@@ -34,7 +36,7 @@ def validar_letra(letra):
     letra = (letra or "").strip().upper()
     if letra not in LETRAS_ESTATICAS:
         raise AmostraEstaticaInvalida(
-            "Escolha uma letra do alfabeto estático (J e Z são gravados como movimento)."
+            "Escolha uma letra parada (H, J, K, X e Z têm movimento: grave como sinal de movimento)."
         )
     return letra
 

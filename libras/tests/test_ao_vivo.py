@@ -259,3 +259,35 @@ class ApiQuadrosTests(AoVivoBase):
 
     def test_exige_post(self):
         self.assertEqual(self.client.get(reverse("api_quadros")).status_code, 405)
+
+
+class LetraEmendadaNoMovimentoTests(AoVivoBase):
+    """Fazer outra letra e emendar no movimento, sem parar antes (A → J)."""
+
+    def emendado(self, gesto):
+        from .base import mao_sintetica
+
+        outra = mao_sintetica(1.0, giro=-2.5, tamanho=0.15)  # outra forma de mão, parada
+        transicao = [
+            [a + (b - a) * k / 8 for a, b in zip(outra, gesto[0])] for k in range(1, 9)
+        ]
+        return [outra] * 25 + transicao + gesto + [gesto[-1]] * 20
+
+    def test_reconhece_o_gesto_mesmo_sem_parar_antes(self):
+        self.treinar_gesto()
+        gesto = self.gesto(40, variacao=0.01)
+        saidas = self.alimentar(self.detector(), self.emendado(gesto))
+        self.assertTrue(saidas)
+        _, previsao = saidas[-1]
+        self.assertEqual(previsao["previsto"], "J")
+        self.assertTrue(previsao["reconhecido"])
+
+    def test_so_trocar_de_letra_nao_vira_movimento(self):
+        from .base import mao_sintetica
+
+        self.treinar_gesto()
+        a = mao_sintetica(1.0, giro=-2.5, tamanho=0.15)
+        b = self.gesto(20)[0]
+        troca = [a] * 25 + [[x + (y - x) * k / 8 for x, y in zip(a, b)] for k in range(1, 9)] + [b] * 25
+        aceitos = [p for _, p in self.alimentar(self.detector(), troca) if p["reconhecido"]]
+        self.assertEqual(aceitos, [])

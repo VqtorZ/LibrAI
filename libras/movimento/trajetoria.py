@@ -130,9 +130,13 @@ def processar_frames(frames):
 
     * 63 da **forma** da mão (``normalizar_frame``: relativos ao pulso
       e à escala) — captura giros e mudanças de configuração;
-    * 2 do **deslocamento do pulso** (x, y) desde o início do gesto,
+    * 2 do **deslocamento do pulso** (x, y) até o ponto FINAL do gesto,
       medido em tamanhos de mão — captura sinais em que o braço
-      desenha o movimento (como o Z), que a forma sozinha não vê.
+      desenha o movimento (como o Z), que a forma sozinha não vê. A
+      referência é o fim (onde a mão para), não o começo: ao vivo, o
+      começo do trecho pode ser a troca de outra letra para o sinal
+      (A → J sem pausa), e o fim é o ponto que gravação e ao vivo
+      sempre têm em comum.
 
     Antes disso, sinais feitos com a mão esquerda são espelhados e a
     sequência é reamostrada a passo fixo; ao final, o repouso das
@@ -152,5 +156,5 @@ def processar_frames(frames):
     forma = np.array([normalizar_frame(f) for f in crus])
     pulso = pontos[:, 0, :2] / tamanho * PESO_TRAJETORIA
     passos = _aparar_repouso(_reamostrar(tempos, np.hstack([forma, pulso])))
-    passos[:, -2:] -= passos[0, -2:]
+    passos[:, -2:] -= passos[-1, -2:]
     return passos.tolist()

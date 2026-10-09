@@ -41,7 +41,9 @@ MODELO_PATH = MODELO_MOVIMENTOS
 # Formato 2: features com deslocamento do pulso, espelhamento,
 # reamostragem e aparo de repouso (ver ``processar_frames``).
 # Formato 3: treinado só com amostras do navegador (amostras.FORMATO_VERSAO 3).
-FORMATO_MODELO = 3
+# Formato 4: pulso medido a partir do fim e DTW com início livre (uma
+# letra parada emendada no movimento não atrapalha mais).
+FORMATO_MODELO = 4
 # Fator de segurança sobre a distância leave-one-out TÍPICA (mediana)
 # da classe. Com as gravações reais de J, mediana × 1.5 aceitou todos
 # os J em avaliação honesta e rejeitou J invertido, mão parada e Z
@@ -84,27 +86,63 @@ def carregar_sequencia(amostra):
     return processar_sequencia(ler_sequencia(amostra)), resultado
 
 
-def distancia_dtw(a, b):
+# O trecho comparado pode ter um "começo" que não é do sinal: a troca de
+# outra letra para a posição inicial (A parado → J, sem pausa). Com o
+# início livre, o template precisa casar inteiro com o FINAL do trecho, e
+# o começo pode ser pulado. O fim continua obrigatório (o movimento
+# termina com a mão parada), então um J pela metade segue rejeitado.
+# Medido com as gravações reais de J: "A → J emendado" foi de 7/26 para
+# 22/26 reconhecidos (igual ao J começando parado), sem aceitar trocas
+# de mão sem movimento (0/40).
+INICIO_LIVRE = True
+
+
+def distancia_dtw(a, b, inicio_livre=False):
     """Distância DTW média por passo entre duas trajetórias.
 
     O custo local é a distância euclidiana entre frames normalizados;
     o alinhamento elástico absorve diferenças de ritmo entre
     gravações. A divisão por ``max(len)`` mantém a distância
     comparável entre sequências de comprimentos diferentes.
+
+    ``inicio_livre``: ``b`` (o template) pode começar a casar em qualquer
+    ponto de ``a`` — o começo de ``a`` é pulado de graça e só a parte
+    usada conta no tamanho da divisão.
     """
     n, m = len(a), len(b)
     if not n or not m:
         return math.inf
     x, y = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
-    custo = np.linalg.norm(x[:, None, :] - y[None, :, :], axis=2)
-    acumulado = np.full((n + 1, m + 1), math.inf)
-    acumulado[0, 0] = 0.0
+    custo = np.linalg.norm(x[:, None, :] - y[None, :, :], axis=2).tolist()
+    infinito = math.inf
+    # Linha a linha, em listas (bem mais rápido que indexar arrays numpy).
+    # ``pulados`` guarda quantos passos de ``a`` ficaram antes do caminho.
+    anterior = [0.0] + [infinito] * m
+    pulados_anterior = [0] * (m + 1)
     for i in range(1, n + 1):
+        atual = [0.0 if inicio_livre else infinito] + [infinito] * m
+        pulados = [i] + [0] * m
+        linha = custo[i - 1]
         for j in range(1, m + 1):
-            acumulado[i, j] = custo[i - 1, j - 1] + min(
-                acumulado[i - 1, j - 1], acumulado[i - 1, j], acumulado[i, j - 1]
-            )
-    return float(acumulado[n, m] / max(n, m))
+            diagonal, cima, esquerda = anterior[j - 1], anterior[j], atual[j - 1]
+            if diagonal <= cima and diagonal <= esquerda:
+                melhor = diagonal
+                origem = pulados_anterior[j - 1] if j > 1 else i - 1
+            elif cima <= esquerda:
+                melhor, origem = cima, pulados_anterior[j]
+            else:
+                melhor = esquerda
+                origem = pulados[j - 1] if j > 1 else i - 1
+            atual[j] = linha[j - 1] + melhor
+            pulados[j] = origem
+        anterior, pulados_anterior = atual, pulados
+    usados = n - pulados_anterior[m] if inicio_livre else n
+    return float(anterior[m] / max(usados, m))
+
+
+def _distancia(trajetoria, template):
+    """A distância usada no treino e no reconhecimento (sempre a mesma)."""
+    return distancia_dtw(trajetoria, template, inicio_livre=INICIO_LIVRE)
 
 
 def preparar_amostras():
@@ -129,7 +167,7 @@ def _loo(entradas):
     for indice, (pk, trajetoria) in enumerate(entradas):
         vizinhos = [(v, t) for j, (v, t) in enumerate(entradas) if j != indice]
         distancia, vizinho = min(
-            (distancia_dtw(trajetoria, t), v) for v, t in vizinhos
+            (_distancia(trajetoria, t), v) for v, t in vizinhos
         )
         resultado.append((pk, vizinho, distancia))
     return resultado
@@ -149,7 +187,7 @@ def _negativo_mais_proximo(negativos, entradas):
     if not negativos or not entradas:
         return None
     return min(
-        distancia_dtw(negativo, template)
+        _distancia(negativo, template)
         for _, negativo in negativos
         for _, template in entradas
     )
@@ -454,7 +492,7 @@ def prever(trajetoria, modelo, excluir_amostra=None):
             "com treinar_movimentos."
         )
     distancias = [
-        (distancia_dtw(trajetoria, t), classe, pk)
+        (_distancia(trajetoria, t), classe, pk)
         for classe, pk, t in candidatos
     ]
     distancia, previsto, vizinho = min(distancias, key=lambda item: item[0])
@@ -463,7 +501,7 @@ def prever(trajetoria, modelo, excluir_amostra=None):
     for entrada in modelo["negativos"]:
         if entrada["amostra_id"] == excluir_amostra:
             continue
-        d = distancia_dtw(trajetoria, entrada["trajetoria"])
+        d = _distancia(trajetoria, entrada["trajetoria"])
         if negativo is None or d < negativo["distancia"]:
             negativo = {
                 "sinal": entrada["sinal"],

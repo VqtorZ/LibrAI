@@ -341,7 +341,14 @@ export function criarEnvioAoVivo({ url, csrf, aoResposta, intervalo = 250 }) {
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
                 body: JSON.stringify({ canal, quadros: lote }),
             });
-            if (resposta.ok) aoResposta(await resposta.json());
+            if (resposta.ok) {
+                const dados = await resposta.json();
+                if (typeof dados.movement_speed === 'number') {
+                    medidas.velocidadeMovimento = dados.movement_speed;
+                    medidas.limiteMovimento = dados.movement_limit;
+                }
+                aoResposta(dados);
+            }
         } catch (falha) { /* rede instável: o próximo lote tenta de novo */ }
         enviando = false;
     }, intervalo);
@@ -423,6 +430,8 @@ function mostrarDiagnostico(camera) {
             `detector: ${medidas.processador || '…'}  imagem: ${medidas.resolucao || '…'}`,
             `câmera: ${medidas.fpsCamera.toFixed(0)} fps   detector: ${medidas.fpsDeteccao.toFixed(0)} fps`,
             `detecção: ${medidas.msDeteccao.toFixed(1)} ms   desenho: ${medidas.msDesenho.toFixed(1)} ms`,
+            medidas.velocidadeMovimento === undefined ? '' :
+                `movimento: ${medidas.velocidadeMovimento.toFixed(1)}   (começa em ${medidas.limiteMovimento})`,
         ].join('\n');
     }, 500);
 }

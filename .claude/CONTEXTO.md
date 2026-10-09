@@ -443,6 +443,26 @@ DTW experimental → teste de rejeição não-J.
    Na mesma conferência: o J tem 40 amostras v3 e o modelo de movimentos
    em uso (23:41, formato 3, só J) precisa ser retreinado depois de religar
    o site. 307 testes.
+42. 2026-10-09: **M, N, Q mostravam "Analisando movimento…" parados.**
+   Causa: com a mão virada para baixo, os dedos escondidos têm a posição
+   "chutada" pelo detector a cada quadro, e o tremor medido quadro a
+   quadro parecia movimento. Correção no `Segmentador`:
+   - a velocidade compara a média das últimas 4 posições com a média de
+     ~150 ms antes (`JANELA_VELOCIDADE_MS`, `QUADROS_NA_MEDIA`);
+   - medido em 49 J do navegador: mão parada de até 4,6 para até 0,5, e o
+     movimento continua 100% acima do limite;
+   - com tremor simulado nos dedos de M/N/Q parados, o falso movimento caiu
+     de 45/45 para 2/45 (~4 px) e 11/45 (~8 px);
+   - o J continua igual: 22/26, direto ou emendado.
+
+   Também:
+   - "Analisando" só aparece após 300 ms de movimento
+     (`sessoes.MOSTRAR_ANALISANDO_APOS_MS`);
+   - `?diagnostico=1` mostra "movimento: X (começa em 6)" (campos
+     `movement_speed`/`movement_limit` da API), para calibrar com o M/N/Q
+     reais.
+
+   O Z foi excluído pela equipe; o J tem 50 amostras v3. 311 testes.
 
 ---
 

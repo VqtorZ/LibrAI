@@ -216,7 +216,8 @@ class ApiQuadrosTests(AoVivoBase):
         self.assertEqual(resposta.status_code, 200)
         dados = resposta.json()
         self.assertEqual(
-            set(dados), {"label", "movement_label", "hand_detected", "model_ready", "movement_ready"}
+            set(dados), {"label", "movement_label", "hand_detected", "model_ready", "movement_ready",
+                         "movement_speed", "movement_limit"}
         )
         self.assertEqual(dados["label"], sessoes.ROTULO_SEM_MAO)
         self.assertFalse(dados["hand_detected"])
@@ -291,3 +292,78 @@ class LetraEmendadaNoMovimentoTests(AoVivoBase):
         troca = [a] * 25 + [[x + (y - x) * k / 8 for x, y in zip(a, b)] for k in range(1, 9)] + [b] * 25
         aceitos = [p for _, p in self.alimentar(self.detector(), troca) if p["reconhecido"]]
         self.assertEqual(aceitos, [])
+
+
+class TremorDeDedosEscondidosTests(AoVivoBase):
+    """M, N, Q: dedos escondidos tremem, mas a mão está parada."""
+
+    def tremendo(self, amplitude, quadros=90):
+        import random
+
+        aleatorio = random.Random(11)
+        base = self.gesto(20)[0]
+        saida = []
+        for _ in range(quadros):
+            mao = list(base)
+            for ponto in range(5, 21):  # dedos; pulso e palma firmes
+                mao[ponto * 3] += aleatorio.gauss(0, amplitude)
+                mao[ponto * 3 + 1] += aleatorio.gauss(0, amplitude)
+            saida.append(mao)
+        return saida
+
+    def test_tremor_dos_dedos_nao_vira_movimento(self):
+        from libras.movimento.segmentacao import Segmentador
+
+        segmentador = Segmentador()
+        viu_movimento = False
+        for indice, mao in enumerate(self.tremendo(0.003)):
+            segmentador.observar(indice * self.PASSO_MS, mao)
+            viu_movimento = viu_movimento or segmentador.em_movimento
+        self.assertFalse(viu_movimento)
+        self.assertLess(segmentador.velocidade, 4.0)
+
+    def test_movimento_de_verdade_continua_detectado(self):
+        from libras.movimento.segmentacao import Segmentador
+
+        gesto = self.gesto(40)
+        segmentador = Segmentador()
+        segmentos = []
+        for indice, mao in enumerate([gesto[0]] * 15 + gesto + [gesto[-1]] * 20):
+            fim = segmentador.observar(indice * self.PASSO_MS, mao)
+            if fim:
+                segmentos.append(fim)
+        self.assertEqual(len(segmentos), 1)
+
+
+class AnalisandoSoDepoisDeUmTempoTests(AoVivoBase):
+    def setUp(self):
+        super().setUp()
+        sessoes.limpar()
+        self.addCleanup(sessoes.limpar)
+
+    def test_letra_parada_continua_nos_primeiros_instantes(self):
+        self.treinar_gesto()
+        gesto = self.gesto(40)
+        sessao = sessoes.SessaoAoVivo()
+        alfabeto = AlfabetoFalso("M")
+        quadros = [
+            {"timestamp_ms": i * self.PASSO_MS, "landmarks": v, "mao": "Right"}
+            for i, v in enumerate([gesto[0]] * 15 + gesto)
+        ]
+        rotulos = []
+        for quadro in quadros:
+            rotulos.append((quadro["timestamp_ms"], sessao.processar([quadro], alfabeto)["label"]))
+        inicio = next(t for t, r in rotulos if r == sessoes.ROTULO_ANALISANDO)
+        primeiro_movimento = sessao.detector.inicio_movimento_ms or 0
+        # Começou a se mover, mas a letra só sai depois do tempo mínimo.
+        movendo = [r for t, r in rotulos if t >= 15 * self.PASSO_MS]
+        self.assertEqual(movendo[0], "M")
+        self.assertGreaterEqual(inicio - 15 * self.PASSO_MS, sessoes.MOSTRAR_ANALISANDO_APOS_MS - 2 * self.PASSO_MS)
+        self.assertIsNotNone(primeiro_movimento)
+
+    def test_resposta_traz_a_velocidade_para_o_diagnostico(self):
+        estado = sessoes.SessaoAoVivo().processar(
+            [{"timestamp_ms": 0, "landmarks": None, "mao": None}], AlfabetoFalso()
+        )
+        self.assertEqual(estado["movement_speed"], 0.0)
+        self.assertEqual(estado["movement_limit"], 6.0)

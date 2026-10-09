@@ -13,10 +13,14 @@ import threading
 import time
 from collections import OrderedDict
 
+from . import segmentacao
 from .ao_vivo import DetectorMovimento
 
 # Por quanto tempo (no relógio do navegador) um movimento reconhecido fica na tela.
 EXIBICAO_MOVIMENTO_MS = 2500
+# "Analisando movimento…" só depois de o movimento durar isto: um tremor
+# rápido (dedos escondidos no M, N, Q) não troca a letra pela mensagem.
+MOSTRAR_ANALISANDO_APOS_MS = 300
 ROTULO_ANALISANDO = "Analisando movimento…"
 ROTULO_SEM_MAO = "Aguardando mão"
 # Sessões paradas somem da memória; e há um teto de sessões simultâneas.
@@ -52,7 +56,7 @@ class SessaoAoVivo:
             mao = ultimo["landmarks"] is not None
             if self.movimento_label:
                 rotulo = self.movimento_label
-            elif self.detector.em_movimento and self.detector.pronto:
+            elif self._analisando():
                 rotulo = ROTULO_ANALISANDO
             elif mao:
                 rotulo = classificador_alfabeto.classificar(ultimo["landmarks"])
@@ -64,7 +68,19 @@ class SessaoAoVivo:
                 "hand_detected": mao,
                 "model_ready": classificador_alfabeto.pronto,
                 "movement_ready": self.detector.pronto,
+                # Modo diagnóstico (?diagnostico=1): velocidade × limite.
+                "movement_speed": round(self.detector.velocidade, 2),
+                "movement_limit": segmentacao.VELOCIDADE_INICIO,
             }
+
+    def _analisando(self):
+        inicio = self.detector.inicio_movimento_ms
+        return (
+            self.detector.em_movimento
+            and self.detector.pronto
+            and inicio is not None
+            and self.ultimo_t - inicio >= MOSTRAR_ANALISANDO_APOS_MS
+        )
 
 
 _sessoes: "OrderedDict[str, SessaoAoVivo]" = OrderedDict()

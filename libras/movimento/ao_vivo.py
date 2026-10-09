@@ -60,6 +60,16 @@ class DetectorMovimento:
         """Há um movimento em andamento (a mão está se movendo agora)."""
         return self._segmentador.em_movimento
 
+    @property
+    def inicio_movimento_ms(self):
+        """Quando o movimento em andamento começou (None se parado)."""
+        return self._segmentador.inicio_ms
+
+    @property
+    def velocidade(self):
+        """Velocidade medida no último quadro (modo diagnóstico do site)."""
+        return self._segmentador.velocidade
+
     def observar(self, timestamp_ms, landmarks=None, mao=None):
         """Registra um frame; devolve a previsão quando um movimento termina.
 

@@ -39,11 +39,54 @@
         <ul class="messages">{% for message in messages %}<li class="{{ message.tags }}">{{ message }}</li>{% endfor %}</ul>
         {% endif %}
 
+        <section class="treino-letra" aria-labelledby="titulo-treino">
+            <div>
+                <h2 id="titulo-treino">O que o reconhecimento sabe da letra {{ letra }}</h2>
+                {% if not treino.existe %}
+                <p>O alfabeto ainda não foi treinado.</p>
+                {% elif treino.fora %}
+                <p><strong>A letra {{ letra }} está fora do reconhecimento</strong> (tirada no último treino). As
+                    {{ amostras|length }} amostras dela continuam guardadas e voltam no próximo "Treinar alfabeto".</p>
+                {% elif not treino.reconhece %}
+                <p>O modelo atual <strong>não reconhece a letra {{ letra }}</strong>. Treine o alfabeto para ela entrar.</p>
+                {% elif treino.com_registro %}
+                <p>Treinado em {{ treino.treinado_em|date:"d/m/Y \à\s H:i" }} com
+                    <strong>{{ treino.aprendidas }} amostra{{ treino.aprendidas|pluralize }}</strong> desta letra{% if treino.excluidas %}
+                    — <strong class="treino-alerta">{{ treino.excluidas }} já {{ treino.excluidas|pluralize:"foi,foram" }}
+                        excluída{{ treino.excluidas|pluralize }}</strong>, mas o reconhecimento ainda lembra
+                    dela{{ treino.excluidas|pluralize }} até treinar de novo{% endif %}.
+                    {% if treino.novas %}{{ treino.novas }} amostra{{ treino.novas|pluralize }}
+                    nova{{ treino.novas|pluralize }} ainda não {{ treino.novas|pluralize:"foi,foram" }}
+                    treinada{{ treino.novas|pluralize }}.{% endif %}</p>
+                {% else %}
+                <p>O modelo atual reconhece a letra {{ letra }}, mas é de antes do registro de amostras treinadas:
+                    <strong>treine de novo</strong> para ver quais amostras ele aprendeu e para ele esquecer as que
+                    você excluiu.</p>
+                {% endif %}
+            </div>
+            <div class="treino-letra-acoes">
+                {% url 'treinar_alfabeto' as url_treino_alfabeto %}
+                {% include "libras/_botao_treinar.html" with url_treino=url_treino_alfabeto texto="Treinar de novo" voltar=request.path %}
+                {% if treino.reconhece %}
+                <form method="post" action="{% url 'alfabeto_letra_tirar' letra %}" id="form-tirar" data-tirar="{{ letra }}">
+                    {% csrf_token %}
+                    <button type="submit" class="botao-tirar">Tirar a letra {{ letra }} do reconhecimento</button>
+                </form>
+                {% endif %}
+            </div>
+        </section>
+
         {% if amostras %}
         <div class="selecao-barra" data-selecao="form-apagar" data-rotulo="da letra {{ letra }}">
             <label class="selecao-todas">
                 <input type="checkbox" id="selecionar-todas"> Selecionar todas
             </label>
+            {% if treino.com_registro and treino.reconhece %}
+            <span class="selecao-atalhos">
+                <button type="button" class="selecao-atalho" data-marcar="treinada">Só as treinadas ({{ treino.treinadas }})</button>
+                <button type="button" class="selecao-atalho" data-marcar="nova">Só as novas ({{ treino.novas }})</button>
+            </span>
+            {% endif %}
             <span class="selecao-contador" id="total-selecionadas" aria-live="polite">nenhuma selecionada</span>
             <form method="post" action="{% url 'alfabeto_amostras_apagar' letra %}" id="form-apagar">
                 {% csrf_token %}
@@ -54,7 +97,7 @@
 
         <ul class="amostras-grade">
             {% for amostra in amostras %}
-            <li class="amostra-cartao">
+            <li class="amostra-cartao{% if amostra.treinada is False %} is-nova{% endif %}">
                 <label class="amostra-selecao">
                     {% localize off %}{# SVG usa ponto decimal, não a vírgula do pt-BR #}
                     <svg class="amostra-mao" viewBox="0 0 100 100" aria-hidden="true">
@@ -63,8 +106,12 @@
                     </svg>
                     {% endlocalize %}
                     <span class="amostra-numero"><input type="checkbox" form="form-apagar" name="amostra"
-                            value="{{ amostra.id }}" aria-label="Selecionar a amostra {{ amostra.numero }}">
+                            value="{{ amostra.id }}" aria-label="Selecionar a amostra {{ amostra.numero }}"
+                            {% if amostra.treinada is not None %}data-grupo="{% if amostra.treinada %}treinada{% else %}nova{% endif %}"{% endif %}>
                         #{{ amostra.numero }}</span>
+                    {% if treino.reconhece and amostra.treinada is not None %}
+                    <span class="amostra-etiqueta {% if amostra.treinada %}treinada{% else %}nova{% endif %}">{% if amostra.treinada %}treinada{% else %}nova{% endif %}</span>
+                    {% endif %}
                 </label>
                 <form method="post" action="{% url 'alfabeto_amostras_apagar' letra %}" data-excluir-uma="#{{ amostra.numero }}">
                     {% csrf_token %}

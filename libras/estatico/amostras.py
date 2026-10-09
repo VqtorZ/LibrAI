@@ -115,7 +115,7 @@ def id_da_linha(linha):
     return hashlib.sha1(linha.rstrip(FIM_DE_LINHA).encode("utf-8")).hexdigest()[:12]
 
 
-class _Ids:
+class Ids:
     """Dá ids às linhas na ordem do arquivo: ``<conteúdo>-<n>``.
 
     Duas amostras idênticas (Espaço apertado duas vezes na mesma imagem da
@@ -140,7 +140,7 @@ def listar(letra, caminho=None):
     letra = validar_letra(letra)
     caminho = _arquivo(caminho)
     amostras = []
-    ids = _Ids()
+    ids = Ids()
     try:
         with caminho.open(encoding="utf-8") as arquivo:
             next(arquivo, None)  # cabeçalho
@@ -180,7 +180,7 @@ def apagar(letra, ids, caminho=None):
             return 0
         mantidas = [linhas[0]]
         apagadas = 0
-        ids = _Ids()
+        ids = Ids()
         for linha in linhas[1:]:
             if linha.split(",", 1)[0].strip() == letra and ids(linha) in alvo:
                 apagadas += 1

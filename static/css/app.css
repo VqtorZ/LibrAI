@@ -2354,3 +2354,94 @@ a.conta-ola.is-active {
 .tabela-amostras tbody tr:has(.col-selecao input:checked) {
     background: rgba(217, 90, 71, .06);
 }
+
+/* Página da letra: o que o modelo atual sabe dela. */
+.treino-letra {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px 24px;
+    margin: 20px 0 0;
+    padding: 18px 22px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+}
+
+.treino-letra > div:first-child {
+    flex: 1 1 420px;
+}
+
+.treino-letra h2 {
+    margin: 0 0 6px;
+    font-size: 1.05rem;
+}
+
+.treino-letra p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+}
+
+.treino-alerta {
+    color: #B4442F;
+}
+
+.treino-letra-acoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.botao-tirar {
+    padding: 11px 18px;
+    border: 1px solid rgba(217, 90, 71, .45);
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: #B4442F;
+    font: 800 14px var(--font-body);
+    cursor: pointer;
+}
+
+.botao-tirar:hover {
+    background: rgba(217, 90, 71, .08);
+}
+
+.selecao-atalhos {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.selecao-atalho {
+    padding: 6px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    color: var(--color-link);
+    font: 800 12px var(--font-body);
+    cursor: pointer;
+}
+
+.selecao-atalho:hover {
+    border-color: var(--color-primary);
+    background: var(--color-primary-soft);
+}
+
+.amostra-etiqueta {
+    justify-self: center;
+    padding: 2px 9px;
+    border-radius: var(--radius-full);
+    font: 700 11px var(--font-mono);
+}
+
+.amostra-etiqueta.treinada {
+    background: var(--color-primary-soft);
+    color: var(--color-link);
+}
+
+.amostra-etiqueta.nova {
+    background: rgba(47, 158, 110, .14);
+    color: #1F7A52;
+}

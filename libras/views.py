@@ -439,6 +439,7 @@ def alfabeto_letra(request, letra):
     except amostras_alfabeto.AmostraEstaticaInvalida:
         raise Http404("Letra inválida.")
     amostras = amostras_alfabeto.listar(letra)
+    treino = _treino_da_letra(letra, amostras)
     for amostra in amostras:
         amostra["desenho"] = desenho_da_mao(amostra.pop("valores"))
     contagem = amostras_alfabeto.contar()
@@ -446,8 +447,60 @@ def alfabeto_letra(request, letra):
     return render(
         request,
         "libras/alfabeto_letra.html",
-        {"letra": letra, "amostras": amostras, "letras": letras},
+        {"letra": letra, "amostras": amostras, "letras": letras, "treino": treino},
     )
+
+
+def _treino_da_letra(letra, amostras):
+    """O que o modelo atual sabe da letra; marca cada amostra como treinada ou nova.
+
+    ``amostra["treinada"]`` fica True/False — ou None quando o modelo é de
+    antes do registro das amostras treinadas (aí só dá para saber se ele
+    reconhece a letra).
+    """
+    classificador_alfabeto.conferir(agora_mesmo=True)
+    registro = classificador_alfabeto.amostras_treinadas
+    ids_no_modelo = set(registro.get(letra, [])) if registro is not None else None
+    for amostra in amostras:
+        amostra["treinada"] = None if ids_no_modelo is None else amostra["id"] in ids_no_modelo
+    ids_atuais = {amostra["id"] for amostra in amostras}
+    treinado_em = classificador_alfabeto.treinado_em
+    return {
+        "existe": classificador_alfabeto.modelo is not None,
+        "reconhece": letra in classificador_alfabeto.letras,
+        "fora": letra in classificador_alfabeto.letras_fora,
+        "treinado_em": datetime.fromisoformat(treinado_em) if treinado_em else None,
+        "com_registro": ids_no_modelo is not None,
+        "aprendidas": len(ids_no_modelo) if ids_no_modelo is not None else None,
+        "excluidas": len(ids_no_modelo - ids_atuais) if ids_no_modelo is not None else None,
+        "treinadas": sum(1 for a in amostras if a["treinada"]),
+        "novas": sum(1 for a in amostras if a["treinada"] is False),
+    }
+
+
+@apenas_admin
+@require_POST
+def alfabeto_letra_tirar(request, letra):
+    """Refaz o modelo do alfabeto SEM a letra: ela some do reconhecimento.
+
+    As amostras continuam guardadas; a letra volta no próximo "Treinar
+    alfabeto" normal.
+    """
+    try:
+        letra = amostras_alfabeto.validar_letra(letra)
+    except amostras_alfabeto.AmostraEstaticaInvalida:
+        raise Http404("Letra inválida.")
+    try:
+        treinar_modelo_alfabeto(sem_letras=[letra])
+    except ErroTreino as exc:
+        messages.error(request, f"Não foi possível tirar a letra {letra}: {exc}")
+    else:
+        messages.success(
+            request,
+            f"A letra {letra} saiu do reconhecimento. As amostras dela continuam guardadas; "
+            "ela volta quando alguém clicar em Treinar alfabeto.",
+        )
+    return redirect("alfabeto_letra", letra=letra)
 
 
 @apenas_admin

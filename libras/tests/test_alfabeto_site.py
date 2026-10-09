@@ -378,3 +378,137 @@ class PaginaDaLetraTests(PastaTemporaria, TestCase):
         gravar = self.client.get(reverse("alfabeto_gravar") + "?letra=B")
         self.assertContains(gravar, 'id="ver-amostras"')
         self.assertContains(gravar, reverse("alfabeto_letra", args=["B"]))
+
+
+class ModeloTemporario(PastaTemporaria):
+    """Amostras E modelo do alfabeto numa pasta temporária (treinos de verdade)."""
+
+    def criar_pasta(self):
+        super().criar_pasta()
+        self.modelo = self.pasta / "alfabeto.joblib"
+        for alvo, valor in (
+            ("libras.estatico.treino.AMOSTRAS_ESTATICAS", self.csv),
+            ("libras.estatico.treino.MODELO_ALFABETO", self.modelo),
+            ("libras.caminhos.MODELO_ALFABETO", self.modelo),
+        ):
+            ajuste = patch(alvo, valor)
+            ajuste.start()
+            self.addCleanup(ajuste.stop)
+        from libras.estatico.classificador import alfabeto
+
+        self.classificador = alfabeto
+
+    def gravar(self, letra, quantas, inicio=0):
+        for k in range(quantas):
+            amostras.salvar(letra, mao(f"{letra}{inicio + k}"))
+
+
+class TreinoRegistraAmostrasTests(ModeloTemporario, SimpleTestCase):
+    def setUp(self):
+        self.criar_pasta()
+        self.gravar("A", 6)
+        self.gravar("B", 6)
+        self.gravar("O", 6)
+
+    def test_modelo_guarda_os_ids_e_aprende_todas(self):
+        from libras.estatico.treino import treinar
+
+        treinar()
+        salvo = joblib.load(self.modelo)
+        self.assertEqual(salvo["amostras"]["O"], [a["id"] for a in amostras.listar("O")])
+        self.assertEqual(salvo["letras_fora"], [])
+        # O modelo final aprende todas as amostras (não só os 80% do treino).
+        self.assertEqual(salvo["modelo"].n_features_in_, 73)
+        self.assertEqual(sum(len(v) for v in salvo["amostras"].values()), 18)
+
+    def test_treinar_sem_uma_letra(self):
+        from libras.estatico.treino import treinar
+
+        treinar(sem_letras=["o"])
+        salvo = joblib.load(self.modelo)
+        self.assertEqual(sorted(salvo["modelo"].classes_), ["A", "B"])
+        self.assertNotIn("O", salvo["amostras"])
+        self.assertEqual(salvo["letras_fora"], ["O"])
+        self.assertEqual(amostras.contar()["O"], 6)  # amostras intactas
+
+    def test_classificador_le_o_registro(self):
+        from libras.estatico.treino import treinar
+
+        treinar()
+        self.classificador.conferir(agora_mesmo=True)
+        self.assertEqual(set(self.classificador.amostras_treinadas), {"A", "B", "O"})
+        self.assertIsNotNone(self.classificador.treinado_em)
+        # Modelo de antes do registro: sem a chave "amostras".
+        salvo = joblib.load(self.modelo)
+        del salvo["amostras"]
+        salvar_modelo_atomico(salvo, self.modelo)
+        futuro = time.time() + 30
+        os.utime(self.modelo, (futuro, futuro))
+        self.classificador.conferir(agora_mesmo=True)
+        self.assertIsNone(self.classificador.amostras_treinadas)
+
+
+class PaginaDaLetraTreinoTests(ModeloTemporario, TestCase):
+    def setUp(self):
+        entrar_como_admin(self)
+        self.criar_pasta()
+        self.gravar("A", 6)
+        self.gravar("B", 6)
+        self.gravar("O", 6)
+        self.client.post(reverse("treinar_alfabeto"))
+
+    def pagina(self, letra="O"):
+        return self.client.get(reverse("alfabeto_letra", args=[letra]))
+
+    def test_amostras_aparecem_como_treinadas_e_novas(self):
+        self.gravar("O", 2, inicio=100)
+        resposta = self.pagina()
+        self.assertEqual(resposta.context["treino"]["treinadas"], 6)
+        self.assertEqual(resposta.context["treino"]["novas"], 2)
+        self.assertContains(resposta, 'class="amostra-etiqueta treinada"', count=6)
+        self.assertContains(resposta, 'class="amostra-etiqueta nova"', count=2)
+        self.assertContains(resposta, "Só as treinadas (6)")
+        self.assertContains(resposta, 'data-grupo="nova"', count=2)
+
+    def test_excluidas_continuam_no_modelo_ate_treinar(self):
+        ids = [a["id"] for a in amostras.listar("O")]
+        self.client.post(reverse("alfabeto_amostras_apagar", args=["O"]), {"amostra": ids[:4]})
+        resposta = self.pagina()
+        self.assertEqual(resposta.context["treino"]["excluidas"], 4)
+        self.assertContains(resposta, "4 já foram")
+        self.client.post(reverse("treinar_alfabeto"))
+        resposta = self.pagina()
+        self.assertEqual(resposta.context["treino"]["excluidas"], 0)
+        self.assertEqual(resposta.context["treino"]["aprendidas"], 2)
+
+    def test_tirar_a_letra_do_reconhecimento(self):
+        resposta = self.client.post(reverse("alfabeto_letra_tirar", args=["O"]), follow=True)
+        self.assertContains(resposta, "A letra O saiu do reconhecimento")
+        self.assertNotIn("O", self.classificador.letras)
+        self.assertTrue(resposta.context["treino"]["fora"])
+        self.assertContains(resposta, "está fora do reconhecimento")
+        self.assertNotContains(resposta, 'id="form-tirar"')
+        self.assertEqual(amostras.contar()["O"], 6)
+        # O próximo treino normal traz a letra de volta.
+        self.client.post(reverse("treinar_alfabeto"))
+        self.classificador.conferir(agora_mesmo=True)  # (o ao vivo confere a cada 2 s)
+        self.assertIn("O", self.classificador.letras)
+
+    def test_tirar_sem_letras_suficientes(self):
+        amostras.apagar("B", [a["id"] for a in amostras.listar("B")])
+        resposta = self.client.post(reverse("alfabeto_letra_tirar", args=["O"]), follow=True)
+        self.assertContains(resposta, "Não foi possível tirar a letra O")
+        self.assertIn("O", self.classificador.letras)
+
+    def test_letra_sem_amostras_mas_ainda_no_modelo(self):
+        amostras.apagar("O", [a["id"] for a in amostras.listar("O")])
+        resposta = self.pagina()
+        self.assertContains(resposta, 'id="form-tirar"')
+        self.assertContains(resposta, "6 já foram")
+
+    def test_tirar_so_admin_e_so_post(self):
+        url = reverse("alfabeto_letra_tirar", args=["O"])
+        self.assertEqual(self.client.get(url).status_code, 405)
+        self.client.logout()
+        self.assertEqual(self.client.post(url).status_code, 302)
+        self.assertIn("O", self.classificador.letras)

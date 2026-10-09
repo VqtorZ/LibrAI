@@ -33,6 +33,11 @@ class ClassificadorAlfabeto:
         self.modelo = None
         self._letras = []
         self.erro = None
+        # Do último treino: ids das amostras aprendidas por letra (None se o
+        # modelo é anterior a esse registro), quando e letras deixadas de fora.
+        self.amostras_treinadas = None
+        self.treinado_em = None
+        self.letras_fora = []
         self._mtime = None
         self._conferido_em = None
 
@@ -41,6 +46,7 @@ class ClassificadorAlfabeto:
 
     def _carregar(self):
         self.modelo, self._letras, self.erro = None, [], None
+        self.amostras_treinadas, self.treinado_em, self.letras_fora = None, None, []
         arquivo = self._arquivo()
         try:
             self._mtime = arquivo.stat().st_mtime
@@ -61,12 +67,20 @@ class ClassificadorAlfabeto:
             modelo.n_jobs = 1
         self.modelo = modelo
         self._letras = [str(c) for c in modelo.classes_]
+        self.amostras_treinadas = dados.get("amostras")
+        self.treinado_em = dados.get("treinado_em")
+        self.letras_fora = list(dados.get("letras_fora", []))
 
-    def conferir(self):
-        """Recarrega o modelo se o arquivo mudou (no máximo a cada 2 s)."""
+    def conferir(self, agora_mesmo=False):
+        """Recarrega o modelo se o arquivo mudou (no máximo a cada 2 s).
+
+        ``agora_mesmo`` ignora o intervalo (páginas que mostram o treino
+        logo depois de treinar).
+        """
         agora = time.monotonic()
         with self._lock:
-            if self._conferido_em is not None and agora - self._conferido_em < INTERVALO_CONFERIR_S:
+            if (not agora_mesmo and self._conferido_em is not None
+                    and agora - self._conferido_em < INTERVALO_CONFERIR_S):
                 return
             self._conferido_em = agora
             arquivo = self._arquivo()

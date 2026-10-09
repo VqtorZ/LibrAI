@@ -388,6 +388,22 @@ DTW experimental → teste de rejeição não-J.
    amostras" na gravação. 291 testes.
    **Mudanças de código só entram no ar quando o site é religado** (o link
    muda).
+39. 2026-10-08, "excluí o O antigo e o reconhecimento ainda lê O": excluir
+   amostras não muda o modelo; é preciso treinar de novo. Mudanças:
+   - **o treino registra no modelo os ids das amostras** (`amostras` por
+     letra) e `letras_fora`;
+   - o modelo final passa a aprender **todas** as amostras: a separação
+     80/20 serve só para o relatório (antes, 20% nunca eram aprendidas);
+   - a página da letra tem o painel "O que o reconhecimento sabe da letra"
+     (quantas aprendeu, quantas já foram excluídas, quantas são novas);
+   - etiquetas "treinada"/"nova" em cada amostra e atalhos "Só as
+     treinadas"/"Só as novas";
+   - "Tirar a letra X do reconhecimento" (`alfabeto_letra_tirar`, treina com
+     `sem_letras`; a letra volta no próximo treino normal);
+   - `ClassificadorAlfabeto.conferir(agora_mesmo=True)`.
+
+   O modelo real em uso (treinado 2026-10-08 20:55) é de antes do registro:
+   as etiquetas aparecem depois do próximo treino. 300 testes.
 
 ---
 

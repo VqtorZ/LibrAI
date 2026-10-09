@@ -35,6 +35,11 @@ urlpatterns = [
         views.alfabeto_amostras_apagar,
         name="alfabeto_amostras_apagar",
     ),
+    re_path(
+        r"^gestos/alfabeto/(?P<letra>[A-Za-z])/tirar-do-reconhecimento/$",
+        views.alfabeto_letra_tirar,
+        name="alfabeto_letra_tirar",
+    ),
     path(
         "gestos/alfabeto/desfazer/",
         views.alfabeto_amostra_desfazer,

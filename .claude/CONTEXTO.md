@@ -530,6 +530,9 @@ DTW experimental → teste de rejeição não-J.
    324 testes. Os cartões de proposta 3 e 4 e o "Medir o modelo" foram
    movidos para Feito no Trello. **Usar o modo teste ao vivo (com a mão)
    para medir o M, N e Q antes e depois das próximas mudanças.**
+46. 2026-10-09: **validado pelo usuário ao vivo: "está PERFEITO, funcionando
+   sem erros as letras"** (depois da votação de 200 ms, de "Analisando" só
+   com o pulso andando e do modo teste).
 
 ---
 
